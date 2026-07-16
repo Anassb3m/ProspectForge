@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ prospect.company_name }} — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <a href="/prospects" class="text-sm text-slate-500 hover:text-brand-600">← Prospects</a>
+    <h1 class="mt-1 text-2xl font-bold tracking-tight">{{ prospect.company_name }}</h1>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <span class="badge {% if prospect.priority_level == 'High' %}badge-red{% elif prospect.priority_level == 'Medium' %}badge-amber{% else %}badge-slate{% endif %}">
+        {{ prospect.priority_level }} · {{ prospect.urgency_score }}
+      </span>
+      <span class="badge badge-blue">{{ prospect.current_status }}</span>
+      <span class="badge badge-slate">{{ prospect.signal_type }}</span>
+      {% if prospect.opted_out %}<span class="badge badge-red">Opted out</span>{% endif %}
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <button type="button" onclick="openEnrichDetail()" class="btn-secondary">Discover contacts</button>
+    <a href="/prospects/{{ prospect.id }}/edit" class="btn-secondary">Edit</a>
+  </div>
+</div>
+
+<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/40 p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl" id="enrich-modal-body"></div>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <div class="space-y-4 lg:col-span-1">
+    <section class="card">
+      <h2 class="card-title">Company</h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Sector</dt><dd>{{ prospect.sector }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Size</dt><dd>{{ prospect.company_size }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Source</dt><dd>{{ prospect.source }}</dd></div>
+        {% if prospect.siren %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">SIREN</dt><dd class="font-mono text-xs">{{ prospect.siren }}</dd></div>
+        {% endif %}
+        {% if prospect.siret %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">SIRET</dt><dd class="font-mono text-xs">{{ prospect.siret }}</dd></div>
+        {% endif %}
+        {% if prospect.naf_code %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">NAF</dt><dd class="font-mono text-xs">{{ prospect.naf_code }}</dd></div>
+        {% endif %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Contact</dt>
+          <dd><span class="badge badge-slate">{{ prospect.contact_status }}</span></dd>
+        </div>
+        {% if prospect.website %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Website</dt>
+          <dd><a href="{{ prospect.website }}" class="text-brand-600 hover:underline" target="_blank" rel="noopener">{{ prospect.website }}</a></dd>
+        </div>
+        {% endif %}
+      </dl>
+    </section>
+
+    {% if prospect.award_history %}
+    <section class="card">
+      <h2 class="card-title">Award history</h2>
+      <ul class="space-y-2 text-sm">
+        {% for a in prospect.award_history[:5] %}
+        <li class="border-b border-slate-100 pb-2">
+          <p class="font-medium">{{ a.objet or 'Award' }}</p>
+          <p class="text-xs text-slate-500">
+            {{ a.date or '—' }}
+            {% if a.montant %} · {{ '%.0f'|format(a.montant) }} €{% endif %}
+            {% if a.cpv %} · CPV {{ a.cpv }}{% endif %}
+          </p>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <h2 class="card-title">Decision maker</h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Name</dt><dd>{{ prospect.decision_maker_name or '—' }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Title</dt><dd>{{ prospect.decision_maker_title or '—' }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Email</dt><dd>{{ prospect.email or '—' }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Phone</dt><dd>{{ prospect.phone or '—' }}</dd></div>
+        {% if prospect.linkedin_url %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">LinkedIn</dt>
+          <dd><a href="{{ prospect.linkedin_url }}" class="text-brand-600 hover:underline" target="_blank" rel="noopener">Profile</a></dd>
+        </div>
+        {% endif %}
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Compliance</h2>
+      <dl class="space-y-2 text-sm">
+        <div><dt class="text-slate-500">Data source</dt><dd class="mt-0.5">{{ prospect.data_source }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Informed at</dt>
+          <dd>{% if prospect.informed_at %}{{ prospect.informed_at.strftime('%Y-%m-%d %H:%M') }}{% else %}<span class="text-amber-600">Not set</span>{% endif %}</dd>
+        </div>
+        {% if prospect.opted_out_at %}
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">Opted out at</dt>
+          <dd>{{ prospect.opted_out_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </section>
+
+    {% if prospect.signal_details or prospect.notes %}
+    <section class="card">
+      <h2 class="card-title">Notes</h2>
+      {% if prospect.signal_details %}<p class="mb-2 text-sm"><span class="text-slate-500">Signal:</span> {{ prospect.signal_details }}</p>{% endif %}
+      {% if prospect.notes %}<p class="text-sm whitespace-pre-wrap">{{ prospect.notes }}</p>{% endif %}
+    </section>
+    {% endif %}
+  </div>
+
+  <div class="lg:col-span-2" id="event-section">
+    {% include "partials/event_timeline.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEnrichDetail() {
+  const modal = document.getElementById('enrich-modal');
+  const body = document.getElementById('enrich-modal-body');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  body.innerHTML = '<p class="p-6 text-sm text-slate-500">Loading…</p>';
+  fetch('/prospects/{{ prospect.id }}/enrich', { credentials: 'same-origin' })
+    .then(r => r.text())
+    .then(html => { body.innerHTML = html; });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+<tr id="prospect-row-{{ prospect.id }}" class="{% if prospect.opted_out %}opacity-50{% endif %}">
+  <td>
+    <a href="/prospects/{{ prospect.id }}" class="font-medium text-brand-700 hover:underline">{{ prospect.company_name }}</a>
+    <p class="text-xs text-slate-500">{{ prospect.sector }} · {{ prospect.company_size }}</p>
+  </td>
+  <td><span class="badge badge-slate">{{ prospect.signal_type }}</span></td>
+  <td>
+    <div class="flex items-center gap-2">
+      <div class="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100">
+        <div class="h-full rounded-full {% if prospect.urgency_score >= 75 %}bg-red-500{% elif prospect.urgency_score >= 45 %}bg-amber-400{% else %}bg-slate-300{% endif %}"
+             style="width: {{ prospect.urgency_score }}%"></div>
+      </div>
+      <span class="text-sm font-semibold tabular-nums">{{ prospect.urgency_score }}</span>
+    </div>
+  </td>
+  <td>
+    <span class="badge {% if prospect.priority_level == 'High' %}badge-red{% elif prospect.priority_level == 'Medium' %}badge-amber{% else %}badge-slate{% endif %}">
+      {{ prospect.priority_level }}
+    </span>
+  </td>
+  <td><span class="badge badge-blue">{{ prospect.current_status }}</span></td>
+  <td class="text-sm text-slate-600">
+    {{ prospect.decision_maker_name or '—' }}
+    {% if prospect.email %}<p class="text-xs text-slate-400">{{ prospect.email }}</p>{% endif %}
+  </td>
+  <td>
+    {% if not prospect.opted_out %}
+    <form
+      hx-post="/prospects/{{ prospect.id }}/quick-event"
+      hx-target="#prospect-row-{{ prospect.id }}"
+      hx-swap="outerHTML"
+      class="flex items-center gap-1"
+    >
+      <select name="event_type" class="input !py-1 !text-xs w-28">
+        <option value="Sent">Sent</option>
+        <option value="Replied">Replied</option>
+        <option value="MeetingBooked">Meeting</option>
+        <option value="Refused">Refused</option>
+        <option value="OptOut">Opt-out</option>
+      </select>
+      <input type="hidden" name="channel" value="Email" />
+      <button type="submit" class="btn-secondary !px-2 !py-1 text-xs">Log</button>
+    </form>
+    {% if error is defined and error %}
+    <p class="mt-1 text-xs text-red-600">{{ error }}</p>
+    {% endif %}
+    {% else %}
+    <span class="text-xs text-slate-400">Opted out</span>
+    {% endif %}
+  </td>
+</tr>

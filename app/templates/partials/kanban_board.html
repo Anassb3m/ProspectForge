@@ -1,0 +1,39 @@
+<div class="flex gap-4 overflow-x-auto pb-4">
+  {% for col_name, prospects in columns.items() %}
+  <div class="kanban-col" data-column="{{ col_name }}">
+    <div class="mb-3 flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-slate-700">{{ col_name }}</h3>
+      <span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">{{ prospects|length }}</span>
+    </div>
+    <div
+      class="kanban-drop min-h-[200px] space-y-2 rounded-lg bg-slate-100/80 p-2"
+      data-column="{{ col_name }}"
+      ondragover="event.preventDefault(); this.classList.add('ring-2','ring-brand-400')"
+      ondragleave="this.classList.remove('ring-2','ring-brand-400')"
+      ondrop="handleKanbanDrop(event, '{{ col_name }}')"
+    >
+      {% for p in prospects %}
+      <div
+        class="kanban-card cursor-grab rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200 active:cursor-grabbing"
+        draggable="true"
+        data-prospect-id="{{ p.id }}"
+        ondragstart="handleKanbanDrag(event)"
+      >
+        <a href="/prospects/{{ p.id }}" class="font-medium text-sm text-brand-700 hover:underline" onclick="event.stopPropagation()">
+          {{ p.company_name }}
+        </a>
+        <div class="mt-1 flex flex-wrap gap-1">
+          <span class="badge {% if p.priority_level == 'High' %}badge-red{% elif p.priority_level == 'Medium' %}badge-amber{% else %}badge-slate{% endif %} text-[10px]">
+            {{ p.priority_level }} {{ p.urgency_score }}
+          </span>
+          <span class="badge badge-slate text-[10px]">{{ p.signal_type }}</span>
+        </div>
+        {% if p.decision_maker_name %}
+        <p class="mt-1 text-xs text-slate-500">{{ p.decision_maker_name }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>

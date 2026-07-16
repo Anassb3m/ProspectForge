@@ -1,0 +1,31 @@
+<div class="card overflow-x-auto p-0">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Company</th>
+        <th>Signal</th>
+        <th>Score</th>
+        <th>Priority</th>
+        <th>Status</th>
+        <th>Contact</th>
+        <th>Quick action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for prospect in prospects %}
+        {% include "partials/prospect_row.html" %}
+      {% else %}
+      <tr>
+        <td colspan="7" class="py-10 text-center text-sm text-slate-500">
+          No prospects match these filters.
+          <a href="/prospects/new" class="text-brand-600 hover:underline">Add one</a>
+          or <a href="/import" class="text-brand-600 hover:underline">import CSV</a>.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if total > 50 %}
+<p class="mt-3 text-center text-xs text-slate-500">Showing page {{ page }} · {{ total }} total</p>
+{% endif %}

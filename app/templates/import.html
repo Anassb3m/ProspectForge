@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Import — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold tracking-tight">CSV import</h1>
+  <p class="text-sm text-slate-500">Bulk add prospects with per-row validation</p>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-2">
+  <section class="card">
+    <h2 class="card-title">Upload file</h2>
+    <form method="post" action="/import" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="label">CSV file</label>
+        <input type="file" name="file" accept=".csv,text/csv" required class="input" />
+      </div>
+      <button type="submit" class="btn-primary">Import</button>
+    </form>
+
+    {% if result %}
+    <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p class="text-sm font-medium">
+        Created: <span class="text-emerald-600">{{ result.created }}</span>
+        · Failed: <span class="{% if result.failed %}text-red-600{% else %}text-slate-600{% endif %}">{{ result.failed }}</span>
+      </p>
+      {% if result.errors %}
+      <ul class="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
+        {% for err in result.errors %}
+        <li class="rounded bg-red-50 px-2 py-1.5 text-red-800">
+          <span class="font-medium">Row {{ err.row }}:</span>
+          {{ err.errors | join('; ') }}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Expected columns</h2>
+    <p class="mb-3 text-sm text-slate-500">Header row required. Required fields marked *.</p>
+    <ul class="space-y-1 font-mono text-xs text-slate-700">
+      <li>company_name *</li>
+      <li>sector * — Construction | Manufacturing | Logistics | Engineering | Professional Services | Other</li>
+      <li>company_size * — 1-10 | 11-50 | 51-200 | 200+</li>
+      <li>signal_type * — BOAMP_WIN | MOROCCO_OPS | PAIN_POST | OTHER</li>
+      <li>source * — BOAMP | LinkedIn | Manual | Registry</li>
+      <li>data_source * — free text (GDPR trail)</li>
+      <li>signal_details, decision_maker_name, decision_maker_title</li>
+      <li>linkedin_url, email, phone, website, notes</li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

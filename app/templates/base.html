@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}ProspectForge{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef7ff',
+              100: '#d9ecff',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link rel="stylesheet" href="/static/css/app.css" />
+  {% block head %}{% endblock %}
+</head>
+<body class="h-full bg-slate-50 text-slate-900 antialiased">
+  {% if user is defined and user %}
+  <div class="min-h-full">
+    <nav class="bg-brand-900 text-white shadow">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-14 items-center justify-between">
+          <div class="flex items-center gap-8">
+            <a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
+              <span class="inline-flex h-7 w-7 items-center justify-center rounded bg-brand-500 text-sm font-bold">PF</span>
+              ProspectForge
+            </a>
+            <div class="hidden sm:flex items-center gap-1 text-sm">
+              <a href="/" class="nav-link {% if request.url.path == '/' %}nav-active{% endif %}">Dashboard</a>
+              <a href="/sourcing" class="nav-link {% if request.url.path.startswith('/sourcing') %}nav-active{% endif %}">Sourcing</a>
+              <a href="/prospects" class="nav-link {% if '/prospects' in request.url.path %}nav-active{% endif %}">Prospects</a>
+              <a href="/kanban" class="nav-link {% if request.url.path == '/kanban' %}nav-active{% endif %}">Pipeline</a>
+              <a href="/follow-ups" class="nav-link {% if request.url.path == '/follow-ups' %}nav-active{% endif %}">Follow-ups</a>
+              <a href="/import" class="nav-link {% if request.url.path == '/import' %}nav-active{% endif %}">Import</a>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 text-sm text-slate-300">
+            <span class="hidden md:inline">{{ user.email }}</span>
+            <form action="/auth/logout" method="post">
+              <button type="submit" class="rounded px-2 py-1 hover:bg-white/10 hover:text-white">Logout</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% else %}
+    {% block guest %}{% endblock %}
+  {% endif %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

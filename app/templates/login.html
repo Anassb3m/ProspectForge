@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Login — ProspectForge{% endblock %}
+{% block guest %}
+<div class="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
+  <div class="sm:mx-auto sm:w-full sm:max-w-md">
+    <div class="flex justify-center">
+      <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-white shadow-lg">PF</span>
+    </div>
+    <h2 class="mt-4 text-center text-2xl font-bold tracking-tight text-slate-900">ProspectForge</h2>
+    <p class="mt-1 text-center text-sm text-slate-500">Client Acquisition OS</p>
+  </div>
+  <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+    <div class="bg-white px-6 py-8 shadow-sm ring-1 ring-slate-200 sm:rounded-xl sm:px-10">
+      {% if error %}
+      <div class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</div>
+      {% endif %}
+      <form action="/auth/login/form" method="post" class="space-y-5">
+        <div>
+          <label for="email" class="label">Email</label>
+          <input id="email" name="email" type="email" required value="{{ email or '' }}" class="input" autocomplete="username" />
+        </div>
+        <div>
+          <label for="password" class="label">Password</label>
+          <input id="password" name="password" type="password" required class="input" autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn-primary w-full">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

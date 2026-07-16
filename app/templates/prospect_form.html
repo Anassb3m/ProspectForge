@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{% if prospect %}Edit{% else %}New{% endif %} prospect — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <a href="{% if prospect %}/prospects/{{ prospect.id }}{% else %}/prospects{% endif %}" class="text-sm text-slate-500 hover:text-brand-600">← Back</a>
+  <h1 class="mt-1 text-2xl font-bold tracking-tight">{% if prospect %}Edit prospect{% else %}New prospect{% endif %}</h1>
+</div>
+
+{% if error is defined and error %}
+<div class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</div>
+{% endif %}
+
+<form
+  method="post"
+  action="{% if prospect %}/prospects/{{ prospect.id }}/edit{% else %}/prospects/new{% endif %}"
+  class="card max-w-3xl space-y-6"
+>
+  <fieldset class="grid gap-4 sm:grid-cols-2">
+    <legend class="card-title col-span-full">Company</legend>
+    <div class="sm:col-span-2">
+      <label class="label">Company name *</label>
+      <input name="company_name" required class="input" value="{{ prospect.company_name if prospect else '' }}" />
+    </div>
+    <div>
+      <label class="label">Sector *</label>
+      <select name="sector" required class="input">
+        {% for s in sectors %}
+        <option value="{{ s }}" {% if prospect and prospect.sector == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="label">Company size *</label>
+      <select name="company_size" required class="input">
+        {% for s in company_sizes %}
+        <option value="{{ s }}" {% if prospect and prospect.company_size == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="label">Signal type *</label>
+      <select name="signal_type" required class="input">
+        {% for s in signal_types %}
+        <option value="{{ s }}" {% if prospect and prospect.signal_type == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="label">Source *</label>
+      <select name="source" required class="input">
+        {% for s in sources %}
+        <option value="{{ s }}" {% if prospect and prospect.source == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label">Signal details</label>
+      <input name="signal_details" class="input" value="{{ prospect.signal_details if prospect and prospect.signal_details else '' }}"
+             placeholder="e.g. Won multiple BOAMP lots in Q1" />
+    </div>
+  </fieldset>
+
+  <fieldset class="grid gap-4 sm:grid-cols-2">
+    <legend class="card-title col-span-full">Decision maker</legend>
+    <div>
+      <label class="label">Name</label>
+      <input name="decision_maker_name" class="input" value="{{ prospect.decision_maker_name if prospect and prospect.decision_maker_name else '' }}" />
+    </div>
+    <div>
+      <label class="label">Title</label>
+      <input name="decision_maker_title" class="input" value="{{ prospect.decision_maker_title if prospect and prospect.decision_maker_title else '' }}"
+             placeholder="e.g. Fondateur, Directeur commercial" />
+    </div>
+    <div>
+      <label class="label">Email</label>
+      <input name="email" type="email" class="input" value="{{ prospect.email if prospect and prospect.email else '' }}" />
+    </div>
+    <div>
+      <label class="label">Phone</label>
+      <input name="phone" class="input" value="{{ prospect.phone if prospect and prospect.phone else '' }}" />
+    </div>
+    <div>
+      <label class="label">LinkedIn URL</label>
+      <input name="linkedin_url" class="input" value="{{ prospect.linkedin_url if prospect and prospect.linkedin_url else '' }}" />
+    </div>
+    <div>
+      <label class="label">Website</label>
+      <input name="website" class="input" value="{{ prospect.website if prospect and prospect.website else '' }}" />
+    </div>
+  </fieldset>
+
+  <fieldset class="grid gap-4 sm:grid-cols-2">
+    <legend class="card-title col-span-full">Compliance (required)</legend>
+    <div class="sm:col-span-2">
+      <label class="label">Data source *</label>
+      <input name="data_source" required class="input"
+             value="{{ prospect.data_source if prospect else '' }}"
+             placeholder="e.g. BOAMP public tender search, LinkedIn public profile" />
+      <p class="mt-1 text-xs text-slate-500">GDPR trail — required before logging a Sent event</p>
+    </div>
+    <div>
+      <label class="label">Informed at (first-contact disclosure)</label>
+      <input name="informed_at" type="datetime-local" class="input"
+             value="{% if prospect and prospect.informed_at %}{{ prospect.informed_at.strftime('%Y-%m-%dT%H:%M') }}{% endif %}" />
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label">Notes</label>
+      <textarea name="notes" rows="3" class="input">{{ prospect.notes if prospect and prospect.notes else '' }}</textarea>
+    </div>
+  </fieldset>
+
+  <div class="flex gap-3">
+    <button type="submit" class="btn-primary">{% if prospect %}Save changes{% else %}Create prospect{% endif %}</button>
+    <a href="{% if prospect %}/prospects/{{ prospect.id }}{% else %}/prospects{% endif %}" class="btn-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}

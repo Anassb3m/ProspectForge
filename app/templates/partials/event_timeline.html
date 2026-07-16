@@ -1,0 +1,79 @@
+<section class="card">
+  <h2 class="card-title">Outreach timeline</h2>
+  <p class="mb-4 text-xs text-slate-500">Append-only event log · current status = latest event</p>
+
+  {% if error is defined and error %}
+  <div class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</div>
+  {% endif %}
+
+  {% if not prospect.opted_out %}
+  <form
+    hx-post="/prospects/{{ prospect.id }}/events"
+    hx-target="#event-section"
+    hx-swap="innerHTML"
+    class="mb-6 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-4 sm:grid-cols-2"
+  >
+    <div>
+      <label class="label">Event type</label>
+      <select name="event_type" class="input" required>
+        {% for e in event_types %}
+          {% if e != 'New' %}
+          <option value="{{ e }}">{{ e }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="label">Channel</label>
+      <select name="channel" class="input" required>
+        {% for c in channels %}
+        <option value="{{ c }}">{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label">Notes</label>
+      <textarea name="notes" rows="2" class="input" placeholder="Outcome, objection, context…"></textarea>
+    </div>
+    <div>
+      <label class="label">Next action</label>
+      <input name="next_action" class="input" placeholder="e.g. Send proposal" />
+    </div>
+    <div>
+      <label class="label">Next action date</label>
+      <input name="next_action_date" type="datetime-local" class="input" />
+    </div>
+    <div class="sm:col-span-2">
+      <button type="submit" class="btn-primary">Log event</button>
+    </div>
+  </form>
+  {% endif %}
+
+  <ol class="relative space-y-0 border-l border-slate-200 ml-3">
+    {% for event in prospect.outreach_events|reverse %}
+    <li class="mb-6 ml-6">
+      <span class="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border border-white
+        {% if event.event_type in ['ClosedWon', 'MeetingBooked', 'Replied', 'PositiveConversation'] %}bg-emerald-500
+        {% elif event.event_type in ['ClosedLost', 'Refused', 'OptOut'] %}bg-red-500
+        {% elif event.event_type == 'Sent' %}bg-brand-500
+        {% else %}bg-slate-300{% endif %}"></span>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="badge badge-blue">{{ event.event_type }}</span>
+        <span class="text-xs text-slate-500">{{ event.channel }}</span>
+        <time class="text-xs text-slate-400">
+          {% if event.event_date %}{{ event.event_date.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+        </time>
+      </div>
+      {% if event.notes %}<p class="mt-1 text-sm text-slate-700">{{ event.notes }}</p>{% endif %}
+      {% if event.next_action %}
+      <p class="mt-1 text-xs text-slate-500">
+        Next: {{ event.next_action }}
+        {% if event.next_action_date %} · {{ event.next_action_date.strftime('%Y-%m-%d') }}{% endif %}
+      </p>
+      {% endif %}
+    </li>
+    {% else %}
+    <li class="ml-6 text-sm text-slate-500">No events yet.</li>
+    {% endfor %}
+  </ol>
+</section>

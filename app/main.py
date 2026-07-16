@@ -1,0 +1,154 @@
+"""ProspectForge FastAPI application entrypoint."""
+
+import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import select, text
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from app import __version__
+from app.auth import hash_password
+from app.config import get_settings
+from app.database import async_session_factory, engine, init_db
+from app.models import User
+from app.routers import auth, dashboard, events, prospects, sourcing
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
+settings = get_settings()
+templates = Jinja2Templates(directory="app/templates")
+
+
+async def bootstrap_admin() -> None:
+    """Create the admin user from env if the users table is empty."""
+    async with async_session_factory() as session:
+        result = await session.execute(select(User).limit(1))
+        if result.scalar_one_or_none() is not None:
+            return
+        admin = User(
+            email=settings.admin_email,
+            hashed_password=hash_password(settings.admin_password),
+        )
+        session.add(admin)
+        await session.commit()
+        logger.info("Bootstrap admin created: %s", settings.admin_email)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    weak_keys = {
+        "change-me",
+        "dev-secret-key-change-in-production-abc123xyz",
+        "CHANGE_ME_long_random_string",
+    }
+    if settings.is_production and (
+        settings.secret_key in weak_keys or len(settings.secret_key) < 32
+    ):
+        raise RuntimeError(
+            "Weak or short SECRET_KEY in production. "
+            "Set SECRET_KEY to a long random value (openssl rand -hex 32)."
+        )
+    await init_db()
+    await bootstrap_admin()
+
+    if settings.enable_scheduler:
+        from app.jobs.scheduler import start_scheduler, stop_scheduler
+
+        start_scheduler()
+        yield
+        stop_scheduler()
+    else:
+        yield
+
+
+_docs_url = None if settings.is_production and not settings.debug else "/docs"
+_redoc_url = None if settings.is_production and not settings.debug else "/redoc"
+
+app = FastAPI(
+    title=settings.app_name,
+    version=__version__,
+    description="Client Acquisition OS — prospect scoring, outreach tracking, pipeline",
+    lifespan=lifespan,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
+    openapi_url="/openapi.json" if _docs_url else None,
+)
+
+# Trust X-Forwarded-* from Caddy / reverse proxy
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+if settings.trusted_host_list != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
+
+static_dir = Path("app/static")
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+app.include_router(auth.router)
+app.include_router(prospects.router)
+app.include_router(events.router)
+app.include_router(dashboard.router)
+app.include_router(sourcing.router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": __version__, "env": settings.environment}
+
+
+@app.get("/ready")
+async def ready():
+    """Readiness: app process + database connectivity (for deploy checks)."""
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "ok"}
+    except Exception as exc:
+        logger.warning("Readiness check failed: %s", exc)
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "error", "detail": str(exc)},
+        )
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    from app.auth import COOKIE_NAME, decode_token, get_user_by_email
+
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        data = decode_token(token)
+        if data and data.email:
+            async with async_session_factory() as session:
+                user = await get_user_by_email(session, data.email)
+                if user:
+                    return RedirectResponse(url="/", status_code=303)
+
+    return templates.TemplateResponse(request, "login.html", {"error": None, "email": ""})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # Redirect unauthenticated browser navigations to login
+    if exc.status_code in (401, 303) and "text/html" in request.headers.get("accept", ""):
+        location = exc.headers.get("Location") if exc.headers else None
+        if location:
+            return RedirectResponse(url=location, status_code=303)
+        if exc.status_code == 401:
+            return RedirectResponse(url="/login", status_code=303)
+    if exc.status_code == 303 and exc.headers and "Location" in exc.headers:
+        return RedirectResponse(url=exc.headers["Location"], status_code=303)
+    return await http_exception_handler(request, exc)

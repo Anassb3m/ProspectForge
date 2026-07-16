@@ -1,0 +1,4 @@
+company_name,sector,company_size,signal_type,signal_details,decision_maker_name,decision_maker_title,email,data_source,source,notes
+Béton Atlas SAS,Construction,11-50,BOAMP_WIN,Won multiple lots,Marie Dupont,Fondateur,marie@beton-atlas.fr,BOAMP public tender search,BOAMP,High priority pilot
+Nord Export SARL,Logistics,51-200,MOROCCO_OPS,Warehouse in Tanger,Karim Benali,Directeur commercial,k.benali@nordexport.fr,LinkedIn public profile,LinkedIn,
+MechPro Engineering,Engineering,1-10,PAIN_POST,Posted about nearshoring pain,,, ,LinkedIn public post,LinkedIn,Manual signal capture

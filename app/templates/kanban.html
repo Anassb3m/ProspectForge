@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Pipeline — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold tracking-tight">Pipeline</h1>
+  <p class="text-sm text-slate-500">Drag cards between columns · updates the event log</p>
+</div>
+
+<div id="kanban-board">
+  {% include "partials/kanban_board.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/kanban.js"></script>
+{% endblock %}

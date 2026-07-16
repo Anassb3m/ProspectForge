@@ -1,0 +1,67 @@
+# ProspectForge edge proxy — listens on NON-STANDARD container ports
+# Host maps them via HTTP_PORT / HTTPS_PORT (default 18080 / 18443).
+#
+# TLS_MODE:
+#   internal  — Caddy self-signed cert (best for unusual ports, no Let's Encrypt)
+#   off       — plain HTTP only (use when another reverse proxy terminates TLS)
+#   acme      — Let's Encrypt (usually needs public port 80; not ideal on shared VPS)
+
+{
+	email {$ACME_EMAIL}
+	# Disable Caddy's default :80/:443 so we never fight other stacks
+	auto_https off
+	admin off
+}
+
+# ── Plain HTTP (always on) ───────────────────────────────────────────────────
+# Used for TLS_MODE=off, or as cleartext entry on a high port.
+:18080 {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	reverse_proxy app:8000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Port {http.request.port}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# ── HTTPS with self-signed / internal CA (TLS_MODE=internal) ─────────────────
+# Access: https://YOUR_IP:18443  or  https://domain:18443
+# Browser will warn once — expected for self-signed on custom ports.
+:18443 {
+	tls internal
+
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	reverse_proxy app:8000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

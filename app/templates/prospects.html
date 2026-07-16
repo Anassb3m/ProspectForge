@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Prospects — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight">Prospects</h1>
+    <p class="text-sm text-slate-500">{{ total }} total · sorted by urgency</p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <a href="/api/prospects/export/csv" class="btn-secondary">Export CSV</a>
+    <a href="/import" class="btn-secondary">Import</a>
+    <a href="/prospects/new" class="btn-primary">+ Add prospect</a>
+  </div>
+</div>
+
+<form
+  class="card mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6"
+  hx-get="/prospects"
+  hx-target="#prospect-table"
+  hx-trigger="change, keyup changed delay:400ms from:#search"
+  hx-push-url="true"
+>
+  <div>
+    <label class="label">Search</label>
+    <input id="search" name="search" value="{{ filters.search }}" class="input" placeholder="Company, name, email…" />
+  </div>
+  <div>
+    <label class="label">Sector</label>
+    <select name="sector" class="input">
+      <option value="">All</option>
+      {% for s in sectors %}
+      <option value="{{ s }}" {% if filters.sector == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label">Signal</label>
+    <select name="signal_type" class="input">
+      <option value="">All</option>
+      {% for s in signal_types %}
+      <option value="{{ s }}" {% if filters.signal_type == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label">Priority</label>
+    <select name="priority_level" class="input">
+      <option value="">All</option>
+      {% for p in priority_levels %}
+      <option value="{{ p }}" {% if filters.priority_level == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label">Status</label>
+    <select name="status" class="input">
+      <option value="">All</option>
+      {% for e in event_types %}
+      <option value="{{ e }}" {% if filters.status == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label">Sort</label>
+    <select name="sort_by" class="input">
+      <option value="urgency_score" {% if filters.sort_by == 'urgency_score' %}selected{% endif %}>Urgency</option>
+      <option value="company_name" {% if filters.sort_by == 'company_name' %}selected{% endif %}>Company</option>
+      <option value="created_at" {% if filters.sort_by == 'created_at' %}selected{% endif %}>Created</option>
+      <option value="priority_level" {% if filters.sort_by == 'priority_level' %}selected{% endif %}>Priority</option>
+    </select>
+  </div>
+</form>
+
+<div id="prospect-table">
+  {% include "partials/prospect_table.html" %}
+</div>
+{% endblock %}

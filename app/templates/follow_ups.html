@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Follow-ups — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold tracking-tight">Follow-up queue</h1>
+  <p class="text-sm text-slate-500">What to do right now — due today or overdue</p>
+</div>
+
+<div class="card overflow-x-auto p-0">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Company</th>
+        <th>Action</th>
+        <th>Due</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Contact</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>
+          <a href="/prospects/{{ item.prospect_id }}" class="font-medium text-brand-700 hover:underline">{{ item.company_name }}</a>
+        </td>
+        <td class="text-sm">{{ item.next_action or '—' }}</td>
+        <td>
+          <span class="badge {% if item.days_overdue > 0 %}badge-red{% else %}badge-amber{% endif %}">
+            {% if item.days_overdue > 0 %}{{ item.days_overdue }}d overdue{% else %}Today{% endif %}
+          </span>
+          {% if item.next_action_date %}
+          <p class="mt-0.5 text-xs text-slate-400">{{ item.next_action_date.strftime('%Y-%m-%d') }}</p>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-blue">{{ item.current_status }}</span></td>
+        <td>
+          <span class="badge {% if item.priority_level == 'High' %}badge-red{% elif item.priority_level == 'Medium' %}badge-amber{% else %}badge-slate{% endif %}">
+            {{ item.priority_level }} · {{ item.urgency_score }}
+          </span>
+        </td>
+        <td class="text-sm text-slate-600">{{ item.decision_maker_name or '—' }} · {{ item.channel or '' }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" class="py-10 text-center text-sm text-slate-500">
+          Nothing due. Set next_action_date when logging outreach events.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

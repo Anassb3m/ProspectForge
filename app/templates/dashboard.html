@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
+    <p class="text-sm text-slate-500">Pipeline health and sourcing performance</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="/sourcing" class="btn-primary">Sourcing queue</a>
+    <a href="/prospects/new" class="btn-secondary">+ Add prospect</a>
+    <a href="/follow-ups" class="btn-secondary">Follow-ups ({{ metrics.follow_ups_due_count }})</a>
+  </div>
+</div>
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="stat-card">
+    <p class="stat-label">Total prospects</p>
+    <p class="stat-value">{{ metrics.total_prospects }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Contacted this week</p>
+    <p class="stat-value">{{ metrics.contacted_this_week }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Reply rate</p>
+    <p class="stat-value">{{ metrics.reply_rate }}%</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Meeting rate</p>
+    <p class="stat-value">{{ metrics.meeting_rate }}%</p>
+  </div>
+</div>
+
+<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="stat-card">
+    <p class="stat-label">High priority open</p>
+    <p class="stat-value text-amber-600">{{ metrics.high_priority_count }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">New DECP this week</p>
+    <p class="stat-value text-brand-600">{{ metrics.new_decp_this_week }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Verified email rate</p>
+    <p class="stat-value">{{ metrics.verified_email_pct }}%</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Needs manual review</p>
+    <p class="stat-value">
+      <a href="/sourcing?contact_filter=needs_review" class="hover:underline">{{ metrics.needs_review_count }}</a>
+    </p>
+  </div>
+</div>
+
+<div class="mt-8 grid gap-6 lg:grid-cols-2">
+  <section class="card">
+    <h2 class="card-title">Reply rate by signal type</h2>
+    <p class="mb-3 text-xs text-slate-500">Which sourcing method to keep investing in</p>
+    {% if metrics.by_signal_type %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Signal</th>
+          <th class="text-right">Total</th>
+          <th class="text-right">Contacted</th>
+          <th class="text-right">Replied</th>
+          <th class="text-right">Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in metrics.by_signal_type %}
+        <tr>
+          <td><span class="badge badge-slate">{{ row.signal_type }}</span></td>
+          <td class="text-right">{{ row.total }}</td>
+          <td class="text-right">{{ row.contacted }}</td>
+          <td class="text-right">{{ row.replied }}</td>
+          <td class="text-right font-semibold">{{ row.reply_rate }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-slate-500">No data yet. Add prospects and log outreach.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Reply rate by channel</h2>
+    {% if metrics.by_channel %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th class="text-right">Sent</th>
+          <th class="text-right">Replied</th>
+          <th class="text-right">Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in metrics.by_channel %}
+        <tr>
+          <td>{{ row.channel }}</td>
+          <td class="text-right">{{ row.sent }}</td>
+          <td class="text-right">{{ row.replied }}</td>
+          <td class="text-right font-semibold">{{ row.reply_rate }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-slate-500">No outreach logged yet.</p>
+    {% endif %}
+  </section>
+</div>
+
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+  <section class="card">
+    <h2 class="card-title">Common objections</h2>
+    <p class="mb-3 text-xs text-slate-500">From Refused / ClosedLost notes</p>
+    {% if metrics.common_objections %}
+    <ul class="divide-y divide-slate-100">
+      {% for obj in metrics.common_objections %}
+      <li class="flex justify-between py-2 text-sm">
+        <span class="text-slate-700">{{ obj.note }}</span>
+        <span class="font-medium text-slate-500">×{{ obj.count }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-slate-500">No objections tagged yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="card-title mb-0">Due follow-ups</h2>
+      <a href="/follow-ups" class="text-sm text-brand-600 hover:underline">View all</a>
+    </div>
+    {% if follow_ups %}
+    <ul class="divide-y divide-slate-100">
+      {% for item in follow_ups %}
+      <li class="flex items-center justify-between py-2 text-sm">
+        <div>
+          <a href="/prospects/{{ item.prospect_id }}" class="font-medium text-brand-700 hover:underline">{{ item.company_name }}</a>
+          <p class="text-xs text-slate-500">{{ item.next_action or 'Follow up' }}</p>
+        </div>
+        <span class="badge {% if item.days_overdue > 0 %}badge-red{% else %}badge-amber{% endif %}">
+          {% if item.days_overdue > 0 %}{{ item.days_overdue }}d overdue{% else %}due today{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-slate-500">Nothing due. Nice work.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

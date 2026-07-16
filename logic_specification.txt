@@ -1,0 +1,166 @@
+rospectForge v2.1 — Free Open-Source Ingestion & Enrichment Pipeline
+Full logic: Discovery (DECP) → Validation (Sirene + Reacher + theHarvester) → Prioritization → Presentation in the tool
+This extends the original v2.0 spec with a production-grade, solo-buildable nightly sourcing engine. Everything stays free (with one important commercial-license caveat on Reacher), leverages real GitHub/open-data projects for efficiency, and is deliberately scoped to the last-mile human advantage (LinkedIn decision-maker confirmation). No paid APIs. No black-box scoring. Full auditability for GDPR/CNIL B2B prospecting.
+1. Architecture Principles (Clever & Efficient)
+
+Nightly batch, not real-time scraping: One Polars-powered job (~5-15 min on small VPS) downloads the pre-consolidated DECP Parquet (already cleaned/enhanced by ColinMaudry’s pipeline), filters aggressively for your Elevya-relevant signals, enriches, scores, and upserts.
+Company-level deduplication + history: One Prospect row per SIRET. New awards boost urgency and append to award_history (JSONB). No duplicate companies.
+Waterfall enrichment (free only): Sirene (official, free) → theHarvester (OSINT bonus) → smart permutation + Reacher SMTP verification. Gaps land in a clean “Needs manual review” queue.
+Compliance as first-class: Every prospect gets immutable data_source + informed_at gate before any Sent event can be logged. Partial-diffusion companies are filtered at source.
+Human last-mile preserved: Decision-maker name + LinkedIn verification stays manual (ToS + conversion quality). Tool only accelerates the mechanical parts.
+Observable & tunable: Every score component is logged. You can tweak weights after 50-100 real outreaches.
+
+2. Data Sources & GitHub Repos (All Free)
+
+DECP consolidated (primary discovery): https://www.data.gouv.fr/fr/datasets/donnees-essentielles-de-la-commande-publique-consolidees-format-tabulaire/ — Parquet + CSV, updated regularly.
+Powered by github.com/ColinMaudry/decp-processing (Prefect + Polars + ijson). We consume their published output (smart) instead of re-running their full pipeline.
+Sirene enrichment (sector, size, diffusion status, website): Official INSEE API v3 (api.insee.fr). Free public plan (API key). 30 req/min quota — more than enough for nightly filtered batch.
+Email verification (core free replacement for Hunter/Dropcontact): github.com/reacherhq/check-if-email-exists (Reacher). Self-hosted Rust binary + HTTP backend via Docker. Does real SMTP RCPT TO checks without sending mail. Rich response (is_reachable, smtp.is_deliverable, has_full_inbox, is_catch_all, syntax/MX details).
+Secondary OSINT sweep: github.com/laramies/theHarvester — optional, runs on company domain to surface public emails/naming conventions (useful for SMEs with GitHub/certs/web footprint; limited on pure offline construction firms).
+Email candidate generator: Custom ~30-line Python (standard French patterns). No external dep.
+
+Honest Reacher caveat (commercial use): Dual-licensed (AGPL-3.0 vs commercial). For a tool powering a paying business (Elevya pilots), the commercial license is technically required if you keep ProspectForge proprietary. Self-hosting works perfectly; budget for the license if you go to volume or want to stay fully closed-source. Alternative path later: paid waterfall fallback.
+3. Full Pipeline Logic (Nightly Job)
+File: app/jobs/ingestion.py (runs via APScheduler or python -m app.jobs.ingestion in Docker).
+Step 0: Setup / One-time
+
+Create INSEE account → subscribe to Sirene (Public plan) → copy X-INSEE-Api-Key-Integration (or whatever the current header is) into .env.
+docker pull reacherhq/backend:latest (or build from source). Add to docker-compose.yml as sidecar (expose 8080). Critical: Your VPS must allow outbound port 25 (or configure Reacher proxy). Many providers block it by default — request unblock or use a cheap EU VPS that permits it (OVH, Hetzner, Scaleway recommended for GDPR + France latency).
+Optional: pip install the-harvester or call via subprocess with config.
+
+Step 1: Download & Filter DECP (Discovery)
+Use polars (add to pyproject.toml — it’s excellent and already used in the reference repo).
+Pythonimport polars as pl
+from datetime import datetime, timedelta
+import httpx
+
+def download_latest_decp() -> pl.DataFrame:
+    # Find latest resource URL via data.gouv.fr API or hardcode recent pattern
+    # For robustness: query dataset resources or use a stable "latest" redirect if available
+    url = "https://static.data.gouv.fr/.../latest/decp.parquet"  # or discover dynamically
+    return pl.read_parquet(url)  # or scan_parquet for lazy if huge
+
+def filter_relevant(df: pl.DataFrame, days_back: int = 90) -> pl.DataFrame:
+    cutoff = datetime.utcnow() - timedelta(days=days_back)
+    # Target for Elevya: IT/cyber/digital transformation tenders French SMEs can win and may need external capacity
+    it_cpv_prefixes = ["72", "48", "62"]  # adjust with real CPV analysis
+    keywords = ["cybersécurité", "sécurité informatique", "développement logiciel", 
+                "système d'information", "transformation numérique", "cloud", "data"]
+    
+    return (df
+        .filter(pl.col("dateAttribution") >= cutoff)
+        .filter(
+            (pl.col("codeCPV").str.starts_with(it_cpv_prefixes)) |
+            pl.col("objetMarche").str.to_lowercase().str.contains("|".join(keywords))
+        )
+        # Optional: montant > X or multiple winners logic
+        .with_columns([
+            pl.col("titulaire_siret").str.slice(0, 9).alias("siren")  # if SIRET present
+        ])
+    )
+Clever filters for high value:
+
+Recent wins only (configurable days_back).
+Sector/keyword match to Elevya’s Morocco capacity (cyber, IT services, software, digital).
+Boost if company appears multiple times (winning streak = capacity signal).
+Minimum amount or buyer type (e.g., large public buyers doing digital transformation).
+
+Step 2: Sirene Enrichment + Compliance Gate
+For each unique SIRET/SIREN (batch with httpx + backoff, respect 30/min):
+Pythonasync def enrich_sirene(siret: str, api_key: str) -> dict | None:
+    url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
+    headers = {"X-INSEE-Api-Key-Integration": api_key}
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            ul = data.get("uniteLegale", {})
+            etab = data.get("etablissement", {})
+            if ul.get("statutDiffusionUniteLegale") == "partiellement_diffusible":
+                return None  # hard filter — do not prospect
+            if etab.get("etatAdministratif") != "A":
+                return None
+            return {
+                "company_name": ul.get("denominationUniteLegale") or etab.get("denominationUsuelleEtablissement"),
+                "naf_code": ul.get("activitePrincipaleUniteLegale"),
+                "tranche_effectifs": ul.get("trancheEffectifs") or etab.get("trancheEffectifsEtablissement"),
+                "website": etab.get("siteWeb") or ul.get("siteWeb"),  # if present
+                "diffusion_status": ul.get("statutDiffusionUniteLegale"),
+                # map tranche to your buckets: 11-50, 51-200 etc.
+            }
+    return None
+Map NAF → sector label (static dict or simple function). Example targets: 62.01Z, 62.02A/B (conseil/programmation), 63.11Z, etc.
+Step 3: Email Discovery & Validation Waterfall (per prospect or on-demand)
+Trigger: nightly for new prospects, or user button “Run contact discovery” in UI.
+
+If website: run theHarvester (subprocess or Python import) → extract any public emails + naming patterns.
+Generate candidates (smart permutations):
+Common French professional patterns: {prenom}.{nom}, {p}.{nom}, {prenom}{nom}, {nom}.{prenom}, role-based (contact, commercial, direction, marchespublics, info, tenders).
+If theHarvester gave a pattern or name hint → weight those first.
+
+Verify batch with Reacher (local http://reacher:8080/v0/check_email or updated endpoint):
+Only keep is_reachable == "safe" or strong smtp.is_deliverable.
+Store with contact_source="reacher", contact_confidence="verified", full response JSON for audit.
+
+Anything left → “Needs manual review” queue (filterable view). User pastes LinkedIn name → system re-runs permutations + verify instantly.
+
+Result stored:
+
+email (best verified)
+decision_maker_name / title (initially null or from user)
+phone (Sirene switchboard if present + manual)
+linkedin_url (user-filled)
+
+Step 4: Urgency Scoring Update (plug into existing calculate_urgency_score)
+Extend the function:
+Pythonif signal_type in ("DECP_WIN", "BOAMP_WIN"):
+    score += 30
+    if award_count_recent >= 2: score += 15
+    if montant_high or "cybersécurité" in signal_details.lower(): score += 10
+if naf_code and is_it_cyber_naf(naf_code): score += 12
+if company_size in ("11-50", "51-200"): score += 8
+# decay still applies on outreach_events age
+Run recalc nightly (existing APScheduler job) + immediately after ingestion.
+4. Schema Additions (Minimal)
+In models.py (Prospect):
+Pythonsiren: Mapped[str] = mapped_column(String(9), index=True, nullable=True)
+siret: Mapped[str] = mapped_column(String(14), unique=True, nullable=True)
+naf_code: Mapped[str] = mapped_column(String(10), nullable=True)
+award_history: Mapped[dict] = mapped_column(JSONB, nullable=True)  # list of recent awards
+last_tender_date: Mapped[datetime] = mapped_column(nullable=True)
+contact_source: Mapped[str] = mapped_column(String(50), nullable=True)  # reacher / theharvester / manual
+contact_confidence: Mapped[str] = mapped_column(String(20), nullable=True)
+# diffusion_status, website already covered or add
+OutreachEvent and compliance fields unchanged.
+5. Presentation in the Tool (HTMX + Jinja2)
+New views (add to routers/dashboard.py or new sourcing.py):
+
+/sourcing/queue — “New DECP Prospects” (default sort: urgency_score desc).
+Columns: Company, Sector (NAF-mapped), Size, Recent wins / total value, Why high score (badges), Contact status (Verified email / Needs review / No email yet), Quick actions: “LinkedIn search” (pre-filled query), “Verify contacts”, “Log first outreach”.
+Kanban or table with HTMX inline updates (status change → new OutreachEvent).
+/prospects/{id}/enrich modal: Paste LinkedIn name → “Generate & verify emails” (HTMX POST → shows table of candidates with Reacher verdict + “Use this” button).
+Dashboard metrics addition: “New DECP prospects this week”, “% with verified email”, “Top sourcing signal performance” (DECP vs manual vs Morocco ops).
+
+Bulk actions: Export filtered queue, mark “reviewed”.
+6. Implementation Plan (2-3 extra days on top of v2.0)
+Week 2 extension:
+
+Day 1: Polars + DECP download + filter + Sirene enrichment job + upsert logic.
+Day 2: Reacher Docker + email permutator + verification service + theHarvester wrapper.
+Day 3: award_history JSONB, scoring extension, sourcing queue UI + HTMX actions + compliance gates.
+Day 4: Testing (pytest for filter + scoring + Reacher mock), deploy, first real run + manual review of output quality.
+
+Add polars, httpx (already likely), python-dotenv if needed. Keep everything in one language.
+7. Non-Functional & Honest Limits
+
+Performance: One small VPS handles it. Parquet download + Polars filter is fast; Sirene calls are the bottleneck (rate-limited but low volume after filtering).
+Cost: €0 (except optional Reacher commercial license + VPS SMTP unblock if needed).
+Limits you accept:
+No auto decision-maker name (free data doesn’t reliably give the right person for tenders).
+Reacher coverage good but not 100% (especially catch-all or strict corporate servers) → manual queue is feature, not bug.
+theHarvester shines on companies with public digital footprint.
+Phone remains mostly manual/switchboard.
+
+GDPR/CNIL: All data is public awards + registry. Still document data_source rigorously. Never use partial-diffusion records. informed_at + first-contact disclosure best practice.
+
+This pipeline turns “spend 2 days browsing BOAMP” into “open tool every morning → 10-30 high-signal, pre-enriched prospects with verified emails ready for personalized outreach”. The only irreplaceable human step (LinkedIn + first message) is exactly where it creates the most value.

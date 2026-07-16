@@ -1,0 +1,28 @@
+<div class="card overflow-x-auto p-0">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Company / ICP</th>
+        <th>Decision-maker</th>
+        <th>Signal</th>
+        <th>Why this lead</th>
+        <th>Scores</th>
+        <th>Contact</th>
+        <th>Stage</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for prospect in prospects %}
+        {% include "partials/sourcing_row.html" %}
+      {% else %}
+      <tr>
+        <td colspan="8" class="py-10 text-center text-sm text-slate-500">
+          Queue empty. Run <strong>Full (DECP + IT registry)</strong> above to fill with high-signal French SMEs.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="mt-2 text-xs text-slate-500">Showing {{ prospects|length }} · ranked by acquisition score (fit × timing × contactability × value)</p>
