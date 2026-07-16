@@ -1,8 +1,10 @@
-# ProspectForge — Use Cases & Operator Guide
+# ProspectForge V3 — Use Cases & Operator Guide
 
 How to run the system so it produces **meetings**, not just a pretty database.
 
-This guide is written for a solo founder / BD operator selling IT, cyber, digital, or nearshore delivery capacity into **French mid-market companies** (the Elevya-style ICP the scoring engine optimizes for). Adapt filters if your ICP differs.
+**V3 target:** French **field-service / technical operations SMEs** (maintenance, installation, cold chain, HVAC, electrical, facilities) that need **custom operational software** — not software houses.
+
+Primary market play: `FIELD_SERVICE_OPERATIONS_FR`.
 
 ---
 
@@ -209,29 +211,25 @@ Open **`/follow-ups`**.
 - For each: act (call / mail / LinkedIn) → log event → set next date.  
 - Never skip this block. Broken promises poison reply rates.
 
-### Block 1 — New high-score work (40–60 min)
+### Block 1 — Daily queue + qualification (40–60 min)
 
-Open **`/sourcing`**.
-
-Suggested filters for a focused session:
+Open **`/queue`** (not Sourcing first).
 
 | Filter | Value |
 |---|---|
-| Sort | Acquisition score |
-| Min score | 65 (or 70 if queue is fat) |
-| Contact | Has dirigeant (or Needs review if you’re researching) |
-| Signal | All, or DECP_WIN if hunting timing |
+| Min opportunity | 50–65 |
+| Review | Unreviewed (for qualification) |
+| Readiness | human_review_required or contact_ready |
 
-For each of **8–12 leads**:
+For each of **5–10 leads**:
 
-1. Skim badges + “why this lead”.  
-2. Open company (award history if DECP).  
-3. **LinkedIn DM** → confirm the person is still relevant.  
-4. If name differs, paste correct name into **Emails** panel.  
-5. Generate / pick email → **Use this**.  
-6. On detail page: set **informed_at** if first contact.  
-7. Send message (outside the tool — your mailbox / LinkedIn).  
-8. Back in tool: log **Sent** + next_action “Relance si silence” + date +3–5 days.
+1. Read **why now**, **likely pain**, offer match.  
+2. Click **Qualify** — honest checklist (fit / pain / trigger / buyer / contact).  
+3. **Accept** only if you can defend a first sentence with real evidence.  
+4. **LinkedIn** → confirm person (legal président ≠ always the buyer).  
+5. Treat guessed emails as **not ready to send** — use LinkedIn or verify.  
+6. Set **informed_at** → send → log **Sent** + next_action_date.  
+7. Reject IT/software houses even if the score looks “busy”.
 
 ### Block 2 — Hygiene (5 min)
 

@@ -40,6 +40,7 @@
             </a>
             <div class="hidden sm:flex items-center gap-1 text-sm">
               <a href="/" class="nav-link {% if request.url.path == '/' %}nav-active{% endif %}">Dashboard</a>
+              <a href="/queue" class="nav-link {% if request.url.path.startswith('/queue') %}nav-active{% endif %}">Daily queue</a>
               <a href="/sourcing" class="nav-link {% if request.url.path.startswith('/sourcing') %}nav-active{% endif %}">Sourcing</a>
               <a href="/prospects" class="nav-link {% if '/prospects' in request.url.path %}nav-active{% endif %}">Prospects</a>
               <a href="/kanban" class="nav-link {% if request.url.path == '/kanban' %}nav-active{% endif %}">Pipeline</a>

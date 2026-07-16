@@ -1,4 +1,4 @@
-"""ICP / acquisition score unit tests."""
+"""Buyer-role + V3 score shim tests."""
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -8,61 +8,75 @@ from app.discovery.icp import (
     format_dirigeant_name,
     pick_best_dirigeant,
     score_naf_fit,
-    score_timing_from_awards,
 )
 
 
-def test_naf_core():
-    s, b = score_naf_fit("62.01Z")
+def test_naf_field_vs_it():
+    s, b = score_naf_fit("43.22B")
     assert s == 100
-    assert b
+    s2, _ = score_naf_fit("62.01Z")
+    assert s2 < 30
 
 
 def test_pick_president():
     dirs = [
-        {"nom": "X", "prenoms": "Y", "qualite": "Commissaire aux comptes titulaire", "type_dirigeant": "personne physique"},
-        {"nom": "DUPONT", "prenoms": "MARIE", "qualite": "Président de SAS", "type_dirigeant": "personne physique"},
+        {
+            "nom": "X",
+            "prenoms": "Y",
+            "qualite": "Commissaire aux comptes titulaire",
+            "type_dirigeant": "personne physique",
+        },
+        {
+            "nom": "DUPONT",
+            "prenoms": "MARIE",
+            "qualite": "Président de SAS",
+            "type_dirigeant": "personne physique",
+        },
     ]
     best = pick_best_dirigeant(dirs)
     assert best["nom"] == "DUPONT"
     assert "Marie" in format_dirigeant_name(best)
 
 
-def test_timing_recent_multi():
-    today = datetime.now(timezone.utc).date().isoformat()
-    history = [
-        {"date": today, "montant": 80000, "objet": "Infogérance cybersécurité", "acheteur": "Ministère de l'Intérieur"},
-        {"date": today, "montant": 20000, "objet": "TMA cloud", "acheteur": "Région Île-de-France"},
-    ]
-    score, badges, reasons = score_timing_from_awards(history, None, "DECP_WIN")
-    assert score >= 70
-    assert any("Multi" in b or "win" in b.lower() for b in badges)
-
-
-def test_acquisition_hot_lead():
+def test_field_service_hot_lead_scores():
     p = SimpleNamespace(
-        naf_code="6201Z",
-        company_size="51-200",
-        decision_maker_title="Président",
+        company_name="Clim Maintenance SA",
+        naf_code="4322B",
+        company_size="11-50",
+        decision_maker_title="Gérant",
         decision_maker_name="Marie Dupont",
-        dirigeants=[{"nom": "DUPONT", "prenoms": "MARIE", "qualite": "Président de SAS", "type_dirigeant": "personne physique"}],
+        dirigeants=[
+            {
+                "nom": "DUPONT",
+                "prenoms": "MARIE",
+                "qualite": "Gérant",
+                "type_dirigeant": "personne physique",
+            }
+        ],
         award_history=[
             {
                 "date": datetime.now(timezone.utc).date().isoformat(),
-                "montant": 150000,
-                "objet": "SOC cybersécurité",
-                "acheteur": "Ministère",
+                "montant": 90000,
+                "objet": "Maintenance climatisation multi-sites",
+                "acheteur": "Région",
             }
         ],
         last_tender_date=datetime.now(timezone.utc),
-        signal_type="DECP_WIN",
-        email="marie.dupont@acme.fr",
-        contact_confidence="verified",
-        website="https://acme.fr",
+        signal_type="PUBLIC_AWARD",
+        signal_details="maintenance multi-sites",
+        email="marie.dupont@clim.fr",
+        contact_confidence="deliverable",
+        website="https://clim.fr",
         phone=None,
+        data_source="DECP",
+        siren="123456789",
+        notes="",
+        evidence_json=[],
+        manual_review_state="unreviewed",
+        qualification_decision=None,
+        opted_out=False,
+        market_play_code="FIELD_SERVICE_OPERATIONS_FR",
     )
     bd = compute_acquisition_score(p)
-    assert bd.acquisition >= 70
     assert bd.fit >= 70
-    assert bd.badges
-    assert bd.reasons
+    assert bd.acquisition >= 45

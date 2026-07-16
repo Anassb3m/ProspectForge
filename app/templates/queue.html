@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Daily action queue — ProspectForge V3{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold tracking-tight">Daily action queue</h1>
+  <p class="text-sm text-slate-500">
+    Market play: <strong>{{ play.name }}</strong> ·
+    Meeting-ready work first · human qualification required
+  </p>
+</div>
+
+<div class="mb-4 grid gap-3 sm:grid-cols-4">
+  <div class="stat-card !p-3"><p class="stat-label">In queue</p><p class="text-xl font-bold">{{ stats.total }}</p></div>
+  <div class="stat-card !p-3"><p class="stat-label">Unreviewed</p><p class="text-xl font-bold text-amber-600">{{ stats.need_review }}</p></div>
+  <div class="stat-card !p-3"><p class="stat-label">Contact-ready</p><p class="text-xl font-bold text-emerald-600">{{ stats.ready }}</p></div>
+  <div class="stat-card !p-3"><p class="stat-label">Opp ≥ 65</p><p class="text-xl font-bold text-red-600">{{ stats.high }}</p></div>
+</div>
+
+<form class="card mb-4 grid gap-3 sm:grid-cols-3" method="get" action="/queue">
+  <div>
+    <label class="label">Readiness</label>
+    <select name="readiness" class="input">
+      <option value="">All</option>
+      <option value="human_review_required" {% if filters.readiness == 'human_review_required' %}selected{% endif %}>Needs human review</option>
+      <option value="contact_ready" {% if filters.readiness == 'contact_ready' %}selected{% endif %}>Contact-ready</option>
+      <option value="research_required" {% if filters.readiness == 'research_required' %}selected{% endif %}>Research required</option>
+      <option value="contact_required" {% if filters.readiness == 'contact_required' %}selected{% endif %}>Contact required</option>
+    </select>
+  </div>
+  <div>
+    <label class="label">Review state</label>
+    <select name="review" class="input">
+      <option value="">All</option>
+      <option value="unreviewed" {% if filters.review == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
+      <option value="accepted" {% if filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
+      <option value="rejected" {% if filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
+    </select>
+  </div>
+  <div>
+    <label class="label">Min opportunity</label>
+    <input type="number" name="min_score" value="{{ filters.min_score }}" class="input" min="0" max="100" />
+  </div>
+  <div class="sm:col-span-3">
+    <button type="submit" class="btn-primary">Apply</button>
+    <a href="/sourcing" class="btn-secondary ml-2">Run discovery</a>
+  </div>
+</form>
+
+<div class="space-y-4">
+  {% for p in prospects %}
+  <article class="card border-l-4 {% if p.readiness_state == 'contact_ready' %}border-l-emerald-500{% elif p.manual_review_state == 'unreviewed' %}border-l-amber-400{% else %}border-l-slate-200{% endif %}">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <a href="/prospects/{{ p.id }}" class="text-lg font-semibold text-brand-700 hover:underline">{{ p.company_name }}</a>
+        <p class="text-sm text-slate-500">
+          {{ p.sector }} · {{ p.company_size }}
+          {% if p.naf_code %}<span class="font-mono">· {{ p.naf_code }}</span>{% endif %}
+          {% if p.city %} · {{ p.city }}{% endif %}
+          {% if p.siren %}<span class="font-mono text-xs"> · {{ p.siren }}</span>{% endif %}
+        </p>
+        <div class="mt-2 flex flex-wrap gap-1">
+          <span class="badge badge-blue">Opp {{ p.opportunity_score or p.acquisition_score }}</span>
+          <span class="badge badge-slate">{{ p.readiness_state }}</span>
+          <span class="badge badge-slate">{{ p.manual_review_state }}</span>
+          <span class="badge badge-amber">{{ p.signal_type }}</span>
+          {% for b in p.score_badges[:4] %}
+          <span class="badge badge-slate">{{ b }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="text-right text-xs tabular-nums text-slate-500 space-y-0.5">
+        <div>Fit {{ p.fit_score }} · Pain {{ p.pain_score }} · Trigger {{ p.trigger_score }}</div>
+        <div>Auth {{ p.authority_score }} · Value {{ p.value_score }} · DQ {{ p.data_quality_score }}</div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 lg:grid-cols-2 text-sm">
+      <div>
+        <p class="text-xs font-semibold uppercase text-slate-400">Why this company</p>
+        <ul class="mt-1 list-disc pl-4 text-slate-700">
+          {% for r in p.why_this_lead %}
+          <li>{{ r }}</li>
+          {% else %}
+          <li class="text-slate-400">No reasons yet — deep enrich or qualify after research</li>
+          {% endfor %}
+        </ul>
+        {% if p.suspected_pain %}
+        <p class="mt-2"><span class="text-xs font-semibold uppercase text-slate-400">Likely pain</span><br>{{ p.suspected_pain }}</p>
+        {% endif %}
+        {% if p.why_now %}
+        <p class="mt-2"><span class="text-xs font-semibold uppercase text-slate-400">Why now</span><br>{{ p.why_now }}</p>
+        {% endif %}
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase text-slate-400">Buyer & contact</p>
+        <p class="mt-1">
+          {{ p.decision_maker_name or '—' }}
+          {% if p.decision_maker_title %}<span class="text-slate-500">· {{ p.decision_maker_title }}</span>{% endif %}
+        </p>
+        <p class="text-xs text-slate-500">Role hint: {{ p.recommended_buyer_role or '—' }} · {{ p.contact_status }}</p>
+        {% if p.email %}<p class="font-mono text-xs mt-1">{{ p.email }} <span class="text-slate-400">({{ p.contact_confidence }} / {{ p.contact_discovery_state or '—' }})</span></p>{% endif %}
+        {% if p.recommended_offer %}
+        <p class="mt-2"><span class="text-xs font-semibold uppercase text-slate-400">Offer</span><br>{{ p.recommended_offer }}</p>
+        {% endif %}
+        {% if p.readiness_failures %}
+        <p class="mt-2 text-xs text-amber-700">Gates: {{ p.readiness_failures | join(', ') }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 flex flex-wrap gap-2">
+      <a href="/queue/{{ p.id }}/qualify" class="btn-primary text-sm">Qualify</a>
+      <a href="{{ linkedin_people_url(p.company_name, p.decision_maker_name, p.decision_maker_title) }}" target="_blank" rel="noopener" class="btn-secondary text-sm">LinkedIn</a>
+      <a href="/prospects/{{ p.id }}" class="btn-secondary text-sm">Open</a>
+      {% if p.personalization_brief %}
+      <details class="w-full mt-2">
+        <summary class="cursor-pointer text-xs font-medium text-brand-600">Personalization brief</summary>
+        <pre class="mt-2 whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs text-slate-700">{{ p.personalization_brief }}</pre>
+      </details>
+      {% endif %}
+    </div>
+  </article>
+  {% else %}
+  <div class="card text-center text-slate-500 py-12">
+    Queue empty for these filters.
+    <a href="/sourcing" class="text-brand-600 hover:underline">Run discovery</a>
+    then re-score / qualify.
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

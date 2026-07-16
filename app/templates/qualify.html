@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Qualify — {{ prospect.company_name }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="/queue" class="text-sm text-slate-500 hover:text-brand-600">← Daily queue</a>
+  <h1 class="mt-1 text-2xl font-bold">Human qualification</h1>
+  <p class="text-sm text-slate-500">{{ prospect.company_name }} · play {{ play.code }}</p>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-2">
+  <section class="card space-y-3 text-sm">
+    <h2 class="card-title">Evidence summary</h2>
+    <p><strong>Opportunity:</strong> {{ prospect.opportunity_score }} · <strong>Readiness:</strong> {{ prospect.readiness_state }}</p>
+    <p><strong>Fit / Pain / Trigger:</strong> {{ prospect.fit_score }} / {{ prospect.pain_score }} / {{ prospect.trigger_score }}</p>
+    <p><strong>Why now:</strong> {{ prospect.why_now or '—' }}</p>
+    <p><strong>Likely pain:</strong> {{ prospect.suspected_pain or '—' }}</p>
+    <p><strong>Person:</strong> {{ prospect.decision_maker_name or '—' }} · {{ prospect.decision_maker_title or '' }}</p>
+    <p><strong>Contact:</strong> {{ prospect.email or '—' }} ({{ prospect.contact_confidence }} / {{ prospect.contact_discovery_state or 'n/a' }})</p>
+    <p><strong>Offer:</strong> {{ prospect.recommended_offer or play.offer_name }}</p>
+    <p class="text-xs text-slate-500">{{ play.offer_summary }}</p>
+    {% if prospect.personalization_brief %}
+    <pre class="whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs">{{ prospect.personalization_brief }}</pre>
+    {% endif %}
+    <a href="{{ linkedin_url }}" target="_blank" rel="noopener" class="text-brand-600 hover:underline text-sm">LinkedIn search ↗</a>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Checklist (be honest)</h2>
+    <form method="post" action="/queue/{{ prospect.id }}/qualify" class="space-y-3 text-sm">
+      <label class="flex gap-2 items-start"><input type="checkbox" name="fit_confirmed" value="1" /> Company is inside the active market play (field service / technical ops, not software house)</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="pain_confirmed" value="1" /> There is operational complexity a custom system could reduce (not inventing facts)</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="trigger_confirmed" value="1" /> There is a current reason to contact (or pain is exceptionally clear)</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="buyer_confirmed" value="1" /> Selected role likely owns or influences the problem</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="contact_confirmed" value="1" /> Contact path is good enough (or LinkedIn-first is planned)</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="offer_match_confirmed" value="1" /> Packaged offer / proof can be presented credibly</label>
+
+      <div>
+        <label class="label">Notes</label>
+        <textarea name="notes" rows="3" class="input" placeholder="What is real vs hypothesized…"></textarea>
+      </div>
+
+      <div>
+        <label class="label">Decision</label>
+        <select name="decision" class="input" required>
+          <option value="accept">Accept → contact-ready path</option>
+          <option value="research_more">Research more</option>
+          <option value="park">Park (timing bad)</option>
+          <option value="reject">Reject (persistent mismatch)</option>
+        </select>
+      </div>
+
+      <p class="text-xs text-slate-500">
+        Accept does <strong>not</strong> mean “blast email”. It means this company is worth a careful first touch.
+        Guessed emails still require LinkedIn confirmation before send.
+      </p>
+
+      <button type="submit" class="btn-primary">Save qualification</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

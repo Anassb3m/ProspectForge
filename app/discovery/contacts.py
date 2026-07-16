@@ -86,26 +86,37 @@ async def discover_contacts(
             "is_reachable": "unknown",
         }
 
-    if best and best.get("confidence") == "verified":
+    discovery_state = "guessed"
+    conf = (best.get("confidence") if best else None) or ""
+    if best and conf in ("deliverable", "verified"):
         source = "reacher"
-        confidence = "verified"
+        confidence = "deliverable" if conf == "deliverable" else conf
+        discovery_state = "inferred"
         needs_review = False
-    elif best and best.get("confidence") == "likely":
+    elif best and conf == "catch_all":
         source = "reacher"
-        confidence = "likely"
-        needs_review = False
+        confidence = "catch_all"
+        discovery_state = "guessed"
+        needs_review = True
     elif best and harvested and best["email"] in harvested:
         source = "theharvester"
-        confidence = best.get("confidence") or "unverified"
-        needs_review = confidence != "verified"
+        confidence = conf or "published_generic"
+        discovery_state = "published"
+        needs_review = confidence not in ("deliverable", "verified", "published_personal")
     elif best:
-        source = "reacher" if verify else "manual"
-        confidence = best.get("confidence") or "unverified"
-        needs_review = confidence not in ("verified", "likely")
+        source = "reacher" if verify else "permutation"
+        confidence = conf or "domain_and_pattern_only"
+        discovery_state = "guessed"
+        needs_review = True
     else:
         source = "none"
         confidence = "needs_review"
         needs_review = True
+
+    # Never auto-send path for guessed-only patterns
+    usable_for_send = confidence in (
+        "deliverable", "verified", "published_personal", "confirmed_by_reply", "published_generic",
+    )
 
     return {
         "domain": domain,
@@ -114,7 +125,12 @@ async def discover_contacts(
         "best": best,
         "contact_source": source,
         "contact_confidence": confidence,
-        "needs_manual_review": needs_review,
+        "contact_discovery_state": discovery_state,
+        "needs_manual_review": needs_review or not usable_for_send,
+        "usable_for_send": usable_for_send,
         "harvested_count": len(harvested),
-        "message": None if best else "No verified email — needs manual review / LinkedIn name",
+        "message": (
+            None if usable_for_send
+            else "Email is guessed/indeterminate — confirm on LinkedIn or verify before send"
+        ),
     }

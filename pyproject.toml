@@ -1,6 +1,6 @@
 [project]
 name = "prospectforge"
-version = "2.2.0"
+version = "3.0.0"
 description = "Client Acquisition OS — DECP discovery, scoring, outreach tracking"
 readme = "README.md"
 requires-python = ">=3.12"

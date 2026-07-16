@@ -23,12 +23,9 @@ from app.config import get_settings
 from app.discovery.annuaire import enrich_from_annuaire
 from app.discovery.contacts import discover_contacts
 from app.discovery.emails import extract_domain
-from app.discovery.icp import (
-    compute_acquisition_score,
-    format_dirigeant_name,
-    pick_best_dirigeant,
-)
+from app.discovery.icp import format_dirigeant_name, pick_best_dirigeant
 from app.discovery.sirene import enrich_sirene
+from app.scoring_v3 import apply_v3_score
 
 logger = logging.getLogger(__name__)
 
@@ -179,39 +176,51 @@ def _loaded_events(prospect) -> list:
 
 
 def apply_enrichment_to_prospect(prospect, data: dict[str, Any]) -> None:
-    """Mutate Prospect with enrichment dict + recompute scores."""
+    """Mutate Prospect with enrichment dict + V3 opportunity score + readiness."""
     field_map = (
         "company_name", "sector", "company_size", "naf_code", "siren", "siret",
         "website", "phone", "email", "decision_maker_name", "decision_maker_title",
         "dirigeants", "city", "department", "region", "diffusion_status",
         "contact_source", "contact_confidence", "contact_candidates",
-        "needs_manual_review",
+        "needs_manual_review", "contact_discovery_state", "evidence_json",
+        "award_history", "signal_type", "signal_details",
     )
     for f in field_map:
         if f in data and data[f] is not None:
             if hasattr(prospect, f):
                 setattr(prospect, f, data[f])
 
-    # Acquisition scoring
-    bd = compute_acquisition_score(prospect)
-    prospect.fit_score = bd.fit
-    prospect.timing_score = bd.timing
-    prospect.contactability_score = bd.contactability
-    prospect.acquisition_score = bd.acquisition
-    prospect.score_breakdown = bd.to_dict()
+    # Merge evidence list
+    if data.get("evidence"):
+        existing = list(prospect.evidence_json or [])
+        existing.extend(data["evidence"])
+        prospect.evidence_json = existing[:40]
 
-    from app.scoring import apply_score, priority_from_score
+    # Guessed emails are never "verified"
+    conf = (prospect.contact_confidence or "").lower()
+    if prospect.email and conf in ("", "none", "unverified") and not prospect.contact_discovery_state:
+        prospect.contact_discovery_state = "guessed"
+        prospect.contact_confidence = "domain_and_pattern_only"
 
-    apply_score(prospect, _loaded_events(prospect))
-    blended = int(round(0.4 * prospect.urgency_score + 0.6 * bd.acquisition))
-    prospect.urgency_score = max(0, min(100, blended))
-    prospect.priority_level = priority_from_score(prospect.urgency_score)
+    apply_v3_score(prospect)
 
-    if prospect.email and prospect.contact_confidence in ("verified", "likely"):
+    # Map readiness → acquisition_stage
+    rs = prospect.readiness_state or "research_required"
+    if rs == "contact_ready":
         prospect.acquisition_stage = "contact_ready"
+        prospect.needs_manual_review = False
+    elif rs == "human_review_required":
+        prospect.acquisition_stage = "human_review_required"
+        prospect.needs_manual_review = True
+    elif rs == "suppressed":
+        prospect.acquisition_stage = "suppressed"
     elif prospect.decision_maker_name or prospect.dirigeants:
         prospect.acquisition_stage = "enriched"
+        prospect.needs_manual_review = True
     else:
-        prospect.acquisition_stage = prospect.acquisition_stage or "discovered"
+        prospect.acquisition_stage = "researching"
+        prospect.needs_manual_review = True
 
+    prospect.timing_score = prospect.trigger_score or 0
+    prospect.contactability_score = prospect.authority_score or 0
     prospect.last_enriched_at = datetime.now(timezone.utc)

@@ -1,30 +1,20 @@
-"""NAF/APE code mapping and IT/cyber detection for French SMEs."""
+"""NAF/APE mapping for field-service / technical SMEs (V3)."""
 
 from __future__ import annotations
 
-# Elevya-relevant IT / digital / cyber NAF prefixes and codes
-IT_CYBER_NAF_PREFIXES = ("62", "63", "58", "61")
-IT_CYBER_NAF_CODES = {
-    "6201Z",  # Programmation informatique
-    "6202A",  # Conseil en systèmes et logiciels informatiques
-    "6202B",  # Tierce maintenance de systèmes et d'applications
-    "6203Z",  # Gestion d'installations informatiques
-    "6209Z",  # Autres activités informatiques
-    "6311Z",  # Traitement de données, hébergement
-    "6312Z",  # Portails Internet
-    "5821Z",  # Édition de jeux électroniques
-    "5829A",  # Édition de logiciels système
-    "5829B",  # Édition de logiciels applicatifs
-    "6110Z",  # Télécommunications filaires
-    "6120Z",  # Télécommunications sans fil
-    "6190Z",  # Autres activités de télécommunication
-    "7022Z",  # Conseil pour les affaires (often digital transformation)
-    "7112B",  # Ingénierie, études techniques
+# Field service / installation / maintenance NAF
+FIELD_NAF_PREFIXES = ("33", "43", "81")
+FIELD_NAF_CODES = {
+    "4321A", "4321B", "4322A", "4322B", "4329A", "4329B",
+    "3312Z", "3320A", "3320B", "3320C", "3320D", "3313Z", "3314Z",
+    "8110Z", "8121Z", "8122Z", "7112B",
 }
 
-# Official INSEE trancheEffectifs → our company_size buckets
+# Software / digital — excluded as *buyers* of custom ops software (they build)
+IT_EXCLUDED_PREFIXES = ("62", "63", "58", "61")
+
 TRANCHE_TO_SIZE: dict[str, str] = {
-    "NN": "1-10",
+    "NN": "unknown",
     "00": "1-10",
     "01": "1-10",
     "02": "1-10",
@@ -46,25 +36,37 @@ TRANCHE_TO_SIZE: dict[str, str] = {
 def normalize_naf(code: str | None) -> str | None:
     if not code:
         return None
-    # Strip dots: 62.01Z → 6201Z
     return code.replace(".", "").replace(" ", "").upper()
 
 
-def is_it_cyber_naf(naf_code: str | None) -> bool:
+def is_field_service_naf(naf_code: str | None) -> bool:
     code = normalize_naf(naf_code)
     if not code:
         return False
-    if code in IT_CYBER_NAF_CODES:
+    if code in FIELD_NAF_CODES:
         return True
-    return code[:2] in IT_CYBER_NAF_PREFIXES
+    return code[:2] in FIELD_NAF_PREFIXES
+
+
+def is_it_cyber_naf(naf_code: str | None) -> bool:
+    """True if software/digital NAF — typically excluded as software *buyers*."""
+    code = normalize_naf(naf_code)
+    if not code:
+        return False
+    return code[:2] in IT_EXCLUDED_PREFIXES
 
 
 def map_naf_to_sector(naf_code: str | None) -> str:
-    """Map NAF to ProspectForge sector label."""
     code = normalize_naf(naf_code)
     if not code:
         return "Other"
     prefix = code[:2]
+    if is_field_service_naf(code):
+        if prefix == "81":
+            return "Facilities / Maintenance"
+        if prefix in ("33", "43"):
+            return "Field Services"
+        return "Field Services"
     if is_it_cyber_naf(code):
         return "IT / Digital"
     if prefix in ("41", "42", "43"):
@@ -82,5 +84,5 @@ def map_naf_to_sector(naf_code: str | None) -> str:
 
 def map_tranche_effectifs(tranche: str | None) -> str:
     if not tranche:
-        return "1-10"
-    return TRANCHE_TO_SIZE.get(str(tranche).strip().upper(), "1-10")
+        return "unknown"
+    return TRANCHE_TO_SIZE.get(str(tranche).strip().upper(), "unknown")

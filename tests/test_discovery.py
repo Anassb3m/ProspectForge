@@ -95,26 +95,51 @@ class TestDecpFilter:
             }
         )
 
-    def test_filters_recent_it_and_keywords(self):
-        df = filter_relevant(self._sample_df(), days_back=90)
-        sirets = set(df["titulaire_siret"].to_list())
-        # SoftCo IT CPV recent + CyberSME keyword — not BuildCo, not old SoftCo
-        assert "12345678900012" in sirets
-        assert "11122233300044" in sirets
+    def test_filters_field_service_not_it_software(self):
+        # V3 play: maintenance/installation — not pure software CPV 72
+        today = datetime.now(timezone.utc).replace(tzinfo=None)
+        old = today - timedelta(days=200)
+        df = pl.DataFrame(
+            {
+                "id": ["m1", "m2", "m3"],
+                "dateAttribution": [
+                    today.strftime("%Y-%m-%d"),
+                    today.strftime("%Y-%m-%d"),
+                    old.strftime("%Y-%m-%d"),
+                ],
+                "codeCPV": ["50710000", "72000000", "45331000"],
+                "objetMarche": [
+                    "Contrat maintenance froid commercial",
+                    "Développement logiciel métier",
+                    "Installation climatisation multi-sites",
+                ],
+                "titulaire_siret": [
+                    "12345678900012",
+                    "98765432100011",
+                    "11122233300044",
+                ],
+                "titulaire_nom": ["FroidPro", "SoftCo", "ClimTech"],
+                "montant": [80000.0, 100000.0, 45000.0],
+                "acheteur_nom": ["Région", "Ministère", "Ville"],
+            }
+        )
+        filtered = filter_relevant(df, days_back=90)
+        sirets = set(filtered["titulaire_siret"].to_list())
+        assert "12345678900012" in sirets  # maintenance froid (keyword + CPV 50x)
+        # pure software CPV 72 + negative keywords must not enter field-service play
         assert "98765432100011" not in sirets
-        assert df.height >= 2
+        assert filtered.height >= 1
 
     def test_aggregate_multi_win(self):
-        # Two recent awards same siret
         today = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d")
         df = pl.DataFrame(
             {
                 "id": ["a", "b"],
                 "dateAttribution": [today, today],
-                "codeCPV": ["72000000", "72000000"],
-                "objetMarche": ["SI cloud", "Maintenance applicative"],
+                "codeCPV": ["50710000", "45331000"],
+                "objetMarche": ["Maintenance technique", "Installation chauffage"],
                 "titulaire_siret": ["12345678900012", "12345678900012"],
-                "titulaire_nom": ["SoftCo", "SoftCo"],
+                "titulaire_nom": ["TechCo", "TechCo"],
                 "montant": [10000.0, 20000.0],
                 "acheteur_nom": ["A", "B"],
             }
@@ -124,7 +149,7 @@ class TestDecpFilter:
         assert len(companies) == 1
         assert companies[0]["award_count"] == 2
         assert companies[0]["has_multiple"] is True
-        assert "multiple" in companies[0]["signal_details"].lower()
+        assert "evidence" in companies[0]
 
 
 class TestScoringV21:

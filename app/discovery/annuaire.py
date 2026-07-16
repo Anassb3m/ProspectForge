@@ -1,10 +1,7 @@
 """
-Recherche Entreprises API (api.gouv.fr) — free, no key.
+Recherche Entreprises — market-play driven company discovery (V3).
 
-Richer than raw Sirene for acquisition:
-- dirigeants (Président, DG) with names → email permutations
-- siège address, NAF, effectifs
-- full-text + faceted search (section J = information/communication)
+No longer defaults to Section J / IT SMEs.
 """
 
 from __future__ import annotations
@@ -16,31 +13,24 @@ from urllib.parse import quote
 import httpx
 
 from app.discovery.icp import format_dirigeant_name, pick_best_dirigeant
-from app.discovery.naf import map_naf_to_sector, map_tranche_effectifs, normalize_naf
+from app.discovery.naf import is_it_cyber_naf, map_naf_to_sector, map_tranche_effectifs, normalize_naf
+from app.plays import DEFAULT_PLAY_CODE, get_play
 
 logger = logging.getLogger(__name__)
-
 BASE = "https://recherche-entreprises.api.gouv.fr"
-
-# Mid-market headcount codes (INSEE tranches)
-SME_TRANCHES = "11,12,21,22,31,32"  # 10 → 199 approx
-
-# Section J = Information et communication (IT/digital core)
-SECTION_IT = "J"
+SME_TRANCHES = "11,12,21,22,31,32"
 
 
 async def search_companies(
     *,
     q: str = "",
     activite_principale: str | None = None,
-    section_activite_principale: str | None = SECTION_IT,
+    section_activite_principale: str | None = None,
     tranche_effectif_salarie: str = SME_TRANCHES,
-    code_postal: str | None = None,
     page: int = 1,
     per_page: int = 25,
     etat_administratif: str = "A",
 ) -> dict[str, Any]:
-    """Search the national company directory."""
     params: dict[str, Any] = {
         "page": page,
         "per_page": min(per_page, 25),
@@ -54,9 +44,6 @@ async def search_companies(
         params["section_activite_principale"] = section_activite_principale
     if tranche_effectif_salarie:
         params["tranche_effectif_salarie"] = tranche_effectif_salarie
-    if code_postal:
-        params["code_postal"] = code_postal
-
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.get(f"{BASE}/search", params=params)
         r.raise_for_status()
@@ -78,8 +65,7 @@ async def get_by_siren(siren: str) -> dict[str, Any] | None:
         return results[0] if results else None
 
 
-def normalize_company(item: dict[str, Any], *, signal_hint: str = "REGISTRY_IT") -> dict[str, Any]:
-    """Map annuaire payload → internal enrichment dict."""
+def normalize_company(item: dict[str, Any], *, signal_hint: str = "REGISTRY_FIELD") -> dict[str, Any]:
     siege = item.get("siege") or {}
     naf = normalize_naf(item.get("activite_principale") or siege.get("activite_principale"))
     tranche = item.get("tranche_effectif_salarie") or siege.get("tranche_effectif_salarie")
@@ -88,32 +74,21 @@ def normalize_company(item: dict[str, Any], *, signal_hint: str = "REGISTRY_IT")
     for d in dirigeants_raw:
         if not isinstance(d, dict):
             continue
-        dirigeants.append(
-            {
-                "nom": d.get("nom"),
-                "prenoms": d.get("prenoms"),
-                "qualite": d.get("qualite"),
-                "type_dirigeant": d.get("type_dirigeant"),
-                "denomination": d.get("denomination"),
-            }
-        )
-
+        dirigeants.append({
+            "nom": d.get("nom"),
+            "prenoms": d.get("prenoms"),
+            "qualite": d.get("qualite"),
+            "type_dirigeant": d.get("type_dirigeant"),
+            "denomination": d.get("denomination"),
+        })
     best = pick_best_dirigeant(dirigeants)
     dm_name = format_dirigeant_name(best) if best else None
     dm_title = (best.get("qualite") if best else None) or None
-
     siret = siege.get("siret")
-    city = siege.get("libelle_commune") or siege.get("commune")
-    dept = (siege.get("departement") or "")[:3] or None
-    region = siege.get("region")
-    # Website rarely in API; leave None — domain inference elsewhere
-
     return {
         "siren": item.get("siren"),
         "siret": siret,
-        "company_name": item.get("nom_complet")
-        or item.get("nom_raison_sociale")
-        or item.get("sigle"),
+        "company_name": item.get("nom_complet") or item.get("nom_raison_sociale") or item.get("sigle"),
         "naf_code": naf,
         "sector": map_naf_to_sector(naf),
         "company_size": map_tranche_effectifs(tranche),
@@ -121,82 +96,83 @@ def normalize_company(item: dict[str, Any], *, signal_hint: str = "REGISTRY_IT")
         "dirigeants": dirigeants,
         "decision_maker_name": dm_name,
         "decision_maker_title": dm_title,
-        "city": city,
-        "department": dept,
-        "region": region,
+        "city": siege.get("libelle_commune") or siege.get("commune"),
+        "department": (siege.get("departement") or "")[:3] or None,
+        "region": siege.get("region"),
         "address": siege.get("adresse") or siege.get("geo_adresse"),
         "website": None,
         "phone": None,
         "diffusion_status": "diffusible",
         "signal_hint": signal_hint,
         "nombre_etablissements": item.get("nombre_etablissements_ouverts"),
-        "raw_annuaire": {"siren": item.get("siren"), "complements": item.get("complements")},
     }
 
 
-# Mega brands / non-ICP noise in section J
-_BLOCKED_NAME_FRAGMENTS = (
-    "sfr ", "orange ", "bouygues telecom", "free mobile", "nrj ",
-    "la poste", "edf ", "engie", "sncf", "air france", "totalenergies",
-    "microsoft", "amazon", "google", "ibm france", "capgemini",
-)
-
-
-def _is_icp_candidate(n: dict[str, Any]) -> bool:
-    name = (n.get("company_name") or "").lower()
-    if any(b in name for b in _BLOCKED_NAME_FRAGMENTS):
+def _passes_play_filter(n: dict[str, Any], play: dict) -> bool:
+    naf = normalize_naf(n.get("naf_code"))
+    if not naf:
         return False
-    # Prefer mid-market; allow 1-10 for pure software boutiques
-    size = n.get("company_size")
-    if size == "200+":
+    if is_it_cyber_naf(naf):
         return False
-    naf = (n.get("naf_code") or "")[:2]
-    # Core software/IT/data; drop pure broadcasting (60), cinema (59) unless cyber keywords
-    if naf in ("62", "63", "58", "70", "71", "61"):
-        return True
-    return False
+    excluded = {c.replace(".", "").upper() for c in (play.get("excluded_naf_codes") or [])}
+    excl_pref = play.get("excluded_naf_prefixes") or []
+    if naf in excluded or naf[:2] in excl_pref:
+        return False
+    targets = {c.replace(".", "").upper() for c in (play.get("target_naf_codes") or [])}
+    prefs = play.get("target_naf_prefixes") or []
+    if targets or prefs:
+        if naf in targets or naf[:2] in prefs:
+            return True
+        return False
+    return True
 
 
-async def discover_it_smes(
+async def discover_companies_for_play(
+    play_code: str | None = None,
     *,
-    queries: list[str] | None = None,
-    naf_codes: list[str] | None = None,
     max_results: int = 80,
     pages_per_query: int = 3,
 ) -> list[dict[str, Any]]:
-    """
-    Multi-query hunt for Elevya ICP companies via open directory.
-    Precision-first: core NAF → intent keywords → broad section J fill.
-    Dedupes by SIREN.
-    """
-    queries = queries or [
-        "logiciel",
-        "cybersécurité",
-        "infogérance",
-        "développement informatique",
-        "hébergement données",
-        "conseil systèmes d'information",
-        "transformation numérique",
-        "cloud computing",
-        "ssii",
-        "esn ",
-    ]
-    naf_codes = naf_codes or [
-        "62.01Z", "62.02A", "62.02B", "62.03Z", "62.09Z", "63.11Z", "63.12Z",
-    ]
-
+    """Play-driven registry hunt — structural candidates, not contact-ready."""
+    play = get_play(play_code or DEFAULT_PLAY_CODE)
+    queries = play.get("registry_queries") or ["maintenance", "installation technique"]
+    naf_codes = play.get("target_naf_codes") or []
     by_siren: dict[str, dict] = {}
 
     def _ingest(item: dict, *, force: bool = False) -> None:
-        n = normalize_company(item, signal_hint="REGISTRY_IT")
+        n = normalize_company(item, signal_hint="REGISTRY_FIELD")
         if not n.get("siren"):
             return
-        if not force and not _is_icp_candidate(n):
+        if not force and not _passes_play_filter(n, play):
+            return
+        if is_it_cyber_naf(n.get("naf_code")):
             return
         if n["siren"] not in by_siren:
+            # Structural evidence only — no automatic pain
+            n["evidence"] = [
+                {
+                    "category": "structural_fit",
+                    "signal_type": "REGISTRY_ACTIVITY",
+                    "label": f"Registry NAF {n.get('naf_code')}",
+                    "evidence_text": f"{n.get('company_name')} — {n.get('sector')} — size {n.get('company_size')}",
+                    "source_type": "annuaire",
+                    "confidence": 70,
+                    "strength": 45,
+                }
+            ]
+            if n.get("nombre_etablissements") and int(n["nombre_etablissements"] or 0) >= 2:
+                n["evidence"].append({
+                    "category": "structural_fit",
+                    "signal_type": "MULTI_SITE_OPERATIONS",
+                    "label": "Multiple establishments",
+                    "evidence_text": f"{n['nombre_etablissements']} establishments ouverts",
+                    "source_type": "annuaire",
+                    "confidence": 65,
+                    "strength": 55,
+                })
             by_siren[n["siren"]] = n
 
-    # 1) Core NAF precision (highest quality for Elevya)
+    # 1) Target NAF codes first
     for naf in naf_codes:
         if len(by_siren) >= max_results:
             break
@@ -204,9 +180,11 @@ async def discover_it_smes(
             if len(by_siren) >= max_results:
                 break
             try:
+                # API expects dotted NAF sometimes
+                naf_q = naf if "." in naf else f"{naf[:2]}.{naf[2:]}" if len(naf) >= 4 else naf
                 data = await search_companies(
                     q="",
-                    activite_principale=naf,
+                    activite_principale=naf_q,
                     section_activite_principale=None,
                     page=page,
                     per_page=25,
@@ -219,54 +197,37 @@ async def discover_it_smes(
             if page >= (data.get("total_pages") or 1):
                 break
 
-    # 2) Keyword queries for intent language
+    # 2) Keyword queries (field service language)
     for q in queries:
         if len(by_siren) >= max_results:
             break
         try:
-            data = await search_companies(
-                q=q,
-                section_activite_principale=SECTION_IT,
-                page=1,
-                per_page=25,
-            )
+            data = await search_companies(q=q, section_activite_principale=None, page=1, per_page=25)
         except httpx.HTTPError as exc:
             logger.warning("Annuaire query %r failed: %s", q, exc)
             continue
         for item in data.get("results") or []:
             _ingest(item)
 
-    # 3) Section J fill only if still under cap
-    for page in range(1, min(2, pages_per_query) + 1):
-        if len(by_siren) >= max_results:
-            break
-        try:
-            data = await search_companies(
-                q="",
-                section_activite_principale=SECTION_IT,
-                page=page,
-                per_page=25,
-            )
-        except httpx.HTTPError as exc:
-            logger.warning("Annuaire section J search failed: %s", exc)
-            break
-        for item in data.get("results") or []:
-            _ingest(item)
-
-    # Rank: core NAF first, then size sweet spot, then has dirigeant
     results = list(by_siren.values())
 
     def rank_key(c: dict) -> tuple:
-        naf = c.get("naf_code") or ""
-        core = 0 if naf[:4] in ("6201", "6202", "6203", "6209", "6311", "6312") else 1
+        naf = normalize_naf(c.get("naf_code")) or ""
+        core = 0 if naf[:2] in (play.get("target_naf_prefixes") or []) else 1
         size = 0 if c.get("company_size") in ("11-50", "51-200") else 1
         dm = 0 if c.get("decision_maker_name") else 1
         return (core, size, dm)
 
     results.sort(key=rank_key)
     results = results[:max_results]
-    logger.info("Annuaire discovery: %d unique ICP companies", len(results))
+    logger.info("Annuaire play=%s: %d companies", play.get("code"), len(results))
     return results
+
+
+# Back-compat alias — redirects to field play discovery
+async def discover_it_smes(**kwargs) -> list[dict[str, Any]]:
+    logger.warning("discover_it_smes is deprecated; using discover_companies_for_play")
+    return await discover_companies_for_play(**kwargs)
 
 
 async def enrich_from_annuaire(siren: str) -> dict[str, Any] | None:

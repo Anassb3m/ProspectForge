@@ -1,10 +1,10 @@
 """
-Multi-source acquisition engine.
+Multi-source acquisition engine (V3 — field-service market play).
 
 Sources:
-  A) DECP public awards (timing + capacity signal)
-  B) Recherche Entreprises IT SMEs (ICP volume + dirigeants)
-  C) Deep enrich: Annuaire → Sirene → contacts → ICP score
+  A) DECP public awards (timing — not proof of software need)
+  B) Recherche Entreprises field-service NAF hunt (structural candidates)
+  C) Deep enrich: Annuaire → Sirene → contacts → opportunity score + readiness
 
 Run:
   python -m app.jobs.ingestion --mode full
@@ -25,15 +25,16 @@ from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import async_session_factory, init_db
-from app.discovery.annuaire import discover_it_smes
+from app.discovery.annuaire import discover_companies_for_play
 from app.discovery.decp import aggregate_by_siret, filter_relevant, load_decp
 from app.discovery.enrich import apply_enrichment_to_prospect, deep_enrich
-from app.models import OutreachEvent, Prospect
+from app.models import EvidenceSignal, IngestionRun, OutreachEvent, Prospect
+from app.plays import DEFAULT_PLAY_CODE
 
 logger = logging.getLogger(__name__)
 
-DATA_SOURCE_DECP = "DECP consolidated public awards (data.gouv.fr) + Sirene/Annuaire"
-DATA_SOURCE_REG = "Recherche Entreprises (api.gouv.fr) IT SME hunt + Sirene"
+DATA_SOURCE_DECP = "DECP public awards (data.gouv.fr) — field-service play filters + Sirene"
+DATA_SOURCE_REG = "Recherche Entreprises — field-service NAF/play filters + Sirene"
 
 
 def _parse_date(val: str | None) -> datetime | None:
@@ -112,16 +113,19 @@ async def upsert_prospect(
     if prospect is None:
         prospect = Prospect(
             company_name=str(name)[:200],
-            sector=enrich_data.get("sector") or "IT / Digital",
-            company_size=enrich_data.get("company_size") or "1-10",
+            sector=enrich_data.get("sector") or "Field Services",
+            company_size=enrich_data.get("company_size") or "unknown",
             signal_type=signal_type,
             signal_details=(base.get("signal_details") or "")[:2000] or None,
             data_source=data_source,
             source=source,
-            acquisition_stage="discovered",
+            acquisition_stage="researching",
             needs_manual_review=True,
             contact_confidence="none",
             contact_source="none",
+            market_play_code=DEFAULT_PLAY_CODE,
+            readiness_state="research_required",
+            manual_review_state="unreviewed",
         )
         session.add(prospect)
         await session.flush()
@@ -149,9 +153,9 @@ async def upsert_prospect(
             ltd = _parse_date(base.get("last_tender_date"))
             if ltd and (not prospect.last_tender_date or ltd > prospect.last_tender_date):
                 prospect.last_tender_date = ltd
-            # Upgrade signal if DECP is stronger
-            if signal_type == "DECP_WIN":
-                prospect.signal_type = "DECP_WIN"
+            # Upgrade signal if public award is stronger
+            if signal_type in ("DECP_WIN", "PUBLIC_AWARD", "BOAMP_WIN"):
+                prospect.signal_type = signal_type
                 if base.get("signal_details"):
                     prospect.signal_details = str(base["signal_details"])[:2000]
                 prospect.source = "DECP"
@@ -163,8 +167,31 @@ async def upsert_prospect(
         prospect.last_tender_date = _parse_date(base.get("last_tender_date"))
     if base.get("signal_details") and not prospect.signal_details:
         prospect.signal_details = str(base["signal_details"])[:2000]
+    if base.get("evidence"):
+        enrich_data["evidence"] = base["evidence"]
+    if base.get("award_history"):
+        enrich_data["award_history"] = base.get("award_history") or enrich_data.get("award_history")
 
+    prospect.market_play_code = prospect.market_play_code or DEFAULT_PLAY_CODE
     apply_enrichment_to_prospect(prospect, enrich_data)
+
+    # Persist evidence signals as rows (best-effort)
+    for ev in (base.get("evidence") or enrich_data.get("evidence") or [])[:10]:
+        if not isinstance(ev, dict):
+            continue
+        session.add(
+            EvidenceSignal(
+                prospect_id=prospect.id,
+                category=ev.get("category") or "structural_fit",
+                signal_type=ev.get("signal_type") or "UNKNOWN",
+                label=(ev.get("label") or "")[:200],
+                evidence_text=(ev.get("evidence_text") or "")[:2000],
+                source_type=ev.get("source_type"),
+                confidence=int(ev.get("confidence") or 50),
+                strength=int(ev.get("strength") or 50),
+            )
+        )
+
     await session.flush()
     return prospect, created, "created" if created else "updated"
 
@@ -186,6 +213,7 @@ async def ingest_decp(
         days_back=days_back,
         min_montant=settings.decp_min_montant or None,
         max_rows=settings.decp_max_awards or None,
+        play_code=DEFAULT_PLAY_CODE,
     )
     stats["awards"] = filtered.height
     companies = aggregate_by_siret(filtered)[:max_companies]
@@ -209,7 +237,7 @@ async def ingest_decp(
             _, created, status = await upsert_prospect(
                 session,
                 base=base,
-                signal_type="DECP_WIN",
+                signal_type="PUBLIC_AWARD",
                 source="DECP",
                 data_source=DATA_SOURCE_DECP,
                 deep=True,
@@ -245,15 +273,17 @@ async def ingest_registry(
 ) -> dict[str, int]:
     stats = {"companies": 0, "created": 0, "updated": 0, "skipped": 0, "errors": 0}
     settings = get_settings()
-    logger.info("Registry source: hunting IT SMEs…")
-    companies = await discover_it_smes(max_results=max_companies, pages_per_query=4)
+    logger.info("Registry source: field-service play hunt…")
+    companies = await discover_companies_for_play(
+        DEFAULT_PLAY_CODE, max_results=max_companies, pages_per_query=4
+    )
     stats["companies"] = len(companies)
 
     for i, company in enumerate(companies):
         base = {
             **company,
             "signal_details": (
-                f"IT SME registry hunt · NAF {company.get('naf_code')} · "
+                f"Field-service registry · NAF {company.get('naf_code')} · "
                 f"{company.get('company_size')} · "
                 f"{(company.get('decision_maker_title') or '')}"
             ),
@@ -262,7 +292,7 @@ async def ingest_registry(
             _, created, status = await upsert_prospect(
                 session,
                 base=base,
-                signal_type="REGISTRY_IT",
+                signal_type="REGISTRY_FIELD",
                 source="Annuaire",
                 data_source=DATA_SOURCE_REG,
                 deep=True,
@@ -306,6 +336,7 @@ async def run_ingestion(
 
     totals: dict[str, Any] = {
         "mode": mode,
+        "play": DEFAULT_PLAY_CODE,
         "decp": {},
         "registry": {},
         "created": 0,
@@ -314,30 +345,49 @@ async def run_ingestion(
     }
 
     async with async_session_factory() as session:
-        if mode in ("full", "decp"):
-            d = await ingest_decp(
-                session,
-                days_back=days_back,
-                max_companies=max_companies,
-                run_contacts=bool(run_contact_discovery),
-            )
-            totals["decp"] = d
-            totals["created"] += d.get("created", 0)
-            totals["updated"] += d.get("updated", 0)
-            totals["errors"] += d.get("errors", 0)
+        run = IngestionRun(
+            adapter=mode,
+            market_play_code=DEFAULT_PLAY_CODE,
+            status="running",
+        )
+        session.add(run)
+        await session.flush()
 
-        if mode in ("full", "registry"):
-            # Registry fills ICP volume; slightly higher cap for full mode
-            reg_max = max_companies if mode == "registry" else max(40, max_companies // 2)
-            r = await ingest_registry(
-                session,
-                max_companies=reg_max,
-                run_contacts=bool(run_contact_discovery),
-            )
-            totals["registry"] = r
-            totals["created"] += r.get("created", 0)
-            totals["updated"] += r.get("updated", 0)
-            totals["errors"] += r.get("errors", 0)
+        try:
+            if mode in ("full", "decp"):
+                d = await ingest_decp(
+                    session,
+                    days_back=days_back,
+                    max_companies=max_companies,
+                    run_contacts=bool(run_contact_discovery),
+                )
+                totals["decp"] = d
+                totals["created"] += d.get("created", 0)
+                totals["updated"] += d.get("updated", 0)
+                totals["errors"] += d.get("errors", 0)
+
+            if mode in ("full", "registry"):
+                reg_max = max_companies if mode == "registry" else max(40, max_companies // 2)
+                r = await ingest_registry(
+                    session,
+                    max_companies=reg_max,
+                    run_contacts=bool(run_contact_discovery),
+                )
+                totals["registry"] = r
+                totals["created"] += r.get("created", 0)
+                totals["updated"] += r.get("updated", 0)
+                totals["errors"] += r.get("errors", 0)
+
+            run.status = "completed"
+            run.stats_json = totals
+            run.finished_at = datetime.now(timezone.utc)
+            await session.commit()
+        except Exception as exc:
+            run.status = "failed"
+            run.error_summary = str(exc)[:2000]
+            run.finished_at = datetime.now(timezone.utc)
+            await session.commit()
+            raise
 
     logger.info("Ingestion complete: %s", totals)
     return totals
@@ -352,8 +402,8 @@ async def run_ingestion_safe(**kwargs) -> dict[str, Any]:
 
 
 async def rescore_all() -> int:
-    """Recompute acquisition + urgency scores for all prospects."""
-    from app.discovery.enrich import apply_enrichment_to_prospect
+    """Recompute V3 opportunity scores for all prospects."""
+    from app.scoring_v3 import apply_v3_score
 
     n = 0
     async with async_session_factory() as session:
@@ -363,10 +413,10 @@ async def rescore_all() -> int:
             .where(Prospect.anonymized.is_(False))
         )
         for p in result.scalars().unique().all():
-            apply_enrichment_to_prospect(p, {})
+            apply_v3_score(p)
             n += 1
         await session.commit()
-    logger.info("Rescored %d prospects", n)
+    logger.info("Rescored %d prospects (V3)", n)
     return n
 
 

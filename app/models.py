@@ -16,29 +16,71 @@ SECTORS = (
     "Logistics",
     "Engineering",
     "Professional Services",
+    "Field Services",
+    "Facilities / Maintenance",
     "IT / Digital",
     "Other",
 )
 
-COMPANY_SIZES = ("1-10", "11-50", "51-200", "200+")
+COMPANY_SIZES = ("1-10", "11-50", "51-200", "200+", "unknown")
 
 SIGNAL_TYPES = (
     "DECP_WIN",
     "BOAMP_WIN",
+    "PUBLIC_AWARD",
+    "REGISTRY_FIELD",
+    "STRUCTURAL",
     "MOROCCO_OPS",
     "PAIN_POST",
-    "REGISTRY_IT",
+    "REGISTRY_IT",  # legacy — penalized in V3 field play
     "OTHER",
 )
 
-SOURCES = ("DECP", "BOAMP", "LinkedIn", "Manual", "Registry", "Annuaire")
+SOURCES = ("DECP", "BOAMP", "LinkedIn", "Manual", "Registry", "Annuaire", "Website", "Jobs")
 
 ACQUISITION_STAGES = (
     "discovered",
+    "researching",
     "enriched",
+    "human_review_required",
     "contact_ready",
     "in_outreach",
+    "conversation",
+    "meeting",
     "parked",
+    "suppressed",
+)
+
+READINESS_STATES = (
+    "insufficient_identity",
+    "research_required",
+    "buyer_required",
+    "contact_required",
+    "proof_required",
+    "human_review_required",
+    "contact_ready",
+    "suppressed",
+)
+
+CONTACT_VERIFICATION_STATES = (
+    "untested",
+    "syntax_valid",
+    "domain_valid",
+    "deliverable",
+    "catch_all",
+    "risky",
+    "indeterminate",
+    "invalid",
+    "bounced",
+    "confirmed_by_reply",
+    "published_personal",
+    "published_generic",
+    "domain_and_pattern_only",
+    "verified",  # legacy alias
+    "likely",
+    "unverified",
+    "needs_review",
+    "none",
 )
 
 PRIORITY_LEVELS = ("High", "Medium", "Low")
@@ -140,6 +182,32 @@ class Prospect(Base):
     )
     last_enriched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # ── V3 commercial / evidence fields ──────────────────────────────────
+    market_play_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
+    pain_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    trigger_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    authority_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    value_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    data_quality_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    opportunity_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0", index=True)
+    readiness_state: Mapped[str] = mapped_column(
+        String(40), default="research_required", server_default="research_required", index=True
+    )
+    readiness_failures: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    suspected_pain: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    why_now: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    recommended_buyer_role: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    personalization_brief: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    recommended_offer: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    evidence_json: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    manual_review_state: Mapped[str] = mapped_column(
+        String(30), default="unreviewed", server_default="unreviewed", index=True
+    )
+    qualification_decision: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    qualification_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    contact_discovery_state: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    # published | inferred | guessed | user_supplied
+
     # GDPR / compliance trail
     data_source: Mapped[str] = mapped_column(String(200))
     informed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -210,51 +278,55 @@ class Prospect(Base):
 
     @property
     def contact_status(self) -> str:
-        if self.email and self.contact_confidence == "verified":
-            return "Verified email"
-        if self.email and self.contact_confidence in ("likely", "unverified"):
-            return "Email found"
-        if self.needs_manual_review or self.contact_confidence == "needs_review":
+        conf = (self.contact_confidence or "").lower()
+        disc = (self.contact_discovery_state or "").lower()
+        if conf in ("confirmed_by_reply", "published_personal", "deliverable", "verified"):
+            return "Usable contact"
+        if conf in ("catch_all", "indeterminate") or disc == "guessed":
+            return "Guessed / risky — review"
+        if self.email and conf in ("likely", "published_generic", "unverified"):
+            return "Email candidate"
+        if self.needs_manual_review or conf in ("needs_review", "none"):
             return "Needs review"
         return "No email yet"
 
     @property
     def score_badges(self) -> list[str]:
-        """Human-readable reasons — prefer ICP breakdown when present."""
         if self.score_breakdown and isinstance(self.score_breakdown, dict):
             badges = self.score_breakdown.get("badges") or []
             if badges:
                 return list(badges)[:8]
         badges: list[str] = []
-        if self.signal_type in ("DECP_WIN", "BOAMP_WIN"):
-            badges.append("Public win")
-        if self.signal_type == "REGISTRY_IT":
-            badges.append("IT registry")
+        if self.signal_type in ("DECP_WIN", "BOAMP_WIN", "PUBLIC_AWARD"):
+            badges.append("Public award")
+        if self.signal_type == "REGISTRY_FIELD":
+            badges.append("Field registry")
         if self.award_count >= 2:
             badges.append(f"{self.award_count} awards")
-        details = (self.signal_details or "").lower()
-        if "cybersécurité" in details or "cyber" in details:
-            badges.append("Cyber")
-        if self.naf_code and self.naf_code[:2] in ("62", "63", "58"):
-            badges.append("IT NAF")
         if self.company_size in ("11-50", "51-200"):
             badges.append("SME fit")
         if self.decision_maker_name:
-            badges.append("DM named")
-        if self.priority_level == "High":
-            badges.append("High urgency")
+            badges.append("Person named")
+        if self.readiness_state == "contact_ready":
+            badges.append("Meeting-ready")
+        elif self.readiness_state == "human_review_required":
+            badges.append("Needs human OK")
         return badges
 
     @property
     def why_this_lead(self) -> list[str]:
         if self.score_breakdown and isinstance(self.score_breakdown, dict):
             return list(self.score_breakdown.get("reasons") or [])[:5]
-        return []
+        out = []
+        if self.why_now:
+            out.append(self.why_now)
+        if self.suspected_pain:
+            out.append(self.suspected_pain)
+        return out[:5]
 
     @property
     def primary_rank(self) -> int:
-        """Single number for queue sort — acquisition score preferred."""
-        return self.acquisition_score or self.urgency_score or 0
+        return self.opportunity_score or self.acquisition_score or self.urgency_score or 0
 
 
 class OutreachEvent(Base):
@@ -268,5 +340,118 @@ class OutreachEvent(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     next_action: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     next_action_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # V3 structured fields (optional)
+    event_kind: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    pipeline_stage_after: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    personalization_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    objection_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
 
     prospect: Mapped["Prospect"] = relationship(back_populates="outreach_events")
+
+
+class MarketPlay(Base):
+    __tablename__ = "market_plays"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    offer_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    offer_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EvidenceSignal(Base):
+    """Independent evidence item — not a single signal_type field."""
+
+    __tablename__ = "evidence_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(ForeignKey("prospects.id", ondelete="CASCADE"), index=True)
+    category: Mapped[str] = mapped_column(String(30), index=True)
+    # structural_fit, pain, trigger, value, exclusion, contact, compliance
+    signal_type: Mapped[str] = mapped_column(String(80), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    evidence_text: Mapped[str] = mapped_column(Text)
+    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    confidence: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    strength: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    manually_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    observed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QualificationReview(Base):
+    __tablename__ = "qualification_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(ForeignKey("prospects.id", ondelete="CASCADE"), index=True)
+    reviewer_email: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    decision: Mapped[str] = mapped_column(String(30))  # accept, reject, research_more, park
+    fit_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    pain_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    trigger_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    buyer_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    contact_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    offer_match_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    reason_codes: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(ForeignKey("prospects.id", ondelete="CASCADE"), index=True)
+    task_type: Mapped[str] = mapped_column(String(40), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    status: Mapped[str] = mapped_column(String(20), default="open", server_default="open", index=True)
+    origin: Mapped[str] = mapped_column(String(20), default="manual", server_default="manual")
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SuppressionEntry(Base):
+    __tablename__ = "suppression_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(30), index=True)  # email, domain, siren, person
+    value_normalized: Mapped[str] = mapped_column(String(320), index=True)
+    reason: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    adapter: Mapped[str] = mapped_column(String(40), index=True)
+    market_play_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="running", server_default="running")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    stats_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    log_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class OfferAsset(Base):
+    __tablename__ = "offer_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    market_play_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
+    asset_type: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(String(200))
+    url_or_path: Mapped[str] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    proof_tags: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")

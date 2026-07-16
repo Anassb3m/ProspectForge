@@ -1,120 +1,78 @@
-# ProspectForge
+# ProspectForge V3
 
-### Client Acquisition OS for French IT / digital SMEs
+### Client acquisition OS for **operational** French SMEs
 
-**Version 2.2** · Python · FastAPI · PostgreSQL · HTMX
+**Version 3.0** · FastAPI · PostgreSQL · HTMX
 
-ProspectForge is an internal operating system for **finding, ranking, and converting** high-signal French mid-market companies — especially those winning public IT/cyber/digital contracts or sitting in the IT SME registry with reachable dirigeants.
+ProspectForge finds, qualifies, prioritizes, and helps convert **non-technical / lightly technical mid-market companies** that buy **custom operational software** — not software houses that build it themselves.
 
-It is built for a **solo operator or small team**: few features, high leverage, full audit trail (GDPR/CNIL-friendly B2B prospecting). The machine does the mechanical work. You keep the last mile that converts — LinkedIn confirmation and the first personalized message.
+**Primary market play:** `FIELD_SERVICE_OPERATIONS_FR`  
+(field technicians · maintenance · installation · cold chain · HVAC · electrical · facilities)
 
----
-
-## Why it exists
-
-Manual prospecting for French public-market winners and IT SMEs is slow:
-
-1. Browse BOAMP / DECP / LinkedIn for hours  
-2. Copy company names into a spreadsheet  
-3. Guess emails  
-4. Forget follow-ups  
-5. Never know which signal type actually replies  
-
-ProspectForge collapses steps 1–3 into a **nightly (or on-demand) pipeline**, then forces steps 4–5 into a **queue you open every morning**.
-
-```
-Public awards + company registry
-        ↓  filter · enrich · score
-   Acquisition cockpit (ranked)
-        ↓  LinkedIn last-mile + email
-   Outreach event log
-        ↓
-   Dashboard (what sourcing works)
-```
+> The machine produces a **small meeting-ready queue**.  
+> You keep the last mile: human qualification, LinkedIn confirmation, first message.
 
 ---
 
-## What you get
+## What changed in V3
 
-| Capability | What it does |
+| V2.x (wrong default) | V3 |
 |---|---|
-| **Multi-source discovery** | DECP public awards + Recherche Entreprises IT SME hunt |
-| **Sirene compliance** | Official INSEE data; blocks partial-diffusion companies |
-| **Dirigeant extraction** | Président / DG names from open registry (email-ready) |
-| **ICP acquisition score** | Explicit fit × timing × contactability × value |
-| **Contact waterfall** | French email patterns + optional Reacher SMTP verify |
-| **Sourcing cockpit** | Ranked queue with “why this lead” badges |
-| **Outreach event log** | Append-only history; status always derived |
-| **Pipeline (Kanban)** | New → Sent → Replied → Meeting → Closed |
-| **Follow-up queue** | Due / overdue next actions for the morning |
-| **Dashboard** | Reply rates by signal type & channel |
-| **CSV import/export** | Bulk load + backup of the list |
-| **VPS-ready Docker** | Custom ports (no fight for 80/443), Caddy, backups |
+| Targets IT/cyber/ESN | Targets **field-service / technical ops SMEs** |
+| Award ≈ need | Award = **timing only**; pain needs separate evidence |
+| One urgency score | **Opportunity score** (fit/pain/trigger/authority/value/DQ) + readiness gates |
+| Guessed email = contact-ready | Guessed emails labeled; **human qualification required** |
+| `REGISTRY_IT` discovery | `REGISTRY_FIELD` + play-driven NAF/CPV/keywords |
+| Volume dashboard | **Daily action queue** + qualify checklist |
 
-**Honest limits (by design):** no automated LinkedIn scraping, no black-box AI scoring, no multi-channel sequencer. Decision-maker *confirmation* stays human — that is where conversion quality lives.
+Full product/engineering spec: [`PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md`](./PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md)
 
 ---
 
-## Documentation map
+## Docs
 
-| Doc | Audience |
+| File | Purpose |
 |---|---|
-| **[GUIDE.md](./GUIDE.md)** | **You** — use cases, daily workflow, how to use the system efficiently |
-| **[DEPLOY.md](./DEPLOY.md)** | Ops — VPS, custom ports, TLS, backups, firewall |
-| [prospectforge_spec_python.md](./prospectforge_spec_python.md) | Architecture v2.0 core |
-| [logic_specification.txt](./logic_specification.txt) | Discovery / enrichment pipeline v2.1 |
+| **[GUIDE.md](./GUIDE.md)** | Daily operator rhythm (update for V3 queue) |
+| **[DEPLOY.md](./DEPLOY.md)** | VPS deploy, custom ports, backups |
+| Master spec | Implementation-grade rebuild document |
 
 ---
 
-## Screens (mental model)
+## Core screens
 
-| Route | Purpose |
+| Route | Role |
 |---|---|
-| `/` | **Dashboard** — volume, reply rates, DECP this week, needs-review |
-| `/sourcing` | **Acquisition cockpit** — run discovery, rank leads, deep-enrich, LinkedIn |
-| `/prospects` | Full CRM-style list with filters + quick event log |
-| `/prospects/{id}` | Company detail, award history, compliance, timeline |
-| `/kanban` | Pipeline board (drag updates event log) |
-| `/follow-ups` | Everything due today or overdue |
-| `/import` | CSV bulk import with per-row errors |
-| `/docs` | OpenAPI (disabled in production unless `DEBUG=true`) |
+| **`/queue`** | **Daily action queue** — ranked work + qualify |
+| `/queue/{id}/qualify` | Human checklist (accept / research / park / reject) |
+| `/sourcing` | Run DECP + registry discovery |
+| `/prospects` | Full list |
+| `/` | Dashboard |
+| `/follow-ups` | Due tasks / next actions |
+| `/kanban` | Pipeline |
 
 ---
 
-## Quick start (local development)
-
-**Requirements:** Python 3.12+, optional Docker for Postgres later.
+## Quick start (local)
 
 ```bash
-git clone <repo> ProspectForge && cd ProspectForge
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-
-# SQLite by default via .env
+rm -f prospectforge.db   # fresh schema
 uvicorn app.main:app --reload --port 8000
 ```
 
-| | |
-|---|---|
-| App | http://localhost:8000 |
-| Login (dev defaults) | `admin@prospectforge.local` / `admin123` |
-| Sourcing | http://localhost:8000/sourcing |
-| API docs | http://localhost:8000/docs |
-
-> Change admin credentials before any shared or production use.
-
-### First discovery run (local)
+- http://localhost:8000/queue  
+- Login: `admin@prospectforge.local` / `admin123` (dev only)
 
 ```bash
-# In .env: INSEE_API_KEY=...  (recommended)
+# Field-service registry discovery
+export INSEE_API_KEY=...
 python -m app.jobs.ingestion --mode registry --max-companies 30
-# or full (DECP parquet download can be large):
-# python -m app.jobs.ingestion --mode full --max-companies 40
+
+# Public awards (maintenance / installation filters)
+python -m app.jobs.ingestion --mode decp --max-companies 40
 ```
-
-Or open **Sourcing → Run acquisition**.
-
-### Tests
 
 ```bash
 pytest -q
@@ -122,85 +80,63 @@ pytest -q
 
 ---
 
-## Production deploy (shared VPS, custom ports)
+## Production (shared VPS)
 
-ProspectForge is built to live **next to other services** without taking 80/443.
-
-| Role | Default host port |
-|---|---|
-| Public HTTP | **18080** |
-| Public HTTPS (self-signed) | **18443** |
-| App (loopback) | **18081** |
-| Postgres (loopback) | **15432** |
+Default ports avoid 80/443: **18080 / 18443 / 18081 / 15432**
 
 ```bash
 cp .env.production.example .env
-# set SECRET_KEY, POSTGRES_PASSWORD, ADMIN_*, INSEE_API_KEY, ports if needed
-chmod +x scripts/*.sh
+# SECRET_KEY, POSTGRES_PASSWORD, ADMIN_*, INSEE_API_KEY, ports
 ./scripts/deploy.sh
 ```
 
-Then open `http://VPS_IP:18080` (or HTTPS on 18443).
-
-**Full guide:** [DEPLOY.md](./DEPLOY.md) — firewall, nginx reverse-proxy option, backups, restore, troubleshooting.
+See [DEPLOY.md](./DEPLOY.md).
 
 ---
 
-## Architecture
-
-### Runtime stack
+## Architecture (V3)
 
 ```
-Browser (HTMX + Jinja2 + Tailwind CDN)
-        ↕
-FastAPI (async) + JWT cookie auth
-        ↕
-PostgreSQL 16  (SQLite OK for local only)
-        ↕
-APScheduler (in-process: nightly ingestion, score recalc, retention)
+Market play FIELD_SERVICE_OPERATIONS_FR
+        ↓
+DECP awards (CPV 45/50/453… + maintenance keywords)
+  + Registry (NAF 43/33/81…)
+        ↓
+Sirene identity / diffusion gate
+        ↓
+Evidence list (structural ≠ pain ≠ trigger)
+        ↓
+Opportunity score + hard readiness gates
+        ↓
+Human qualification (required)
+        ↓
+Daily queue → LinkedIn → careful first outreach
+        ↓
+Append-only events + follow-up tasks
 ```
 
-### Discovery pipeline
+### Opportunity score
 
 ```
-┌─────────────────────┐     ┌──────────────────────┐
-│ DECP Parquet        │     │ Recherche Entreprises│
-│ (public awards)     │     │ (IT SME + dirigeants)│
-└─────────┬───────────┘     └──────────┬───────────┘
-          │ filter / aggregate         │ NAF 62/63 first
-          └────────────┬───────────────┘
-                       ▼
-              Sirene (INSEE) compliance gate
-                       ▼
-              Deep enrich + ICP acquisition score
-                       ▼
-              Prospect row (one per SIRET)
-                       ▼
-              /sourcing  →  LinkedIn  →  outreach events
+0.25×fit + 0.25×pain + 0.20×trigger + 0.15×authority + 0.10×value + 0.05×data_quality
+× confidence_multiplier − penalties
 ```
 
-### Scoring (inspectable, not ML)
+**High score cannot skip gates:** fit/pain/trigger floors, contact quality, and **human accept**.
 
-```
-acquisition ≈ 0.35×fit + 0.30×timing + 0.20×contactability + 0.15×value
-```
+### Contact honesty
 
-| Axis | What it captures |
+| State | May auto-send? |
 |---|---|
-| **Fit** | NAF (IT/digital), headcount sweet spot, dirigeant seniority |
-| **Timing** | Fresh DECP wins, multi-award streak, cyber/cloud language, premium buyers |
-| **Contactability** | Verified/likely email, named DM, website, phone |
-| **Value** | Contract amounts, SME size, IT NAF |
+| deliverable / published personal / reply-confirmed | After role confirm |
+| catch-all / guessed pattern | **No** — LinkedIn or more verify |
+| invalid / bounced | Block |
 
-Every lead can show **badges** and **“why this lead”** reasons in the cockpit.
+---
 
-### Compliance (built-in)
+## Packaged offer (default play)
 
-- `data_source` required on every prospect  
-- Cannot log **Sent** without `informed_at` (first-contact disclosure)  
-- **OptOut** event freezes further outreach  
-- Partial-diffusion Sirene records are never imported  
-- Retention job can anonymize stale records (CNIL B2B guidance)
+> A focused **operations-control system** for quotes, interventions, technicians, reports, parts, and management visibility — configured around the company’s real workflow, not sold as generic software development.
 
 ---
 
@@ -208,95 +144,41 @@ Every lead can show **badges** and **“why this lead”** reasons in the cockpi
 
 ```
 app/
-  main.py                 # FastAPI entry + lifespan
-  models.py / schemas.py  # SQLAlchemy + Pydantic
-  scoring.py              # Urgency + blend with acquisition
-  services.py             # CRUD, metrics, CSV, compliance
-  discovery/              # DECP, Annuaire, Sirene, ICP, emails, enrich
-  jobs/                   # ingestion, scheduler, retention
-  routers/                # auth, prospects, events, dashboard, sourcing
-  templates/ + static/    # HTMX UI
-deploy/Caddyfile          # Edge proxy (custom ports)
-scripts/                  # deploy, backup, restore, entrypoint
-alembic/                  # migrations
-tests/                    # pytest
-DEPLOY.md  GUIDE.md       # ops + usage
+  plays/field_service.py   # Active market-play config
+  scoring_v3.py            # Opportunity + readiness
+  discovery/               # DECP, Annuaire, Sirene, contacts (play-driven)
+  routers/queue.py         # Daily queue + qualification
+  models.py                # Prospects + evidence + reviews + tasks + runs
+scripts/ deploy/           # VPS
+tests/
 ```
 
 ---
 
-## Environment (essentials)
+## Security & compliance
 
-| Variable | Purpose |
-|---|---|
-| `SECRET_KEY` | JWT signing — long random in production |
-| `POSTGRES_*` | DB credentials (compose builds `DATABASE_URL`) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Bootstrap user if DB empty |
-| `INSEE_API_KEY` | Sirene enrichment (free public plan) |
-| `HTTP_PORT` / `HTTPS_PORT` / `APP_PORT` / `POSTGRES_PORT` | Shared-VPS port map |
-| `TLS_MODE` | `internal` · `off` · `acme` |
-| `FORCE_HTTPS_COOKIES` | `true` only when serving over HTTPS |
-| `DECP_DAYS_BACK` / `DECP_MAX_COMPANIES` | Ingestion scope |
-| `ENABLE_NIGHTLY_INGESTION` | APScheduler discovery job |
-| `REACHER_ENABLED` | Optional SMTP email verification |
-
-See `.env.production.example` for the full production template.
+- Loopback-bound app/DB; Caddy on custom ports  
+- `/docs` off in production  
+- Weak `SECRET_KEY` refused at startup  
+- `data_source` + `informed_at` before `Sent`  
+- Opt-out + suppression table  
+- Partial-diffusion companies never imported  
 
 ---
 
-## CLI cheat sheet
+## What V3 deliberately does *not* do yet
 
-```bash
-# Discovery modes
-python -m app.jobs.ingestion --mode registry --max-companies 40
-python -m app.jobs.ingestion --mode decp --days 120 --max-companies 50
-python -m app.jobs.ingestion --mode full --max-companies 60
-python -m app.jobs.ingestion --rescore-only
+- Autonomous LinkedIn scrape/send  
+- High-volume email sequences  
+- Opaque ML scoring  
+- Full multi-entity CRM rewrite (companies/campaigns normalized tables seeded; legacy `prospects` still the operator row with V3 fields)  
+- BODACC / website crawler / BOAMP adapters (spec’d; next increment)
 
-# Inside Docker
-docker compose exec app python -m app.jobs.ingestion --mode registry --max-companies 40
-
-# Deploy / backup
-./scripts/deploy.sh
-./scripts/backup-host.sh
-./scripts/restore.sh backups/prospectforge_YYYYMMDD.sql.gz
-```
+Those are listed as non-goals until the manual commercial loop works.
 
 ---
 
-## Security notes
+## License / sources
 
-- App binds to **loopback** on the host; only Caddy (or your reverse proxy) should be public  
-- Postgres is loopback-only  
-- `/docs` is **off** when `ENVIRONMENT=production` and `DEBUG=false`  
-- Production refuses weak/short `SECRET_KEY` at startup  
-- Never commit `.env` (gitignored)  
-- Reacher is dual-licensed (AGPL / commercial) if you enable it for business use  
-
----
-
-## Roadmap discipline
-
-**In scope now:** discovery, enrichment, ranking, tracking, compliance, deploy.  
-**Deferred until real volume:** ML weight tuning, Hunter.io, multi-user roles, automated LinkedIn.
-
-Build small → use daily → let reply rates tell you what to automate next.
-
----
-
-## License / data sources
-
-- Application code: your repository license  
-- DECP: open data (data.gouv.fr consolidations)  
-- Sirene: INSEE API (requires free key)  
-- Recherche Entreprises: api.gouv.fr (no key)  
-
-Prospecting remains subject to **GDPR / CNIL B2B rules** — this tool helps you document sources and opt-outs; it does not replace legal judgment.
-
----
-
-## Start here
-
-1. Local: `uvicorn` + open `/sourcing`  
-2. Read **[GUIDE.md](./GUIDE.md)** for the efficient operating rhythm  
-3. When ready: **[DEPLOY.md](./DEPLOY.md)** on your VPS with custom ports  
+Open data: DECP, Recherche Entreprises, Sirene (API key).  
+You remain responsible for GDPR/CNIL B2B practice.

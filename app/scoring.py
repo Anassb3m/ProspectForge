@@ -83,8 +83,8 @@ def calculate_urgency_score(
     elif signal == "PAIN_POST":
         score += 20
 
-    if is_it_cyber_naf(getattr(prospect, "naf_code", None)):
-        score += 12
+    # V3: IT/cyber NAF is no longer a general urgency bonus (wrong ICP).
+    # Field-service fit is handled by scoring_v3 opportunity model.
 
     title = (prospect.decision_maker_title or "").lower()
     if title and any(

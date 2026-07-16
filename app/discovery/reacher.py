@@ -59,14 +59,19 @@ def _normalize(email: str, raw: dict) -> dict[str, Any]:
     is_deliverable = smtp.get("is_deliverable")
     is_catch_all = smtp.get("is_catch_all")
 
-    if reachable == "safe" or is_deliverable is True:
-        confidence = "verified"
+    # V3: never treat catch-all as fully verified
+    if is_catch_all:
+        confidence = "catch_all"
+    elif reachable == "safe" and is_deliverable is True:
+        confidence = "deliverable"
+    elif reachable == "safe":
+        confidence = "deliverable"
     elif reachable == "risky":
-        confidence = "likely"
+        confidence = "risky"
     elif reachable == "invalid":
         confidence = "invalid"
     else:
-        confidence = "unknown"
+        confidence = "indeterminate"
 
     return {
         "email": email,
@@ -74,6 +79,7 @@ def _normalize(email: str, raw: dict) -> dict[str, Any]:
         "is_deliverable": is_deliverable,
         "is_catch_all": is_catch_all,
         "confidence": confidence,
+        "verification_state": confidence,
         "raw": raw,
     }
 
@@ -105,13 +111,19 @@ async def check_emails_batch(
 
 
 def pick_best_email(results: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Prefer verified, then likely, skip invalid."""
-    order = {"verified": 0, "likely": 1, "unknown": 2, "invalid": 9}
-    usable = [r for r in results if r.get("confidence") != "invalid"]
+    """Prefer deliverable non-catch-all; never auto-pick invalid/bounced."""
+    order = {
+        "deliverable": 0,
+        "verified": 0,
+        "likely": 1,
+        "catch_all": 3,
+        "indeterminate": 4,
+        "unknown": 4,
+        "risky": 5,
+        "invalid": 9,
+    }
+    usable = [r for r in results if r.get("confidence") not in ("invalid", "bounced")]
     if not usable:
         return None
     usable.sort(key=lambda r: order.get(r.get("confidence") or "unknown", 5))
-    best = usable[0]
-    if best.get("confidence") in ("verified", "likely", "unknown"):
-        return best
-    return None
+    return usable[0]

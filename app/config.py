@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     decp_max_awards: int = 0  # 0 = unlimited after filter
     decp_max_companies: int = 200  # cap nightly upserts
     ingestion_run_contacts: bool = False  # heavy; enable when Reacher is up
-    enable_nightly_ingestion: bool = True
+    enable_nightly_ingestion: bool = False  # V3: off until live-source validation
 
     @property
     def is_sqlite(self) -> bool:

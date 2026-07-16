@@ -232,6 +232,20 @@ class ProspectOut(BaseModel):
     city: Optional[str] = None
     department: Optional[str] = None
     dirigeants: Optional[list] = None
+    market_play_code: Optional[str] = None
+    opportunity_score: int = 0
+    pain_score: int = 0
+    trigger_score: int = 0
+    authority_score: int = 0
+    readiness_state: Optional[str] = None
+    readiness_failures: Optional[list] = None
+    suspected_pain: Optional[str] = None
+    why_now: Optional[str] = None
+    recommended_buyer_role: Optional[str] = None
+    personalization_brief: Optional[str] = None
+    recommended_offer: Optional[str] = None
+    manual_review_state: Optional[str] = None
+    contact_discovery_state: Optional[str] = None
 
 
 class ProspectDetail(ProspectOut):

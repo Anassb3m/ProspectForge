@@ -19,7 +19,7 @@ from app.auth import hash_password
 from app.config import get_settings
 from app.database import async_session_factory, engine, init_db
 from app.models import User
-from app.routers import auth, dashboard, events, prospects, sourcing
+from app.routers import auth, dashboard, events, prospects, queue, sourcing
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +45,31 @@ async def bootstrap_admin() -> None:
         logger.info("Bootstrap admin created: %s", settings.admin_email)
 
 
+async def seed_market_plays() -> None:
+    """Ensure V3 default market play exists in DB."""
+    from app.models import MarketPlay
+    from app.plays import ACTIVE_PLAYS
+
+    async with async_session_factory() as session:
+        for code, cfg in ACTIVE_PLAYS.items():
+            existing = await session.execute(select(MarketPlay).where(MarketPlay.code == code))
+            if existing.scalar_one_or_none():
+                continue
+            session.add(
+                MarketPlay(
+                    code=code,
+                    name=cfg["name"],
+                    version=int(cfg.get("version") or 1),
+                    is_active=bool(cfg.get("is_active")),
+                    config_json=cfg,
+                    offer_name=cfg.get("offer_name"),
+                    offer_summary=cfg.get("offer_summary"),
+                )
+            )
+            logger.info("Seeded market play %s", code)
+        await session.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     weak_keys = {
@@ -61,6 +86,7 @@ async def lifespan(app: FastAPI):
         )
     await init_db()
     await bootstrap_admin()
+    await seed_market_plays()
 
     if settings.enable_scheduler:
         from app.jobs.scheduler import start_scheduler, stop_scheduler
@@ -100,6 +126,7 @@ app.include_router(prospects.router)
 app.include_router(events.router)
 app.include_router(dashboard.router)
 app.include_router(sourcing.router)
+app.include_router(queue.router)
 
 
 @app.get("/health")
