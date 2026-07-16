@@ -1,4 +1,4 @@
-"""Contact enrichment orchestration (replaces Hunter.io paid path)."""
+"""Contact enrichment orchestration."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.commercial import recompute_commercial_state, validate_contact_confidence
 from app.discovery.contacts import discover_contacts
 from app.discovery.emails import extract_domain
 from app.models import Prospect
-from app.scoring import apply_score
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,6 @@ async def enrich_prospect_contacts(
     verify: bool = True,
     apply_best: bool = False,
 ) -> dict[str, Any]:
-    """
-    Run contact discovery waterfall on a prospect.
-    If apply_best, write best verified/likely email onto the prospect.
-    """
     if person_name:
         prospect.decision_maker_name = person_name
 
@@ -43,20 +39,18 @@ async def enrich_prospect_contacts(
 
     prospect.contact_candidates = result.get("candidates")
     prospect.contact_source = result.get("contact_source")
-    prospect.contact_confidence = result.get("contact_confidence")
+    conf = result.get("contact_confidence") or "none"
+    try:
+        conf = validate_contact_confidence(conf)
+    except ValueError:
+        conf = "domain_and_pattern_only"
+    prospect.contact_confidence = conf
+    prospect.contact_discovery_state = result.get("contact_discovery_state") or "guessed"
     prospect.needs_manual_review = bool(result.get("needs_manual_review"))
 
-    if apply_best and result.get("best_email"):
+    if apply_best and result.get("best_email") and result.get("usable_for_send"):
         prospect.email = result["best_email"]
-        if result.get("contact_confidence") in ("verified", "likely"):
-            prospect.needs_manual_review = False
 
-    apply_score(prospect, list(prospect.outreach_events or []))
-    try:
-        from app.discovery.enrich import apply_enrichment_to_prospect
-
-        apply_enrichment_to_prospect(prospect, {})
-    except Exception:
-        pass
+    await recompute_commercial_state(db, prospect)
     await db.flush()
     return result

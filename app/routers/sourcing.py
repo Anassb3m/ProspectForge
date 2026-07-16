@@ -304,13 +304,24 @@ async def api_use_email(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    from app.commercial import recompute_commercial_state, validate_contact_confidence, validate_discovery_state
+
     prospect.email = email.strip().lower()
     prospect.contact_source = source
-    prospect.contact_confidence = confidence
-    prospect.needs_manual_review = confidence not in ("verified", "likely")
-    apply_enrichment_to_prospect(prospect, {})
+    try:
+        prospect.contact_confidence = validate_contact_confidence(confidence)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Manual "use this" is user_supplied, not auto-verified
+    if prospect.contact_confidence in ("verified", "deliverable") and source == "manual":
+        prospect.contact_confidence = "manual_confirmed"
+    prospect.contact_discovery_state = validate_discovery_state("user_supplied")
+    prospect.needs_manual_review = prospect.contact_confidence not in (
+        "deliverable", "verified", "published_personal", "confirmed_by_reply", "manual_confirmed",
+    )
+    await recompute_commercial_state(db, prospect)
     await db.flush()
-    return {"ok": True, "email": prospect.email, "acquisition_score": prospect.acquisition_score}
+    return {"ok": True, "email": prospect.email, "opportunity_score": prospect.opportunity_score}
 
 
 @router.post("/api/prospects/{prospect_id}/mark-reviewed")
@@ -367,7 +378,7 @@ async def page_sourcing(
         "ready": sum(1 for p in all_p if p.acquisition_stage == "contact_ready"),
         "with_dm": sum(1 for p in all_p if p.decision_maker_name),
         "decp": sum(1 for p in all_p if p.signal_type == "DECP_WIN"),
-        "registry": sum(1 for p in all_p if p.signal_type == "REGISTRY_IT"),
+        "registry": sum(1 for p in all_p if p.signal_type in ("REGISTRY_FIELD", "REGISTRY_IT")),
         "review": sum(1 for p in all_p if p.needs_manual_review),
     }
     ctx = {
@@ -530,11 +541,21 @@ async def form_use_email(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    from app.commercial import recompute_commercial_state, validate_contact_confidence
+
     prospect.email = email.strip().lower()
     prospect.contact_source = source
-    prospect.contact_confidence = confidence
-    prospect.needs_manual_review = confidence not in ("verified", "likely")
-    apply_enrichment_to_prospect(prospect, {})
+    try:
+        conf = validate_contact_confidence(confidence)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if conf in ("verified", "deliverable") and source in ("manual", "reacher"):
+        # Browser cannot self-assert SMTP verified
+        if source == "manual":
+            conf = "manual_confirmed"
+    prospect.contact_confidence = conf
+    prospect.contact_discovery_state = "user_supplied"
+    await recompute_commercial_state(db, prospect)
     await db.flush()
     prospect = await services.get_prospect(db, prospect_id)
     return templates.TemplateResponse(
@@ -554,7 +575,7 @@ async def form_use_email(
                 prospect.decision_maker_name,
                 prospect.decision_maker_title,
             ),
-            "flash": f"Email set · acquisition score {prospect.acquisition_score}",
+            "flash": f"Email set · opportunity {prospect.opportunity_score}",
         },
     )
 
@@ -601,9 +622,9 @@ async def form_run_ingestion(
         skip_sirene=bool(skip_sirene),
     )
     labels = {
-        "full": "DECP awards + IT registry hunt",
+        "full": "DECP awards + field-service registry",
         "decp": "DECP public awards only",
-        "registry": "IT SME registry hunt only",
+        "registry": "Field-service registry only",
     }
     return templates.TemplateResponse(
         request,

@@ -27,8 +27,9 @@ from app.config import get_settings
 from app.database import async_session_factory, init_db
 from app.discovery.annuaire import discover_companies_for_play
 from app.discovery.decp import aggregate_by_siret, filter_relevant, load_decp
+from app.commercial import is_suppressed, recompute_commercial_state, upsert_evidence
 from app.discovery.enrich import apply_enrichment_to_prospect, deep_enrich
-from app.models import EvidenceSignal, IngestionRun, OutreachEvent, Prospect
+from app.models import IngestionRun, OutreachEvent, Prospect
 from app.plays import DEFAULT_PLAY_CODE
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,9 @@ async def upsert_prospect(
     siren = base.get("siren")
     if not siret and not siren:
         return None, False, "error"
+
+    if await is_suppressed(session, siren=siren):
+        return None, False, "skipped_compliance"
 
     enrich_data: dict[str, Any] = dict(base)
     if deep:
@@ -175,23 +179,13 @@ async def upsert_prospect(
     prospect.market_play_code = prospect.market_play_code or DEFAULT_PLAY_CODE
     apply_enrichment_to_prospect(prospect, enrich_data)
 
-    # Persist evidence signals as rows (best-effort)
-    for ev in (base.get("evidence") or enrich_data.get("evidence") or [])[:10]:
-        if not isinstance(ev, dict):
-            continue
-        session.add(
-            EvidenceSignal(
-                prospect_id=prospect.id,
-                category=ev.get("category") or "structural_fit",
-                signal_type=ev.get("signal_type") or "UNKNOWN",
-                label=(ev.get("label") or "")[:200],
-                evidence_text=(ev.get("evidence_text") or "")[:2000],
-                source_type=ev.get("source_type"),
-                confidence=int(ev.get("confidence") or 50),
-                strength=int(ev.get("strength") or 50),
-            )
-        )
-
+    # Dedupe-aware evidence upsert (normalized table is source of truth)
+    await upsert_evidence(
+        session,
+        prospect.id,
+        list(base.get("evidence") or enrich_data.get("evidence") or [])[:20],
+    )
+    await recompute_commercial_state(session, prospect)
     await session.flush()
     return prospect, created, "created" if created else "updated"
 
@@ -445,7 +439,7 @@ def main() -> None:
         "--mode",
         choices=["full", "decp", "registry"],
         default="full",
-        help="full=DECP+registry, decp=awards only, registry=IT SME hunt",
+        help="full=DECP+registry, decp=awards only, registry=field-service hunt",
     )
     parser.add_argument("--days", type=int, default=None)
     parser.add_argument("--max-companies", type=int, default=None)

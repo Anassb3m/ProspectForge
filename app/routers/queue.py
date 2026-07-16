@@ -1,4 +1,4 @@
-"""V3 daily action queue + human qualification gate."""
+"""V3 daily action queue + enforced human qualification gate."""
 
 from __future__ import annotations
 
@@ -13,15 +13,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user
+from app.commercial import recompute_commercial_state
 from app.database import get_db
 from app.discovery.annuaire import linkedin_people_url
 from app.models import QualificationReview, Task, User, Prospect
 from app.plays import DEFAULT_PLAY_CODE, get_play
-from app.scoring_v3 import apply_v3_score
 from app import services
 
 router = APIRouter(tags=["queue"])
 templates = Jinja2Templates(directory="app/templates")
+
+ACCEPT_REQUIRED = (
+    "fit_confirmed",
+    "pain_confirmed",
+    "trigger_confirmed",
+    "buyer_confirmed",
+    "contact_confirmed",
+    "offer_match_confirmed",
+)
 
 
 async def _daily_queue(
@@ -53,7 +62,6 @@ async def _daily_queue(
                 Prospect.acquisition_score >= min_score,
             )
         )
-    # Sort: human_review_required first, then contact_ready, then by score
     result = await db.execute(q.limit(500))
     items = list(result.scalars().unique().all())
 
@@ -67,7 +75,6 @@ async def _daily_queue(
             "insufficient_identity": 5,
             "suppressed": 9,
         }.get(p.readiness_state or "", 6)
-        # Prefer unreviewed high scores for qualification
         unreviewed = 0 if (p.manual_review_state or "unreviewed") == "unreviewed" else 1
         return (unreviewed, stage_rank, -(p.opportunity_score or p.acquisition_score or 0))
 
@@ -108,6 +115,7 @@ async def page_daily_queue(
                 "review": review or "",
             },
             "linkedin_people_url": linkedin_people_url,
+            "error": None,
         },
     )
 
@@ -118,11 +126,12 @@ async def page_qualify(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
+    error: Optional[str] = None,
 ):
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Not found")
-    apply_v3_score(prospect)
+    await recompute_commercial_state(db, prospect)
     play = get_play(prospect.market_play_code or DEFAULT_PLAY_CODE)
     return templates.TemplateResponse(
         request,
@@ -131,6 +140,7 @@ async def page_qualify(
             "user": user,
             "prospect": prospect,
             "play": play,
+            "error": error,
             "linkedin_url": linkedin_people_url(
                 prospect.company_name,
                 prospect.decision_maker_name,
@@ -162,28 +172,64 @@ async def form_qualify(
     if decision not in ("accept", "reject", "research_more", "park"):
         raise HTTPException(status_code=400, detail="Invalid decision")
 
+    flags = {
+        "fit_confirmed": bool(fit_confirmed),
+        "pain_confirmed": bool(pain_confirmed),
+        "trigger_confirmed": bool(trigger_confirmed),
+        "buyer_confirmed": bool(buyer_confirmed),
+        "contact_confirmed": bool(contact_confirmed),
+        "offer_match_confirmed": bool(offer_match_confirmed),
+    }
+
+    # P0: Accept requires ALL mandatory confirmations
+    if decision == "accept":
+        missing = [name for name, value in flags.items() if not value]
+        if missing:
+            play = get_play(prospect.market_play_code or DEFAULT_PLAY_CODE)
+            return templates.TemplateResponse(
+                request,
+                "qualify.html",
+                {
+                    "user": user,
+                    "prospect": prospect,
+                    "play": play,
+                    "error": (
+                        "Cannot accept. Missing required confirmations: "
+                        + ", ".join(missing)
+                        + ". Do not accept on award alone without verified pain."
+                    ),
+                    "linkedin_url": linkedin_people_url(
+                        prospect.company_name,
+                        prospect.decision_maker_name,
+                        prospect.decision_maker_title,
+                    ),
+                },
+                status_code=400,
+            )
+
     review = QualificationReview(
         prospect_id=prospect.id,
         reviewer_email=user.email,
         decision=decision,
-        fit_confirmed=bool(fit_confirmed),
-        pain_confirmed=bool(pain_confirmed),
-        trigger_confirmed=bool(trigger_confirmed),
-        buyer_confirmed=bool(buyer_confirmed),
-        contact_confirmed=bool(contact_confirmed),
-        offer_match_confirmed=bool(offer_match_confirmed),
+        fit_confirmed=flags["fit_confirmed"],
+        pain_confirmed=flags["pain_confirmed"],
+        trigger_confirmed=flags["trigger_confirmed"],
+        buyer_confirmed=flags["buyer_confirmed"],
+        contact_confirmed=flags["contact_confirmed"],
+        offer_match_confirmed=flags["offer_match_confirmed"],
         notes=notes,
+        reason_codes=list(flags.keys()) if decision == "accept" else None,
     )
     db.add(review)
 
     prospect.qualification_decision = decision
     prospect.qualification_notes = notes
     prospect.reviewed_at = datetime.now(timezone.utc)
+    prospect.qualification_flags = flags  # type: ignore[attr-defined]
 
     if decision == "accept":
         prospect.manual_review_state = "accepted"
         prospect.needs_manual_review = False
-        # Create follow-up task to send first outreach
         db.add(
             Task(
                 prospect_id=prospect.id,
@@ -216,7 +262,10 @@ async def form_qualify(
             )
         )
 
-    apply_v3_score(prospect)
+    await db.flush()
+    # Attach review for scorer source-of-truth
+    prospect.latest_qualification = review  # type: ignore[attr-defined]
+    await recompute_commercial_state(db, prospect)
     await db.flush()
     return RedirectResponse(url="/queue", status_code=303)
 

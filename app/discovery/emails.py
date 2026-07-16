@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 import unicodedata
 from typing import Iterable
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
-# Role-based mailboxes common on French SME sites / public tenders
 ROLE_LOCAL_PARTS = (
     "contact",
     "info",
@@ -37,10 +36,7 @@ def normalize_token(token: str) -> str:
 
 
 def parse_person_name(full_name: str) -> tuple[str, str]:
-    """
-    Split a French full name into (first, last).
-    Heuristic: last token = family name, rest = given name(s).
-    """
+    """Split a French full name into (first, last)."""
     parts = [p for p in re.split(r"\s+", full_name.strip()) if p]
     if not parts:
         return "", ""
@@ -76,11 +72,7 @@ def generate_email_candidates(
     harvester_emails: Iterable[str] | None = None,
     max_candidates: int = 24,
 ) -> list[dict]:
-    """
-    Build ordered email candidates for a company domain.
-
-    Each item: {email, pattern, priority} — lower priority = try first.
-    """
+    """Build ordered email candidates for a company domain."""
     domain = domain.lower().strip()
     seen: set[str] = set()
     candidates: list[dict] = []
@@ -89,7 +81,6 @@ def generate_email_candidates(
         if full_email or pattern == "raw":
             email = email_or_local.lower().strip()
         else:
-            # Keep dots/underscores in local part; only strip accents/case
             local = strip_accents(email_or_local.lower().strip())
             local = re.sub(r"[^a-z0-9._+\-]", "", local)
             if not local:
@@ -100,32 +91,29 @@ def generate_email_candidates(
         seen.add(email)
         candidates.append({"email": email, "pattern": pattern, "priority": priority})
 
-    # 1) Public emails from OSINT first
     for em in harvester_emails or []:
         em = (em or "").strip().lower()
         if em.endswith(f"@{domain}"):
             add(em, "raw", 0, full_email=True)
 
-    # 2) Named person permutations (French B2B conventions)
     if first_name and last_name:
-        f = normalize_token(first_name.split()[0])
-        l = normalize_token(last_name)
-        if f and l:
-            named = [
-                (f"{f}.{l}", "prenom.nom", 1),
-                (f"{f[0]}.{l}", "p.nom", 2),
-                (f"{f}{l}", "prenomnom", 3),
-                (f"{l}.{f}", "nom.prenom", 4),
-                (f"{f}_{l}", "prenom_nom", 5),
-                (f"{f[0]}{l}", "pnom", 6),
-                (f"{l}{f[0]}", "nomp", 7),
-                (f"{l}", "nom", 8),
-                (f"{f}", "prenom", 9),
+        first = normalize_token(first_name.split()[0])
+        last = normalize_token(last_name)
+        if first and last:
+            patterns = [
+                (f"{first}.{last}", "prenom.nom", 1),
+                (f"{first[0]}.{last}", "p.nom", 2),
+                (f"{first}{last}", "prenomnom", 3),
+                (f"{last}.{first}", "nom.prenom", 4),
+                (f"{first}_{last}", "prenom_nom", 5),
+                (f"{first[0]}{last}", "pnom", 6),
+                (f"{last}{first[0]}", "nomp", 7),
+                (last, "nom", 8),
+                (first, "prenom", 9),
             ]
-            for local, pattern, prio in named:
+            for local, pattern, prio in patterns:
                 add(local, pattern, prio)
 
-    # 3) Role-based
     if include_roles:
         for i, role in enumerate(ROLE_LOCAL_PARTS):
             add(role, f"role:{role}", 20 + i)
@@ -139,6 +127,4 @@ def linkedin_search_url(company_name: str, person_name: str | None = None) -> st
     q = f'site:linkedin.com/in "{company_name}"'
     if person_name:
         q += f' "{person_name}"'
-    from urllib.parse import quote_plus
-
     return f"https://www.google.com/search?q={quote_plus(q)}"

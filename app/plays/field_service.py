@@ -154,14 +154,14 @@ FIELD_SERVICE_PLAY = {
     },
     "readiness_config": {
         "fit_score_min": 55,
-        "pain_score_min": 35,
+        "pain_score_min": 40,  # award alone cannot pass
         "trigger_score_min": 25,
         "authority_score_min": 40,
         "data_quality_min": 45,
-        "independent_source_types_min": 1,  # pilot: allow 1 then human gate
+        "independent_source_types_min": 2,
         "active_signals_min": 2,
         "human_review_required": True,
-        "offer_asset_required": False,  # pilot until assets uploaded
+        "offer_asset_required": False,  # set True once offer_assets seeded
         "suppression_clear_required": True,
     },
     "offer_name": "Système de pilotage terrain (devis · interventions · techniciens · rapports)",

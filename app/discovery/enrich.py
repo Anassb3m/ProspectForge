@@ -15,8 +15,6 @@ import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import quote
-
 import httpx
 
 from app.config import get_settings
@@ -190,11 +188,11 @@ def apply_enrichment_to_prospect(prospect, data: dict[str, Any]) -> None:
             if hasattr(prospect, f):
                 setattr(prospect, f, data[f])
 
-    # Merge evidence list
+    # Merge evidence list (deduped fingerprints)
     if data.get("evidence"):
-        existing = list(prospect.evidence_json or [])
-        existing.extend(data["evidence"])
-        prospect.evidence_json = existing[:40]
+        from app.commercial import merge_evidence_json as _merge_ev
+
+        prospect.evidence_json = _merge_ev(prospect.evidence_json, data["evidence"])
 
     # Guessed emails are never "verified"
     conf = (prospect.contact_confidence or "").lower()
@@ -203,24 +201,6 @@ def apply_enrichment_to_prospect(prospect, data: dict[str, Any]) -> None:
         prospect.contact_confidence = "domain_and_pattern_only"
 
     apply_v3_score(prospect)
-
-    # Map readiness → acquisition_stage
-    rs = prospect.readiness_state or "research_required"
-    if rs == "contact_ready":
-        prospect.acquisition_stage = "contact_ready"
-        prospect.needs_manual_review = False
-    elif rs == "human_review_required":
-        prospect.acquisition_stage = "human_review_required"
-        prospect.needs_manual_review = True
-    elif rs == "suppressed":
-        prospect.acquisition_stage = "suppressed"
-    elif prospect.decision_maker_name or prospect.dirigeants:
-        prospect.acquisition_stage = "enriched"
-        prospect.needs_manual_review = True
-    else:
-        prospect.acquisition_stage = "researching"
-        prospect.needs_manual_review = True
-
     prospect.timing_score = prospect.trigger_score or 0
     prospect.contactability_score = prospect.authority_score or 0
     prospect.last_enriched_at = datetime.now(timezone.utc)

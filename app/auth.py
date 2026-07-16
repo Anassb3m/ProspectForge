@@ -113,8 +113,6 @@ async def require_user_html(
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> User:
     """For HTML routes: redirect to login instead of 401 JSON."""
-    from fastapi.responses import RedirectResponse
-
     user = await get_current_user_optional(request, db, bearer)
     if user is None:
         # Raise a special response via exception... better: return redirect

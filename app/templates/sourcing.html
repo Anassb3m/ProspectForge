@@ -26,9 +26,9 @@
       <div>
         <label class="label">Mode</label>
         <select name="mode" class="input">
-          <option value="full">Full (DECP + IT registry)</option>
-          <option value="decp">DECP awards only</option>
-          <option value="registry">IT registry hunt only</option>
+          <option value="full">Full (DECP awards + field-service registry)</option>
+          <option value="decp">DECP public awards only</option>
+          <option value="registry">Field-service registry only</option>
         </select>
       </div>
       <div>
@@ -49,8 +49,10 @@
     </form>
   </div>
   <p class="mt-2 text-xs text-slate-500">
-    Full mode: recent public IT/cyber awards + national IT SME hunt (Annuaire) → Sirene compliance → dirigeants → ICP score.
-    Requires network + <code>INSEE_API_KEY</code>.
+    Full mode: public awards matching <strong>field-service</strong> CPV/keywords
+    + registry NAF (43/33/81…) → Sirene. Awards = timing, not pain.
+    Then qualify on <a href="/queue" class="text-brand-600 hover:underline">Daily queue</a>.
+    Needs network + <code>INSEE_API_KEY</code>.
   </p>
 </div>
 
@@ -72,8 +74,9 @@
     <label class="label">Signal</label>
     <select name="signal_type" class="input">
       <option value="" {% if not filters.signal_type %}selected{% endif %}>All sources</option>
-      <option value="DECP_WIN" {% if filters.signal_type == 'DECP_WIN' %}selected{% endif %}>DECP wins</option>
-      <option value="REGISTRY_IT" {% if filters.signal_type == 'REGISTRY_IT' %}selected{% endif %}>IT registry</option>
+      <option value="PUBLIC_AWARD" {% if filters.signal_type == 'PUBLIC_AWARD' %}selected{% endif %}>Public awards</option>
+      <option value="DECP_WIN" {% if filters.signal_type == 'DECP_WIN' %}selected{% endif %}>DECP (legacy label)</option>
+      <option value="REGISTRY_FIELD" {% if filters.signal_type == 'REGISTRY_FIELD' %}selected{% endif %}>Field registry</option>
       <option value="BOAMP_WIN" {% if filters.signal_type == 'BOAMP_WIN' %}selected{% endif %}>BOAMP</option>
       <option value="MOROCCO_OPS" {% if filters.signal_type == 'MOROCCO_OPS' %}selected{% endif %}>Morocco ops</option>
     </select>

@@ -22,7 +22,7 @@ def pick_best_dirigeant(dirigeants: list[dict] | None, play_code: str | None = N
             continue
         for br in roles:
             labels = br.get("labels") or []
-            if any(l in q for l in labels):
+            if any(lab in q for lab in labels):
                 prio = br.get("priority", 9)
                 if prio < best_prio:
                     best_prio = prio

@@ -9,7 +9,6 @@ from app.models import (
     CHANNELS,
     COMPANY_SIZES,
     EVENT_TYPES,
-    PRIORITY_LEVELS,
     SECTORS,
     SIGNAL_TYPES,
     SOURCES,

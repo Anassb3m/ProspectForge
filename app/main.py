@@ -20,6 +20,7 @@ from app.config import get_settings
 from app.database import async_session_factory, engine, init_db
 from app.models import User
 from app.routers import auth, dashboard, events, prospects, queue, sourcing
+from app.security import CSRFMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,11 +112,17 @@ app = FastAPI(
     openapi_url="/openapi.json" if _docs_url else None,
 )
 
-# Trust X-Forwarded-* from Caddy / reverse proxy
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+# Trust X-Forwarded-* only from configured hosts in production
+_proxy_hosts = "*" if not settings.is_production else (
+    ",".join(settings.trusted_host_list) if settings.trusted_host_list != ["*"] else "127.0.0.1,caddy"
+)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_proxy_hosts)
 
-if settings.trusted_host_list != ["*"]:
+if settings.is_production and settings.trusted_host_list != ["*"]:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
+
+# CSRF on HTML form mutations (Bearer API exempt)
+app.add_middleware(CSRFMiddleware)
 
 static_dir = Path("app/static")
 static_dir.mkdir(parents=True, exist_ok=True)

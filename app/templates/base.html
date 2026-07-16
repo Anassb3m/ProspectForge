@@ -25,6 +25,44 @@
   </script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <link rel="stylesheet" href="/static/css/app.css" />
+  <script>
+    function pfCsrf() {
+      const m = document.cookie.match(/(?:^|; )pf_csrf=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    document.addEventListener('htmx:configRequest', function (e) {
+      const t = pfCsrf();
+      if (t) e.detail.headers['X-CSRF-Token'] = t;
+    });
+    // Convert plain POST forms to fetch so CSRF header is always sent
+    document.addEventListener('submit', function (e) {
+      const form = e.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      if ((form.method || 'get').toLowerCase() !== 'post') return;
+      if (form.hasAttribute('hx-post') || form.hasAttribute('hx-get')) return; // HTMX handles
+      e.preventDefault();
+      const fd = new FormData(form);
+      const action = form.getAttribute('action') || window.location.href;
+      fetch(action, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': pfCsrf() },
+        redirect: 'manual',
+      }).then(function (res) {
+        const loc = res.headers.get('Location');
+        if (res.status >= 300 && res.status < 400 && loc) {
+          window.location.href = loc;
+          return;
+        }
+        return res.text().then(function (html) {
+          document.open();
+          document.write(html);
+          document.close();
+        });
+      }).catch(function () { form.submit(); });
+    }, true);
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body class="h-full bg-slate-50 text-slate-900 antialiased">

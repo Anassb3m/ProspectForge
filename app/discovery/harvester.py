@@ -31,11 +31,6 @@ async def harvest_emails(domain: str, *, timeout: int = 90) -> list[str]:
         return []
 
     binary = shutil.which("theHarvester") or shutil.which("theharvester")
-    if not binary:
-        # Try python module
-        python_mod = True
-    else:
-        python_mod = False
 
     with tempfile.TemporaryDirectory(prefix="pf_harvest_") as tmp:
         out_base = Path(tmp) / "result"

@@ -1,19 +1,18 @@
-"""Nightly urgency score recalculation — captures decay for stale prospects."""
+"""Nightly / manual opportunity score recalculation (V3 only)."""
 
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.commercial import recompute_commercial_state
 from app.database import async_session_factory
 from app.models import Prospect
-from app.scoring import apply_score
 
 logger = logging.getLogger(__name__)
 
 
 async def recalculate_all_scores() -> int:
-    """Recalculate urgency scores for all non-anonymized prospects. Returns count."""
     async with async_session_factory() as session:
         result = await session.execute(
             select(Prospect)
@@ -22,7 +21,7 @@ async def recalculate_all_scores() -> int:
         )
         prospects = list(result.scalars().unique().all())
         for p in prospects:
-            apply_score(p, list(p.outreach_events or []))
+            await recompute_commercial_state(session, p)
         await session.commit()
-        logger.info("Recalculated urgency scores for %d prospects", len(prospects))
+        logger.info("Recalculated V3 commercial state for %d prospects", len(prospects))
         return len(prospects)

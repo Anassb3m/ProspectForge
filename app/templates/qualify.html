@@ -27,12 +27,16 @@
   <section class="card">
     <h2 class="card-title">Checklist (be honest)</h2>
     <form method="post" action="/queue/{{ prospect.id }}/qualify" class="space-y-3 text-sm">
+      {% if error %}
+      <div class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
+      {% endif %}
+      <p class="text-xs text-amber-700 mb-2">All six boxes are <strong>required</strong> to Accept. A public award alone is not pain.</p>
       <label class="flex gap-2 items-start"><input type="checkbox" name="fit_confirmed" value="1" /> Company is inside the active market play (field service / technical ops, not software house)</label>
-      <label class="flex gap-2 items-start"><input type="checkbox" name="pain_confirmed" value="1" /> There is operational complexity a custom system could reduce (not inventing facts)</label>
-      <label class="flex gap-2 items-start"><input type="checkbox" name="trigger_confirmed" value="1" /> There is a current reason to contact (or pain is exceptionally clear)</label>
-      <label class="flex gap-2 items-start"><input type="checkbox" name="buyer_confirmed" value="1" /> Selected role likely owns or influences the problem</label>
-      <label class="flex gap-2 items-start"><input type="checkbox" name="contact_confirmed" value="1" /> Contact path is good enough (or LinkedIn-first is planned)</label>
-      <label class="flex gap-2 items-start"><input type="checkbox" name="offer_match_confirmed" value="1" /> Packaged offer / proof can be presented credibly</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="pain_confirmed" value="1" /> Real operational pain evidence exists (Excel/paper/WhatsApp/double entry/planning bottleneck) — not just “they do maintenance”</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="trigger_confirmed" value="1" /> There is a current reason to contact (award, hire, expansion) or pain is exceptionally direct</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="buyer_confirmed" value="1" /> Selected role likely owns or influences the problem (not only legal président by default)</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="contact_confirmed" value="1" /> Contact path is good enough (LinkedIn identity confirmed and/or usable email — not a bare guessed pattern)</label>
+      <label class="flex gap-2 items-start"><input type="checkbox" name="offer_match_confirmed" value="1" /> Packaged offer / proof can be presented credibly for this company</label>
 
       <div>
         <label class="label">Notes</label>

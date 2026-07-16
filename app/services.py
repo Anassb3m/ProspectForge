@@ -9,14 +9,13 @@ from typing import Any, Sequence
 
 import pandas as pd
 from pydantic import ValidationError
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import (
     CHANNELS,
     CONTACTED_EVENT_TYPES,
-    EVENT_TYPES,
     MEETING_EVENT_TYPES,
     REPLY_EVENT_TYPES,
     OutreachEvent,
@@ -33,7 +32,13 @@ from app.schemas import (
     ProspectCreate,
     SignalTypeMetrics,
 )
-from app.scoring import apply_score
+from app.commercial import add_suppression, is_suppressed, recompute_commercial_state
+from app.plays import DEFAULT_PLAY_CODE
+from app.scoring_v3 import apply_v3_score
+
+
+class ComplianceError(Exception):
+    """Raised when a compliance or suppression rule blocks an action."""
 
 
 def _utcnow() -> datetime:
@@ -131,7 +136,11 @@ async def list_prospects(
         order = {"High": 0, "Medium": 1, "Low": 2}
         prospects.sort(key=lambda p: order.get(p.priority_level, 9), reverse=reverse)
     else:
-        prospects.sort(key=lambda p: p.urgency_score, reverse=reverse)
+        # V3 primary rank: opportunity_score
+        prospects.sort(
+            key=lambda p: (p.opportunity_score or p.acquisition_score or p.urgency_score or 0),
+            reverse=reverse,
+        )
 
     total = len(prospects)
     start = max(0, (page - 1) * page_size)
@@ -149,29 +158,30 @@ async def get_prospect(db: AsyncSession, prospect_id: int) -> Prospect | None:
 
 
 async def create_prospect(db: AsyncSession, data: ProspectCreate) -> Prospect:
-    prospect = Prospect(**data.model_dump())
-    apply_score(prospect, [])
+    # Suppression gate
+    if await is_suppressed(db, email=data.email, siren=getattr(data, "siren", None)):
+        raise ComplianceError("Contact/company is on the suppression list")
+
+    payload = data.model_dump()
+    prospect = Prospect(**payload)
+    prospect.market_play_code = DEFAULT_PLAY_CODE
+    prospect.manual_review_state = "unreviewed"
+    prospect.readiness_state = "research_required"
+    apply_v3_score(prospect)
     db.add(prospect)
     await db.flush()
 
-    # Seed a "New" event so status derivation always has a root
     initial = OutreachEvent(
         prospect_id=prospect.id,
         channel="Email",
         event_type="New",
         notes="Prospect created",
+        event_kind="research",
     )
     db.add(initial)
     await db.flush()
-
-    try:
-        from app.discovery.enrich import apply_enrichment_to_prospect
-
-        # Score without lazy-loading relationships
-        apply_enrichment_to_prospect(prospect, {})
-        await db.flush()
-    except Exception:
-        pass
+    await recompute_commercial_state(db, prospect)
+    await db.flush()
 
     pid = prospect.id
     loaded = await get_prospect(db, pid)
@@ -182,17 +192,13 @@ async def update_prospect(db: AsyncSession, prospect: Prospect, updates: dict[st
     for key, value in updates.items():
         if value is not None or key in updates:
             setattr(prospect, key, value)
-    apply_score(prospect, list(prospect.outreach_events or []))
+    await recompute_commercial_state(db, prospect)
     await db.flush()
     await db.refresh(prospect)
     return prospect
 
 
 # ── Events & compliance ──────────────────────────────────────────────────────
-
-
-class ComplianceError(Exception):
-    """Raised when a Sent (or similar) event lacks required compliance fields."""
 
 
 async def log_event(
@@ -205,15 +211,22 @@ async def log_event(
     if prospect.opted_out and data.event_type != "OptOut" and not skip_opt_out_check:
         raise ComplianceError("Prospect has opted out — no further outreach events allowed")
 
+    if await is_suppressed(db, email=prospect.email, siren=prospect.siren):
+        if data.event_type not in ("OptOut", "ClosedLost", "Refused"):
+            raise ComplianceError("Suppressed contact/company — no outreach events allowed")
+
     # Cannot log Sent without data_source + informed_at (GDPR trail)
     if data.event_type == "Sent":
         if not prospect.data_source or not str(prospect.data_source).strip():
             raise ComplianceError("Cannot log Sent without data_source populated")
         if prospect.informed_at is None:
-            # First contact disclosure: set informed_at now if missing is blocked —
-            # spec says required before Sent
             raise ComplianceError(
                 "Cannot log Sent without informed_at — record first-contact disclosure timestamp"
+            )
+        conf = (prospect.contact_confidence or "").lower()
+        if conf in ("domain_and_pattern_only", "catch_all", "guessed", "invalid", "bounced", "risky"):
+            raise ComplianceError(
+                f"Cannot log Sent with contact_confidence={conf} — confirm contact first"
             )
 
     event = OutreachEvent(
@@ -224,18 +237,25 @@ async def log_event(
         next_action=data.next_action,
         next_action_date=data.next_action_date,
         event_date=data.event_date or _utcnow(),
+        event_kind="message" if data.event_type == "Sent" else "decision",
+        pipeline_stage_after=data.event_type if data.event_type != "New" else None,
     )
     db.add(event)
 
     if data.event_type == "OptOut":
         prospect.opted_out = True
         prospect.opted_out_at = _utcnow()
+        if prospect.email:
+            await add_suppression(
+                db, kind="email", value=prospect.email, reason="opt_out", source="outreach"
+            )
+        if prospect.siren:
+            await add_suppression(
+                db, kind="siren", value=prospect.siren, reason="opt_out", source="outreach"
+            )
 
     await db.flush()
-
-    # Re-score after new activity
-    await db.refresh(prospect)
-    apply_score(prospect, list(prospect.outreach_events or []))
+    await recompute_commercial_state(db, prospect)
     await db.flush()
     await db.refresh(event)
     return event

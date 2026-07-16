@@ -21,7 +21,7 @@
     {% endif %}
   </td>
   <td>
-    <span class="badge {% if prospect.signal_type == 'DECP_WIN' %}badge-blue{% elif prospect.signal_type == 'REGISTRY_IT' %}badge-slate{% else %}badge-amber{% endif %}">
+    <span class="badge {% if prospect.signal_type in ['DECP_WIN', 'PUBLIC_AWARD', 'BOAMP_WIN'] %}badge-blue{% elif prospect.signal_type == 'REGISTRY_FIELD' %}badge-slate{% else %}badge-amber{% endif %}">
       {{ prospect.signal_type }}
     </span>
     {% if prospect.award_count %}

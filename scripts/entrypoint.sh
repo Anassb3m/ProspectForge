@@ -42,20 +42,14 @@ asyncio.run(wait())
 PY
 fi
 
-# ── Migrations ──────────────────────────────────────────────────────────────
-# Prefer Alembic; app lifespan still runs create_all as a safety net for fresh DBs.
+# ── Migrations (fail hard in production — no soft create_all fallback) ─────
 if [[ "${RUN_MIGRATIONS:-true}" == "true" ]]; then
   echo "[entrypoint] Running Alembic migrations…"
-  set +e
-  MIG_OUT=$(alembic upgrade head 2>&1)
-  MIG_RC=$?
-  set -e
-  if [[ $MIG_RC -eq 0 ]]; then
-    echo "[entrypoint] Migrations applied"
-  else
-    echo "[entrypoint] Alembic warning (rc=$MIG_RC) — lifespan create_all will ensure tables exist"
-    echo "$MIG_OUT" | tail -20
+  if ! alembic upgrade head; then
+    echo "[entrypoint] FATAL: Alembic migration failed — refusing to start" >&2
+    exit 1
   fi
+  echo "[entrypoint] Migrations applied"
 fi
 
 # ── Uvicorn ─────────────────────────────────────────────────────────────────
