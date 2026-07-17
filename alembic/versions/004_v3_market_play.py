@@ -4,7 +4,7 @@ Revision ID: 004
 Revises: 003
 """
 
-from typing import Sequence, Union
+from typing import Union
 
 import sqlalchemy as sa
 from alembic import op

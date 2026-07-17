@@ -36,8 +36,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create tables (dev/bootstrap). Prefer Alembic in production."""
+    """Create tables (dev/bootstrap). In production Alembic is the sole migration path."""
     from app import models  # noqa: F401
+
+    if settings.is_production:
+        # Production: Alembic is the only migration path.
+        # entrypoint.sh runs `alembic upgrade head` and fails hard on error.
+        # create_all() would silently create tables without migration tracking.
+        return
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -193,8 +193,8 @@ class TestScoringV21:
         p = self._p(signal_type="DECP_WIN", naf_code="6202A", company_size="51-200")
         parts = explain_score(p, [])
         labels = [c["label"] for c in parts]
-        assert any("DECP" in l or "BOAMP" in l or "Public" in l for l in labels)
-        assert any("NAF" in l for l in labels)
+        assert any("DECP" in lab or "BOAMP" in lab or "Public" in lab for lab in labels)
+        assert any("NAF" in lab for lab in labels)
 
     def test_pick_best_email(self):
         results = [

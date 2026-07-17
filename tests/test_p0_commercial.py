@@ -7,7 +7,6 @@ import pytest
 
 from app.scoring_v3 import (
     evidence_fingerprint,
-    normalize_signals,
     score_prospect_v3,
 )
 from app.commercial import merge_evidence_json, validate_contact_confidence
