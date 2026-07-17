@@ -48,8 +48,16 @@ async def enrich_prospect_contacts(
     prospect.contact_discovery_state = result.get("contact_discovery_state") or "guessed"
     prospect.needs_manual_review = bool(result.get("needs_manual_review"))
 
+    from app.commercial import is_suppressed
+
     if apply_best and result.get("best_email") and result.get("usable_for_send"):
-        prospect.email = result["best_email"]
+        best_email = result["best_email"]
+        if not await is_suppressed(db, email=best_email, siren=prospect.siren):
+            prospect.email = best_email
+        else:
+            prospect.contact_confidence = "needs_review"
+            prospect.needs_manual_review = True
+            result["message"] = "Discovered email is on the suppression list."
 
     await recompute_commercial_state(db, prospect)
     await db.flush()

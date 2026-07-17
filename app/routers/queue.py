@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user
-from app.commercial import recompute_commercial_state
+from app.commercial import is_suppressed, recompute_commercial_state
 from app.database import get_db
 from app.discovery.annuaire import linkedin_people_url
 from app.models import QualificationReview, Task, User, Prospect
@@ -65,20 +65,102 @@ async def _daily_queue(
     result = await db.execute(q.limit(500))
     items = list(result.scalars().unique().all())
 
-    def sort_key(p: Prospect) -> tuple:
-        stage_rank = {
-            "contact_ready": 0,
-            "human_review_required": 1,
-            "contact_required": 2,
-            "research_required": 3,
-            "buyer_required": 4,
-            "insufficient_identity": 5,
-            "suppressed": 9,
-        }.get(p.readiness_state or "", 6)
-        unreviewed = 0 if (p.manual_review_state or "unreviewed") == "unreviewed" else 1
-        return (unreviewed, stage_rank, -(p.opportunity_score or p.acquisition_score or 0))
+    # Load open tasks for all prospects in this batch
+    prospect_ids = [p.id for p in items]
+    open_tasks: dict[int, list[Task]] = {}
+    if prospect_ids:
+        task_result = await db.execute(
+            select(Task).where(
+                and_(
+                    Task.prospect_id.in_(prospect_ids),
+                    Task.status == "open",
+                )
+            )
+        )
+        for t in task_result.scalars().all():
+            open_tasks.setdefault(t.prospect_id, []).append(t)
 
-    items.sort(key=sort_key)
+    now = datetime.now(timezone.utc)
+
+    def _action_priority(p: Prospect) -> tuple:
+        """
+        Action-priority ordering per master spec §12:
+          0 = needs reply response (Replied event, no follow-up action yet)
+          1 = meeting booked (needs preparation/confirmation)
+          2 = overdue follow-up (next_action_date in the past)
+          3 = first_outreach task (qualified, needs initial contact)
+          4 = research task (needs more evidence gathering)
+          5 = contact_ready but no task yet
+          6 = human_review_required (needs qualification)
+          7 = contact_required (needs contact discovery)
+          8 = research_required (needs enrichment)
+          9 = suppressed / other
+        """
+        status = p.current_status
+        tasks = open_tasks.get(p.id, [])
+
+        # Priority 0: Replied — needs response
+        if status == "Replied":
+            return (0, -(p.opportunity_score or 0))
+
+        # Priority 1: Meeting booked — needs prep
+        if status == "MeetingBooked":
+            return (1, -(p.opportunity_score or 0))
+
+        # Priority 2: Overdue follow-up
+        if p.next_action_date and p.next_action_date <= now:
+            days_overdue = (now - p.next_action_date).days
+            return (2, -days_overdue, -(p.opportunity_score or 0))
+
+        # Priority 3: First outreach task
+        has_first_outreach = any(t.task_type == "first_outreach" for t in tasks)
+        if has_first_outreach:
+            return (3, -(p.opportunity_score or 0))
+
+        # Priority 4: Research task
+        has_research = any(t.task_type == "research" for t in tasks)
+        if has_research:
+            return (4, -(p.opportunity_score or 0))
+
+        # Priority 5+: Readiness-based
+        stage_rank = {
+            "contact_ready": 5,
+            "human_review_required": 6,
+            "contact_required": 7,
+            "research_required": 8,
+            "buyer_required": 8,
+            "insufficient_identity": 9,
+            "suppressed": 10,
+        }.get(p.readiness_state or "", 9)
+
+        return (stage_rank, -(p.opportunity_score or p.acquisition_score or 0))
+
+    # Annotate prospects with their action hint for the template
+    for p in items:
+        tasks = open_tasks.get(p.id, [])
+        status = p.current_status
+        if status == "Replied":
+            p.action_hint = "Reply — respond to their message"  # type: ignore[attr-defined]
+        elif status == "MeetingBooked":
+            p.action_hint = "Meeting — prepare and confirm"  # type: ignore[attr-defined]
+        elif p.next_action_date and p.next_action_date <= now:
+            days = (now - p.next_action_date).days
+            p.action_hint = f"Overdue follow-up ({days}d)"  # type: ignore[attr-defined]
+        elif any(t.task_type == "first_outreach" for t in tasks):
+            p.action_hint = "Send first outreach"  # type: ignore[attr-defined]
+        elif any(t.task_type == "research" for t in tasks):
+            p.action_hint = "Research — gather more evidence"  # type: ignore[attr-defined]
+        elif p.readiness_state == "contact_ready":
+            p.action_hint = "Contact ready — create outreach task"  # type: ignore[attr-defined]
+        elif p.readiness_state == "human_review_required":
+            p.action_hint = "Needs qualification review"  # type: ignore[attr-defined]
+        elif p.readiness_state == "contact_required":
+            p.action_hint = "Find contact information"  # type: ignore[attr-defined]
+        else:
+            p.action_hint = p.readiness_state or "—"  # type: ignore[attr-defined]
+        p.open_tasks = tasks  # type: ignore[attr-defined]
+
+    items.sort(key=_action_priority)
     return items[:limit]
 
 
@@ -183,6 +265,31 @@ async def form_qualify(
 
     # P0: Accept requires ALL mandatory confirmations
     if decision == "accept":
+        # Suppression gate: cannot accept a suppressed prospect
+        if await is_suppressed(
+            db, email=prospect.email, siren=prospect.siren,
+        ):
+            play = get_play(prospect.market_play_code or DEFAULT_PLAY_CODE)
+            return templates.TemplateResponse(
+                request,
+                "qualify.html",
+                {
+                    "user": user,
+                    "prospect": prospect,
+                    "play": play,
+                    "error": (
+                        "Cannot accept: this prospect is on the suppression list "
+                        "(email, domain, or SIREN). Remove suppression first."
+                    ),
+                    "linkedin_url": linkedin_people_url(
+                        prospect.company_name,
+                        prospect.decision_maker_name,
+                        prospect.decision_maker_title,
+                    ),
+                },
+                status_code=400,
+            )
+
         missing = [name for name, value in flags.items() if not value]
         if missing:
             play = get_play(prospect.market_play_code or DEFAULT_PLAY_CODE)

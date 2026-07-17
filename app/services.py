@@ -9,7 +9,7 @@ from typing import Any, Sequence
 
 import pandas as pd
 from pydantic import ValidationError
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,7 @@ from app.models import (
     REPLY_EVENT_TYPES,
     OutreachEvent,
     Prospect,
+    Task,
 )
 from app.schemas import (
     ChannelMetrics,
@@ -253,6 +254,18 @@ async def log_event(
             await add_suppression(
                 db, kind="siren", value=prospect.siren, reason="opt_out", source="outreach"
             )
+        
+        # P1: Cancel open tasks on opt-out
+        await db.execute(
+            update(Task)
+            .where(
+                and_(
+                    Task.prospect_id == prospect.id,
+                    Task.status == "open",
+                )
+            )
+            .values(status="cancelled", completed_at=_utcnow())
+        )
 
     await db.flush()
     await recompute_commercial_state(db, prospect)
@@ -325,6 +338,9 @@ async def import_csv(db: AsyncSession, content: bytes) -> ImportResult:
 def export_csv(prospects: Sequence[Prospect]) -> str:
     rows = []
     for p in prospects:
+        # P1: Check before CSV export (filter suppressed)
+        if p.opted_out or getattr(p, "is_suppressed", False):
+            continue
         rows.append(
             {
                 "id": p.id,
