@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     reacher_url: str = "http://127.0.0.1:8080"
     reacher_enabled: bool = False
+    reacher_timeout_seconds: float = 20.0
+    contact_reacher_concurrency: int = 2
 
     harvester_enabled: bool = False
     harvester_sources: str = "duckduckgo,crtsh"
@@ -52,6 +54,19 @@ class Settings(BaseSettings):
     decp_max_companies: int = 200  # cap nightly upserts
     ingestion_run_contacts: bool = False  # heavy; enable when Reacher is up
     enable_nightly_ingestion: bool = False  # V3: off until live-source validation
+
+    # Contact intelligence limits. Keep these deliberately small in production.
+    contact_min_opportunity_score: int = 40
+    nightly_contact_batch_size: int = 8
+    contact_crawl_max_pages: int = 12
+    contact_crawl_max_depth: int = 2
+    contact_crawl_max_redirects: int = 4
+    contact_crawl_max_response_bytes: int = 2 * 1024 * 1024
+    contact_crawl_request_timeout_seconds: float = 10.0
+    contact_crawl_total_timeout_seconds: float = 90.0
+    contact_domain_concurrency: int = 2
+    contact_max_email_candidates: int = 6
+    contact_refresh_days: int = 30
 
     @property
     def is_sqlite(self) -> bool:
@@ -103,6 +118,16 @@ class Settings(BaseSettings):
             errors.append("FORCE_HTTPS_COOKIES must be true in production")
         if self.tls_mode not in {"internal", "external", "acme"}:
             errors.append("TLS_MODE must be internal, external, or acme")
+        bounded = {
+            "NIGHTLY_CONTACT_BATCH_SIZE": (self.nightly_contact_batch_size, 1, 50),
+            "CONTACT_CRAWL_MAX_PAGES": (self.contact_crawl_max_pages, 1, 30),
+            "CONTACT_DOMAIN_CONCURRENCY": (self.contact_domain_concurrency, 1, 4),
+            "CONTACT_REACHER_CONCURRENCY": (self.contact_reacher_concurrency, 1, 5),
+            "CONTACT_MAX_EMAIL_CANDIDATES": (self.contact_max_email_candidates, 1, 12),
+        }
+        for name, (value, minimum, maximum) in bounded.items():
+            if not minimum <= value <= maximum:
+                errors.append(f"{name} must be between {minimum} and {maximum}")
         return errors
 
 

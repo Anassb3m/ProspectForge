@@ -3,7 +3,19 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -161,7 +173,7 @@ class Prospect(Base):
     award_history: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
     last_tender_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     contact_source: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    contact_confidence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
+    contact_confidence: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
     diffusion_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     contact_candidates: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
     needs_manual_review: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
@@ -232,6 +244,15 @@ class Prospect(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    contact_people: Mapped[list["ContactPerson"]] = relationship(
+        back_populates="prospect", cascade="all, delete-orphan", lazy="selectin"
+    )
+    contact_points: Mapped[list["ContactPoint"]] = relationship(
+        back_populates="prospect", cascade="all, delete-orphan", lazy="selectin"
+    )
+    contact_discovery_runs: Mapped[list["ContactDiscoveryRun"]] = relationship(
+        back_populates="prospect", cascade="all, delete-orphan", lazy="selectin"
+    )
 
     @property
     def current_status(self) -> str:
@@ -289,6 +310,13 @@ class Prospect(Base):
         if self.needs_manual_review or conf in ("needs_review", "none"):
             return "Needs review"
         return "No email yet"
+
+    @property
+    def email_redacted(self) -> str | None:
+        if not self.email or "@" not in self.email:
+            return None
+        local, domain = self.email.split("@", 1)
+        return f"{local[:1]}***@{domain}"
 
     @property
     def score_badges(self) -> list[str]:
@@ -442,6 +470,253 @@ class IngestionRun(Base):
     stats_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     log_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class ContactPerson(Base):
+    """A public professional identity associated with one prospect."""
+
+    __tablename__ = "contact_people"
+    __table_args__ = (
+        UniqueConstraint(
+            "prospect_id", "normalized_name", "normalized_role", name="uq_contact_person_identity"
+        ),
+        CheckConstraint(
+            "role_category IN ('owner','executive','operations','service','maintenance',"
+            "'technical','exploitation','administration_finance','commercial',"
+            "'planning_methods','legal_representative','other','unknown')",
+            name="ck_contact_people_role_category",
+        ),
+        CheckConstraint(
+            "company_match_state IN ('exact','strong','probable','ambiguous','conflicting','unknown')",
+            name="ck_contact_people_company_match",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(
+        ForeignKey("prospects.id", ondelete="CASCADE"), index=True
+    )
+    full_name: Mapped[str] = mapped_column(String(200))
+    normalized_name: Mapped[str] = mapped_column(String(200), index=True)
+    first_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    job_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    normalized_role: Mapped[str] = mapped_column(String(120), default="unknown", server_default="unknown")
+    role_category: Mapped[str] = mapped_column(String(40), default="unknown", server_default="unknown")
+    buyer_role_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    company_match_state: Mapped[str] = mapped_column(
+        String(20), default="unknown", server_default="unknown"
+    )
+    identity_confidence: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    linkedin_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    is_primary_candidate: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    manually_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    prospect: Mapped["Prospect"] = relationship(back_populates="contact_people")
+    contact_points: Mapped[list["ContactPoint"]] = relationship(back_populates="person")
+    evidence: Mapped[list["ContactEvidence"]] = relationship(back_populates="person")
+
+
+class ContactPoint(Base):
+    """A source-backed route to a company or person; values may still require review."""
+
+    __tablename__ = "contact_points"
+    __table_args__ = (
+        UniqueConstraint("prospect_id", "kind", "value_normalized", name="uq_contact_point_value"),
+        CheckConstraint(
+            "kind IN ('email','phone','contact_form','linkedin','website',"
+            "'generic_contact_page','other')",
+            name="ck_contact_points_kind",
+        ),
+        CheckConstraint(
+            "publication_state IN ('published_personal','published_role','published_generic',"
+            "'not_published','unknown')",
+            name="ck_contact_points_publication",
+        ),
+        CheckConstraint(
+            "deliverability_state IN ('deliverable','catch_all','risky','invalid','indeterminate',"
+            "'unchecked','error')",
+            name="ck_contact_points_deliverability",
+        ),
+        CheckConstraint(
+            "person_match_state IN ('exact_person_published','exact_person_pattern_confirmed',"
+            "'strong_person_match','role_mailbox','generic_company_mailbox','pattern_inferred',"
+            "'name_only_guess','conflicting','unknown')",
+            name="ck_contact_points_person_match",
+        ),
+        CheckConstraint(
+            "utility_state IN ('usable_personal','usable_role','usable_generic',"
+            "'manual_confirmation_required','verification_required','invalid','suppressed',"
+            "'stale','no_contact')",
+            name="ck_contact_points_utility",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(
+        ForeignKey("prospects.id", ondelete="CASCADE"), index=True
+    )
+    person_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contact_people.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(30), index=True)
+    value_normalized: Mapped[str] = mapped_column(String(500))
+    value_display: Mapped[str] = mapped_column(String(500))
+    domain: Mapped[Optional[str]] = mapped_column(String(253), nullable=True, index=True)
+    source_class: Mapped[str] = mapped_column(String(50), default="legacy", server_default="legacy")
+    publication_state: Mapped[str] = mapped_column(
+        String(30), default="unknown", server_default="unknown"
+    )
+    person_match_state: Mapped[str] = mapped_column(
+        String(40), default="unknown", server_default="unknown"
+    )
+    deliverability_state: Mapped[str] = mapped_column(
+        String(30), default="unchecked", server_default="unchecked"
+    )
+    verification_state: Mapped[str] = mapped_column(
+        String(30), default="unchecked", server_default="unchecked"
+    )
+    utility_state: Mapped[str] = mapped_column(
+        String(40), default="no_contact", server_default="no_contact", index=True
+    )
+    confidence_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    is_usable: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
+    requires_manual_review: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1"
+    )
+    is_suppressed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    manually_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    prospect: Mapped["Prospect"] = relationship(back_populates="contact_points")
+    person: Mapped[Optional["ContactPerson"]] = relationship(back_populates="contact_points")
+    evidence: Mapped[list["ContactEvidence"]] = relationship(back_populates="contact_point")
+    verification_events: Mapped[list["ContactVerificationEvent"]] = relationship(
+        back_populates="contact_point", cascade="all, delete-orphan"
+    )
+
+
+class ContactEvidence(Base):
+    __tablename__ = "contact_evidence"
+    __table_args__ = (UniqueConstraint("fingerprint", name="uq_contact_evidence_fingerprint"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(
+        ForeignKey("prospects.id", ondelete="CASCADE"), index=True
+    )
+    person_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contact_people.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    contact_point_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contact_points.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    source_adapter: Mapped[str] = mapped_column(String(60), index=True)
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    canonical_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_domain: Mapped[Optional[str]] = mapped_column(String(253), nullable=True)
+    source_record_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    page_title: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    evidence_type: Mapped[str] = mapped_column(String(60), index=True)
+    excerpt: Mapped[Optional[str]] = mapped_column(String(600), nullable=True)
+    content_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    confidence: Mapped[int] = mapped_column(Integer, default=50, server_default="50")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    raw_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+
+    person: Mapped[Optional["ContactPerson"]] = relationship(back_populates="evidence")
+    contact_point: Mapped[Optional["ContactPoint"]] = relationship(back_populates="evidence")
+
+
+class ContactDiscoveryRun(Base):
+    __tablename__ = "contact_discovery_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(
+        ForeignKey("prospects.id", ondelete="CASCADE"), index=True
+    )
+    run_type: Mapped[str] = mapped_column(String(30), default="full", server_default="full")
+    triggered_by: Mapped[str] = mapped_column(String(150))
+    status: Mapped[str] = mapped_column(String(30), default="running", server_default="running", index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    adapters_requested: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    adapters_completed: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    pages_examined: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    people_found: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    contact_points_found: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    published_emails_found: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    generated_candidates: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    verified_deliverable: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    catch_all: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    invalid: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    manual_review_required: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    errors: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    timings: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    result_summary: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    prospect: Mapped["Prospect"] = relationship(back_populates="contact_discovery_runs")
+
+
+class ContactVerificationEvent(Base):
+    __tablename__ = "contact_verification_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_point_id: Mapped[int] = mapped_column(
+        ForeignKey("contact_points.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(60))
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    deliverability_state: Mapped[str] = mapped_column(String(30))
+    is_catch_all: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    smtp_state: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    mx_state: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
+    raw_summary: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+
+    contact_point: Mapped["ContactPoint"] = relationship(back_populates="verification_events")
+
+
+class ContactManualReview(Base):
+    __tablename__ = "contact_manual_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contact_point_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contact_points.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    person_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contact_people.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    reviewer: Mapped[str] = mapped_column(String(150))
+    decision: Mapped[str] = mapped_column(String(40))
+    previous_state: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    new_state: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class OfferAsset(Base):
