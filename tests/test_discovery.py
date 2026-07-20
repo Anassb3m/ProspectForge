@@ -251,4 +251,6 @@ async def test_discover_contacts_mocked_reacher():
         )
     assert result["best_email"] == "marie.dupont@acme.fr"
     assert result["contact_confidence"] == "verified"
-    assert result["needs_manual_review"] is False
+    # SMTP acceptance verifies mailbox behavior, never ownership by Marie Dupont.
+    assert result["needs_manual_review"] is True
+    assert result["usable_for_send"] is False

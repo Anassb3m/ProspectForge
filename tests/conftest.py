@@ -29,10 +29,17 @@ get_settings.cache_clear()
 
 @pytest_asyncio.fixture
 async def engine():
-    eng = create_async_engine("sqlite+aiosqlite:///:memory:", connect_args={"check_same_thread": False})
+    test_url = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    connect_args = {"check_same_thread": False} if test_url.startswith("sqlite") else {}
+    eng = create_async_engine(test_url, connect_args=connect_args)
     async with eng.begin() as conn:
+        if not test_url.startswith("sqlite"):
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield eng
+    if not test_url.startswith("sqlite"):
+        async with eng.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
     await eng.dispose()
 
 
