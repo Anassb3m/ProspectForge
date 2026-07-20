@@ -60,7 +60,7 @@
     {% else %}
     <span class="badge badge-slate">{{ prospect.contact_status }}</span>
     {% endif %}
-    {% if prospect.email %}<p class="mt-0.5 text-xs text-slate-600 break-all">{{ prospect.email }}</p>{% endif %}
+    {% if prospect.email_redacted %}<p class="mt-0.5 text-xs text-slate-600 break-all">{{ prospect.email_redacted }}</p>{% endif %}
   </td>
   <td>
     <span class="badge badge-slate">{{ prospect.acquisition_stage }}</span>

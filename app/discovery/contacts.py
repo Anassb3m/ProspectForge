@@ -91,8 +91,9 @@ async def discover_contacts(
     if best and conf in ("deliverable", "verified"):
         source = "reacher"
         confidence = "deliverable" if conf == "deliverable" else conf
-        discovery_state = "inferred"
-        needs_review = False
+        # SMTP acceptance proves mailbox behavior, not ownership by this person.
+        discovery_state = "guessed"
+        needs_review = True
     elif best and conf == "catch_all":
         source = "reacher"
         confidence = "catch_all"
@@ -100,9 +101,9 @@ async def discover_contacts(
         needs_review = True
     elif best and harvested and best["email"] in harvested:
         source = "theharvester"
-        confidence = conf or "published_generic"
-        discovery_state = "published"
-        needs_review = confidence not in ("deliverable", "verified", "published_personal")
+        confidence = conf or "unverified"
+        discovery_state = "guessed"
+        needs_review = True
     elif best:
         source = "reacher" if verify else "permutation"
         confidence = conf or "domain_and_pattern_only"
@@ -114,8 +115,8 @@ async def discover_contacts(
         needs_review = True
 
     # Never auto-send path for guessed-only patterns
-    usable_for_send = confidence in (
-        "deliverable", "verified", "published_personal", "confirmed_by_reply", "published_generic",
+    usable_for_send = discovery_state == "published" and confidence in (
+        "published_personal", "confirmed_by_reply", "published_generic",
     )
 
     return {

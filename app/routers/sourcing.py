@@ -304,6 +304,11 @@ async def api_use_email(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    if confidence not in {"published_personal", "published_generic", "confirmed_by_reply"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Inferred/Reacher-only candidates require a source-backed Contact Intelligence review",
+        )
     from app.commercial import recompute_commercial_state, validate_contact_confidence, validate_discovery_state
 
     prospect.email = email.strip().lower()
@@ -312,10 +317,7 @@ async def api_use_email(
         prospect.contact_confidence = validate_contact_confidence(confidence)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    # Manual "use this" is user_supplied, not auto-verified
-    if prospect.contact_confidence in ("verified", "deliverable") and source == "manual":
-        prospect.contact_confidence = "manual_confirmed"
-    prospect.contact_discovery_state = validate_discovery_state("user_supplied")
+    prospect.contact_discovery_state = validate_discovery_state("published")
     prospect.needs_manual_review = prospect.contact_confidence not in (
         "deliverable", "verified", "published_personal", "confirmed_by_reply", "manual_confirmed",
     )
@@ -541,6 +543,11 @@ async def form_use_email(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    if confidence not in {"published_personal", "published_generic", "confirmed_by_reply"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Add a public evidence URL in Contact Intelligence before selecting this address",
+        )
     from app.commercial import recompute_commercial_state, validate_contact_confidence
 
     prospect.email = email.strip().lower()
@@ -549,12 +556,8 @@ async def form_use_email(
         conf = validate_contact_confidence(confidence)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if conf in ("verified", "deliverable") and source in ("manual", "reacher"):
-        # Browser cannot self-assert SMTP verified
-        if source == "manual":
-            conf = "manual_confirmed"
     prospect.contact_confidence = conf
-    prospect.contact_discovery_state = "user_supplied"
+    prospect.contact_discovery_state = "published"
     await recompute_commercial_state(db, prospect)
     await db.flush()
     prospect = await services.get_prospect(db, prospect_id)

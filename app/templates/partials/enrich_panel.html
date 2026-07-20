@@ -71,9 +71,7 @@
       <label class="flex items-center gap-2 text-xs text-slate-600">
         <input type="checkbox" name="verify" checked /> Verify with Reacher
       </label>
-      <label class="flex items-center gap-2 text-xs text-slate-600">
-        <input type="checkbox" name="apply_best" value="1" checked /> Apply best email
-      </label>
+      <p class="text-xs text-slate-500">Candidates stay in review until an official source or operator evidence confirms ownership.</p>
     </div>
     <div class="sm:col-span-2">
       <button type="submit" class="btn-primary">Generate &amp; verify emails</button>
@@ -111,18 +109,7 @@
               {{ conf or '—' }}
             </span>
           </td>
-          <td>
-            <form
-              hx-post="/prospects/{{ prospect.id }}/use-email"
-              hx-target="closest .p-6"
-              hx-swap="outerHTML"
-            >
-              <input type="hidden" name="email" value="{{ c.email if c.email is defined else c['email'] }}" />
-              <input type="hidden" name="confidence" value="{{ conf or 'manual' }}" />
-              <input type="hidden" name="source" value="reacher" />
-              <button type="submit" class="text-xs font-medium text-brand-600 hover:underline">Use this</button>
-            </form>
-          </td>
+          <td><a href="/prospects/{{ prospect.id }}#contact-intelligence" class="text-xs font-medium text-brand-600 hover:underline">Add evidence</a></td>
         </tr>
         {% endfor %}
       </tbody>

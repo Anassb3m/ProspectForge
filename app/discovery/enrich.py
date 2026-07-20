@@ -137,7 +137,7 @@ async def deep_enrich(
                 out["contact_source"] = contacts.get("contact_source")
                 out["contact_confidence"] = contacts.get("contact_confidence")
                 out["needs_manual_review"] = contacts.get("needs_manual_review", True)
-                if contacts.get("best_email"):
+                if contacts.get("best_email") and contacts.get("usable_for_send"):
                     out["email"] = contacts["best_email"]
                 out["enrichment_log"].append("contacts:ok")
             except Exception as exc:
