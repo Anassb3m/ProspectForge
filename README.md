@@ -10,7 +10,7 @@ ProspectForge finds, qualifies, prioritizes, and helps convert **non-technical /
 (field technicians · maintenance · installation · cold chain · HVAC · electrical · facilities)
 
 > The machine produces a **small meeting-ready queue**.  
-> You keep the last mile: human qualification, LinkedIn confirmation, first message.
+> You keep the last mile: human qualification, LinkedIn confirmation, and final message edits.
 
 ---
 
@@ -25,7 +25,8 @@ ProspectForge finds, qualifies, prioritizes, and helps convert **non-technical /
 | `REGISTRY_IT` discovery | `REGISTRY_FIELD` + play-driven NAF/CPV/keywords |
 | Volume dashboard | **Daily action queue** + qualify checklist |
 
-Full product/engineering spec: [`PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md`](./PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md)
+Historical product/engineering plans are preserved in
+[`docs/archive/`](./docs/archive/) and are not the current source of truth.
 
 ---
 
@@ -35,7 +36,7 @@ Full product/engineering spec: [`PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MAS
 |---|---|
 | **[GUIDE.md](./GUIDE.md)** | Daily operator rhythm (update for V3 queue) |
 | **[DEPLOY.md](./DEPLOY.md)** | VPS deploy, custom ports, backups |
-| Master spec | Implementation-grade rebuild document |
+| **[docs/archive/](./docs/archive/)** | Historical specifications and decision context |
 
 ---
 
@@ -45,6 +46,7 @@ Full product/engineering spec: [`PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MAS
 |---|---|
 | **`/queue`** | **Daily action queue** — ranked work + qualify |
 | `/queue/{id}/qualify` | Human checklist (accept / research / park / reject) |
+| `/prospects/{id}#message-drafts` | Editable LinkedIn/email drafts after acceptance |
 | `/sourcing` | Run DECP + registry discovery |
 | `/prospects` | Full list |
 | `/` | Dashboard |
@@ -110,7 +112,7 @@ Opportunity score + hard readiness gates
         ↓
 Human qualification (required)
         ↓
-Daily queue → LinkedIn → careful first outreach
+Deterministic editable drafts → LinkedIn/email → careful first outreach
         ↓
 Append-only events + follow-up tasks
 ```
@@ -146,6 +148,7 @@ Append-only events + follow-up tasks
 app/
   plays/field_service.py   # Active market-play config
   scoring_v3.py            # Opportunity + readiness
+  messaging.py             # Accepted-only LinkedIn/email drafts
   discovery/               # DECP, Annuaire, Sirene, contacts (play-driven)
   routers/queue.py         # Daily queue + qualification
   models.py                # Prospects + evidence + reviews + tasks + runs

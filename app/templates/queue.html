@@ -109,7 +109,11 @@
     </div>
 
     <div class="mt-4 flex flex-wrap gap-2">
+      {% if p.manual_review_state == 'accepted' and p.qualification_decision == 'accept' %}
+      <a href="/prospects/{{ p.id }}#message-drafts" class="btn-primary text-sm">Open message drafts</a>
+      {% else %}
       <a href="/queue/{{ p.id }}/qualify" class="btn-primary text-sm">Qualify</a>
+      {% endif %}
       <a href="{{ linkedin_people_url(p.company_name, p.decision_maker_name, p.decision_maker_title) }}" target="_blank" rel="noopener" class="btn-secondary text-sm">LinkedIn</a>
       <a href="/prospects/{{ p.id }}" class="btn-secondary text-sm">Open</a>
       {% if p.personalization_brief %}

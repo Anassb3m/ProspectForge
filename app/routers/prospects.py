@@ -18,7 +18,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
+from app.commercial import is_suppressed
 from app.database import get_db
+from app.messaging import drafts_for_prospect
 from app.models import (
     COMPANY_SIZES,
     EVENT_TYPES,
@@ -421,12 +423,18 @@ async def page_prospect_detail(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    prospect.is_suppressed = await is_suppressed(  # type: ignore[attr-defined]
+        db,
+        email=prospect.email,
+        siren=prospect.siren,
+    )
     return templates.TemplateResponse(
         request,
         "prospect_detail.html",
         {
             "user": user,
             "prospect": prospect,
+            "message_drafts": drafts_for_prospect(prospect),
             "event_types": EVENT_TYPES,
             "channels": CHANNELS,
         },

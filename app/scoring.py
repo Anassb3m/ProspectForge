@@ -1,4 +1,9 @@
-"""Urgency scoring engine — explicit, inspectable weighted function."""
+"""Deprecated V2 urgency scoring retained only for legacy test coverage.
+
+Production acquisition decisions use :mod:`app.scoring_v3`. Do not import this
+module into new application code; it still contains historical signal concepts
+that are intentionally absent from the active field-service market play.
+"""
 
 from datetime import datetime, timezone
 

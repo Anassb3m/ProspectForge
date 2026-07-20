@@ -324,7 +324,7 @@ def test_readiness_human_required_blocks_contact_ready():
 @pytest.mark.asyncio
 async def test_upsert_evidence_idempotency():
     from app.commercial import upsert_evidence
-    from app.models import EvidenceSignal, Prospect
+    from app.models import Prospect
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
     from sqlalchemy.orm import sessionmaker
     from app.database import Base

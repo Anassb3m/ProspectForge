@@ -1,6 +1,5 @@
 """Test fixtures — isolated SQLite DB, async client, auth helper."""
 
-import asyncio
 import os
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -25,13 +24,6 @@ from app.main import app
 from app.models import User
 
 get_settings.cache_clear()
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture

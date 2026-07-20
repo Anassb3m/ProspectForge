@@ -8,7 +8,8 @@ from collections import defaultdict, deque
 from typing import Deque
 
 from fastapi import HTTPException, Request, status
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import get_settings
 
@@ -33,14 +34,22 @@ def generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-class CSRFMiddleware(BaseHTTPMiddleware):
+class CSRFMiddleware:
     """
     Double-submit CSRF for browser form posts.
     Expects header X-CSRF-Token matching cookie pf_csrf (set via base template + HTMX).
     Bearer-authenticated API under /api/ is exempt.
     """
 
-    async def dispatch(self, request: Request, call_next):
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
         if request.method in _MUTATING:
             path = request.url.path
             exempt = any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES)
@@ -57,24 +66,37 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     # First visit — allow once; cookie will be set on response
                     pass
                 else:
-                    raise HTTPException(
+                    response = JSONResponse(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="CSRF validation failed — refresh the page and retry",
+                        content={
+                            "detail": "CSRF validation failed — refresh the page and retry"
+                        },
                     )
+                    await response(scope, receive, send)
+                    return
 
-        response = await call_next(request)
+        set_cookie_header: tuple[bytes, bytes] | None = None
         if CSRF_COOKIE not in request.cookies:
-            token = generate_csrf_token()
-            settings = get_settings()
-            response.set_cookie(
+            cookie_response = Response()
+            cookie_response.set_cookie(
                 key=CSRF_COOKIE,
-                value=token,
+                value=generate_csrf_token(),
                 httponly=False,
                 samesite="lax",
-                secure=settings.cookie_secure,
+                secure=get_settings().cookie_secure,
                 max_age=86400 * 7,
             )
-        return response
+            set_cookie_header = next(
+                (header for header in cookie_response.raw_headers if header[0] == b"set-cookie"),
+                None,
+            )
+
+        async def send_with_csrf_cookie(message: Message) -> None:
+            if message["type"] == "http.response.start" and set_cookie_header:
+                message.setdefault("headers", []).append(set_cookie_header)
+            await send(message)
+
+        await self.app(scope, receive, send_with_csrf_cookie)
 
 
 _login_hits: dict[str, Deque[float]] = defaultdict(deque)

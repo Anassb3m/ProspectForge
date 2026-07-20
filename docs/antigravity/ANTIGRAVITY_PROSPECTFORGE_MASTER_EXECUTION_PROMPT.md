@@ -93,9 +93,9 @@ Before editing code, read these files completely:
 README.md
 DEPLOY.md
 GUIDE.md
-PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md
-prospectforge_spec_python.md
-logic_specification.txt
+docs/archive/PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md
+docs/archive/prospectforge_spec_python.md
+docs/archive/logic_specification.txt
 pyproject.toml
 docker-compose.yml
 Dockerfile
@@ -116,7 +116,11 @@ alembic/
 
 Do not skim only filenames. Trace the important execution paths through routers, services, scoring, discovery, ingestion, models, templates, security, background jobs, migrations, Docker startup, and deployment scripts.
 
-Treat `PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md` as the intended product direction, but do not implement it blindly. When the master specification conflicts with safer, simpler, or more commercially correct behavior, document the conflict, choose the better design, and explain the decision.
+Treat `docs/archive/PROSPECTFORGE_V3_CLIENT_ACQUISITION_REBUILD_MASTER_SPEC.md`
+as historical product direction, not current ground truth. When the archived
+specification conflicts with safer, simpler, or more commercially correct
+behavior in the active code and current docs, preserve the active behavior and
+document the decision.
 
 ---
 

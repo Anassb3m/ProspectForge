@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # Legacy (optional)
     hunter_api_key: str = ""
 
-    enable_scheduler: bool = True
+    enable_scheduler: bool = False
 
     # ── Discovery / enrichment (v2.1) ─────────────────────────────────────
     insee_api_key: str = ""  # X-INSEE-Api-Key-Integration

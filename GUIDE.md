@@ -42,7 +42,9 @@ ProspectForge is not a full CRM. It is a **priority engine + memory**.
 | **Tracking** | Remember what you said, when, and what is due next |
 | **Learning** | Show which *signals* (DECP vs registry vs manual) actually reply |
 
-The only step the tool deliberately **does not** automate: confirming the decision-maker on LinkedIn and writing a human first message. That step is where quality lives.
+The tool deliberately does **not** automate decision-maker confirmation or
+sending. After qualification it creates an evidence-based draft; you still
+confirm the person, add one real detail, verify every claim, and send manually.
 
 **Success metric:** not “rows in database”, but **meetings booked per hour of operator time**.
 
@@ -228,8 +230,9 @@ For each of **5–10 leads**:
 3. **Accept** only if you can defend a first sentence with real evidence.  
 4. **LinkedIn** → confirm person (legal président ≠ always the buyer).  
 5. Treat guessed emails as **not ready to send** — use LinkedIn or verify.  
-6. Set **informed_at** → send → log **Sent** + next_action_date.  
-7. Reject IT/software houses even if the score looks “busy”.
+6. After Accept, open **Message drafts** → add one real detail and your signature.
+7. Set **informed_at** → send manually → log **Sent** + next_action_date.
+8. Reject IT/software houses even if the score looks “busy”.
 
 ### Block 2 — Hygiene (5 min)
 
@@ -359,13 +362,13 @@ If you cannot explain the lead in one sentence using a badge, skip it.
 ### The 7-step assembly line (per lead)
 
 ```
-1. Select from high-ACQ queue
-2. Read award / NAF / size (30 seconds)
-3. LinkedIn confirm dirigeant
-4. Generate email candidates (tool)
-5. Set informed_at (compliance)
-6. Send personalized note (you)
-7. Log Sent + next_action_date
+1. Select from the daily queue
+2. Read the evidence and qualify all six gates honestly
+3. LinkedIn-confirm the actual problem owner
+4. Accept → open the prospect's editable message drafts
+5. Add one real detail; replace [Votre prénom] / [Votre société]
+6. Verify contact + set informed_at (compliance)
+7. Send manually and log Sent + next_action_date
 ```
 
 Time budget: **5–8 minutes per lead** once you’re fluent.  
@@ -377,12 +380,13 @@ Use **one** concrete hook:
 
 | Source | Hook |
 |---|---|
-| DECP objet | Name the marché / theme (cyber, cloud, TMA…) |
-| Acheteur | “Travail avec [ministère / région]…” |
-| Multi-win | “Plusieurs attributions récentes…” |
-| Size + NAF | “ESN mid-market / 50–150 collab…” |
+| DECP objet | Name the actual maintenance / installation contract |
+| Acheteur | Reference the public buyer without implying internal pain |
+| Multi-win | Mention recent activity as timing, not proof of software need |
+| Site / role | Add one verified operational detail or buyer responsibility |
 
-Avoid: generic “we help companies digitalize”.
+Avoid: generic “we help companies digitalize”, invented Excel/GMAO claims, or
+claiming that an award proves budget or pain.
 
 ### Channels
 
