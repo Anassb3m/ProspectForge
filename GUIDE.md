@@ -272,6 +272,14 @@ If nightly ingestion is enabled (`ENABLE_NIGHTLY_INGESTION=true`), Monday can sk
 
 ## 7. How discovery works (so you trust the queue)
 
+### Contact Intelligence dossier
+
+Open a prospect and run **Contact discovery** from the Contact Intelligence section. The system checks the official company domain, public pages/PDFs, registry people, published email patterns, business phones, contact forms, DNS/MX, and optionally the private Reacher service. It records a separate state for publication, mailbox deliverability, person match, and practical utility.
+
+Use the source links before confirming a buyer or contact point. A Reacher `deliverable` result does not prove that a guessed address belongs to the named person. Catch-all and guessed results stay in manual review. LinkedIn is a manual confirmation path only; the system never scrapes or messages it.
+
+The queue may create tasks such as buyer confirmation, catch-all review, switchboard call, contact-form use, or domain ambiguity resolution. Resolve or reject the underlying fact rather than merely closing the task.
+
 ### Mode `decp`
 
 1. Downloads consolidated DECP Parquet (data.gouv.fr / ColinMaudry-style pipeline).  

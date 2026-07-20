@@ -103,6 +103,12 @@ external-proxy mode, backups, restore, and rollback.
 
 ## Architecture (V3)
 
+### Contact Intelligence
+
+ProspectForge now keeps people, contact points, evidence, verification history, and discovery runs in normalized tables. The official company website is crawled narrowly with SSRF controls; public emails, business phones, contact forms, people, French buyer roles, JSON-LD, and bounded PDF text are extracted with provenance. Published same-domain patterns guide candidate generation, while DNS and private Reacher checks remain technical verification layers.
+
+Guessed-only and catch-all addresses always require manual review. Full values are shown only on authenticated detail workflows, manual LinkedIn research is auditable but never automated, and contact discovery cannot send outreach. See [`docs/contact-intelligence/OPERATOR_PLAYBOOK.md`](./docs/contact-intelligence/OPERATOR_PLAYBOOK.md).
+
 ```
 Market play FIELD_SERVICE_OPERATIONS_FR
         ↓
