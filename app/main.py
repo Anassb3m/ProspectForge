@@ -12,7 +12,6 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app import __version__
 from app.auth import hash_password
@@ -73,18 +72,9 @@ async def seed_market_plays() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    weak_keys = {
-        "change-me",
-        "dev-secret-key-change-in-production-abc123xyz",
-        "CHANGE_ME_long_random_string",
-    }
-    if settings.is_production and (
-        settings.secret_key in weak_keys or len(settings.secret_key) < 32
-    ):
-        raise RuntimeError(
-            "Weak or short SECRET_KEY in production. "
-            "Set SECRET_KEY to a long random value (openssl rand -hex 32)."
-        )
+    production_errors = settings.production_validation_errors()
+    if production_errors:
+        raise RuntimeError("Unsafe production configuration: " + "; ".join(production_errors))
     await init_db()
     await bootstrap_admin()
     await seed_market_plays()
@@ -112,12 +102,6 @@ app = FastAPI(
     openapi_url="/openapi.json" if _docs_url else None,
 )
 
-# Trust X-Forwarded-* only from configured hosts in production
-_proxy_hosts = "*" if not settings.is_production else (
-    ",".join(settings.trusted_host_list) if settings.trusted_host_list != ["*"] else "127.0.0.1,caddy"
-)
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_proxy_hosts)
-
 if settings.is_production and settings.trusted_host_list != ["*"]:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
 
@@ -138,7 +122,7 @@ app.include_router(queue.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": __version__, "env": settings.environment}
+    return {"status": "ok", "version": __version__}
 
 
 @app.get("/ready")
@@ -154,7 +138,7 @@ async def ready():
 
         return JSONResponse(
             status_code=503,
-            content={"status": "not_ready", "database": "error", "detail": str(exc)},
+            content={"status": "not_ready", "database": "error"},
         )
 
 

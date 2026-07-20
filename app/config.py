@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Behind reverse proxy (Caddy/nginx)
     trusted_hosts: str = "*"  # comma-separated, e.g. "prospects.example.com,localhost"
     force_https_cookies: bool | None = None  # None = auto from environment
+    tls_mode: str = "internal"
 
     # Legacy (optional)
     hunter_api_key: str = ""
@@ -71,6 +72,38 @@ class Settings(BaseSettings):
         if not self.trusted_hosts or self.trusted_hosts.strip() == "*":
             return ["*"]
         return [h.strip() for h in self.trusted_hosts.split(",") if h.strip()]
+
+    def production_validation_errors(self) -> list[str]:
+        """Return unsafe production settings instead of failing silently at runtime."""
+        if not self.is_production:
+            return []
+
+        errors: list[str] = []
+        weak_keys = {
+            "change-me",
+            "change-me-to-a-long-random-string",
+            "dev-secret-key-change-in-production-abc123xyz",
+            "CHANGE_ME_long_random_string",
+        }
+        if self.debug:
+            errors.append("DEBUG must be false")
+        if self.is_sqlite:
+            errors.append("DATABASE_URL must use PostgreSQL")
+        if self.secret_key in weak_keys or len(self.secret_key) < 32:
+            errors.append("SECRET_KEY must be a unique value of at least 32 characters")
+        if self.admin_email.endswith("@prospectforge.local") or "@" not in self.admin_email:
+            errors.append("ADMIN_EMAIL must be a real operator email address")
+        if self.admin_password in {"changeme", "testpass123", "CHANGE_ME_strong_admin_password"}:
+            errors.append("ADMIN_PASSWORD is still a placeholder")
+        elif len(self.admin_password) < 14:
+            errors.append("ADMIN_PASSWORD must contain at least 14 characters")
+        if self.trusted_host_list == ["*"]:
+            errors.append("TRUSTED_HOSTS must explicitly list the production domain or IP")
+        if not self.cookie_secure:
+            errors.append("FORCE_HTTPS_COOKIES must be true in production")
+        if self.tls_mode not in {"internal", "external", "acme"}:
+            errors.append("TLS_MODE must be internal, external, or acme")
+        return errors
 
 
 @lru_cache

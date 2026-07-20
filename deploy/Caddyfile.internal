@@ -1,5 +1,4 @@
-# Backward-compatible default. docker-compose.yml normally selects one of the
-# explicit mode files through CADDYFILE_PATH.
+# Private/admin deployment with Caddy's internal CA on a custom HTTPS port.
 {
 	admin off
 	auto_https disable_redirects

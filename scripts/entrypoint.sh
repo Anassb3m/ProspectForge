@@ -34,12 +34,17 @@ async def wait(timeout=60):
             return
         except Exception as exc:
             last = exc
-            time.sleep(1)
+            await asyncio.sleep(1)
     print(f"[entrypoint] Database not ready: {last}", file=sys.stderr)
     sys.exit(1)
 
 asyncio.run(wait())
 PY
+fi
+
+# Allow one-off operational commands (for example the pre-start migration gate).
+if [[ "$#" -gt 0 ]]; then
+  exec "$@"
 fi
 
 # ── Migrations (fail hard in production — no soft create_all fallback) ─────

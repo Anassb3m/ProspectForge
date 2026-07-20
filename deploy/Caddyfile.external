@@ -1,16 +1,10 @@
-# Backward-compatible default. docker-compose.yml normally selects one of the
-# explicit mode files through CADDYFILE_PATH.
+# Plain HTTP hop used only behind an existing HTTPS nginx/Caddy/Traefik proxy.
 {
 	admin off
-	auto_https disable_redirects
+	auto_https off
 }
 
 :80 {
-	redir https://{$DOMAIN}:{$HTTPS_PORT}{uri} permanent
-}
-
-https://{$DOMAIN} {
-	tls internal
 	encode gzip zstd
 	header {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
@@ -20,5 +14,7 @@ https://{$DOMAIN} {
 		X-Frame-Options DENY
 		-Server
 	}
-	reverse_proxy app:8000
+	reverse_proxy app:8000 {
+		header_up X-Forwarded-Proto https
+	}
 }

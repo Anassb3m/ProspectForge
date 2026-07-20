@@ -82,17 +82,22 @@ pytest -q
 
 ---
 
-## Production (shared VPS)
+## Production (VPS)
 
-Default ports avoid 80/443: **18080 / 18443 / 18081 / 15432**
+The supported stack is Caddy, a non-root/read-only FastAPI container, and a
+private PostgreSQL 16 service. Public production defaults to trusted HTTPS on
+ports 80/443; existing reverse proxies and private custom-port deployments are
+also supported.
 
 ```bash
-cp .env.production.example .env
-# SECRET_KEY, POSTGRES_PASSWORD, ADMIN_*, INSEE_API_KEY, ports
+./scripts/configure-production.sh prospects.example.com you@example.com acme
 ./scripts/deploy.sh
 ```
 
-See [DEPLOY.md](./DEPLOY.md).
+Deploy validates configuration, backs up an existing database, applies
+migrations before replacing the app, verifies readiness/HTTPS, and preserves a
+rollback image. See [DEPLOY.md](./DEPLOY.md) for first install, updates,
+external-proxy mode, backups, restore, and rollback.
 
 ---
 
