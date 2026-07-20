@@ -21,7 +21,7 @@
   <td><span class="badge badge-blue">{{ prospect.current_status }}</span></td>
   <td class="text-sm text-slate-600">
     {{ prospect.decision_maker_name or '—' }}
-    {% if prospect.email %}<p class="text-xs text-slate-400">{{ prospect.email }}</p>{% endif %}
+    {% if prospect.email_redacted %}<p class="text-xs text-slate-400">{{ prospect.email_redacted }}</p>{% endif %}
   </td>
   <td>
     {% if not prospect.opted_out %}

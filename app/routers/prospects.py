@@ -15,6 +15,7 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -29,6 +30,10 @@ from app.models import (
     SIGNAL_TYPES,
     SOURCES,
     CHANNELS,
+    ContactDiscoveryRun,
+    ContactEvidence,
+    ContactPerson,
+    ContactPoint,
     User,
 )
 from app.schemas import (
@@ -428,6 +433,56 @@ async def page_prospect_detail(
         email=prospect.email,
         siren=prospect.siren,
     )
+    people = list(
+        (
+            await db.execute(
+                select(ContactPerson)
+                .where(ContactPerson.prospect_id == prospect.id)
+                .order_by(
+                    ContactPerson.is_primary_candidate.desc(),
+                    ContactPerson.buyer_role_score.desc(),
+                )
+            )
+        ).scalars().all()
+    )
+    contact_points = list(
+        (
+            await db.execute(
+                select(ContactPoint)
+                .where(ContactPoint.prospect_id == prospect.id)
+                .order_by(ContactPoint.is_primary.desc(), ContactPoint.confidence_score.desc())
+            )
+        ).scalars().all()
+    )
+    evidence = list(
+        (
+            await db.execute(
+                select(ContactEvidence).where(ContactEvidence.prospect_id == prospect.id)
+            )
+        ).scalars().all()
+    )
+    source_urls: dict[tuple[str, int], list[str]] = {}
+    for item in evidence:
+        if not item.source_url:
+            continue
+        if item.person_id:
+            source_urls.setdefault(("person", item.person_id), []).append(item.source_url)
+        if item.contact_point_id:
+            source_urls.setdefault(("point", item.contact_point_id), []).append(item.source_url)
+    for person in people:
+        person.source_urls = list(dict.fromkeys(source_urls.get(("person", person.id), [])))[:5]  # type: ignore[attr-defined]
+    for point in contact_points:
+        point.source_urls = list(dict.fromkeys(source_urls.get(("point", point.id), [])))[:5]  # type: ignore[attr-defined]
+    recent_contact_runs = list(
+        (
+            await db.execute(
+                select(ContactDiscoveryRun)
+                .where(ContactDiscoveryRun.prospect_id == prospect.id)
+                .order_by(ContactDiscoveryRun.started_at.desc())
+                .limit(5)
+            )
+        ).scalars().all()
+    )
     return templates.TemplateResponse(
         request,
         "prospect_detail.html",
@@ -437,6 +492,9 @@ async def page_prospect_detail(
             "message_drafts": drafts_for_prospect(prospect),
             "event_types": EVENT_TYPES,
             "channels": CHANNELS,
+            "contact_people": people,
+            "contact_points": contact_points,
+            "recent_contact_runs": recent_contact_runs,
         },
     )
 

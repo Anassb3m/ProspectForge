@@ -32,6 +32,18 @@ def start_scheduler() -> AsyncIOScheduler:
             max_instances=1,
         )
 
+    if settings.ingestion_run_contacts:
+        from app.jobs.contact_discovery import run_nightly_contact_discovery_safe
+
+        scheduler.add_job(
+            run_nightly_contact_discovery_safe,
+            CronTrigger(hour=1, minute=45),
+            id="contact_discovery",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
     # Nightly urgency recalculation at 02:00 UTC (after ingestion)
     scheduler.add_job(
         recalculate_all_scores,

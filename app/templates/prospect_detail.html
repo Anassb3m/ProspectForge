@@ -110,6 +110,112 @@
   </div>
 
   <div class="space-y-6 lg:col-span-2">
+    <section class="card" id="contact-intelligence">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="card-title">Contact Intelligence</h2>
+          <p class="text-sm text-slate-500">Source-backed people and legitimate contact paths. Mailbox checks never prove identity.</p>
+        </div>
+        <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/run" hx-target="body">
+          <button type="submit" class="btn-primary text-sm">Run contact discovery</button>
+        </form>
+      </div>
+
+      <div class="mt-4 grid gap-3 sm:grid-cols-3">
+        <div class="rounded-lg bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase text-slate-400">Recommended buyer</p>
+          <p class="mt-1 text-sm font-medium">{{ contact_people[0].full_name if contact_people else 'Not found' }}</p>
+          <p class="text-xs text-slate-500">{{ contact_people[0].job_title if contact_people else 'Identity research required' }}</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase text-slate-400">Recommended path</p>
+          <p class="mt-1 text-sm font-medium">{{ contact_points[0].kind|replace('_', ' ')|title if contact_points else 'No contact path' }}</p>
+          <p class="text-xs text-slate-500">{{ contact_points[0].utility_state|replace('_', ' ') if contact_points else 'Run discovery or add a source' }}</p>
+        </div>
+        <div class="rounded-lg bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase text-slate-400">Freshness</p>
+          <p class="mt-1 text-sm font-medium">{% if recent_contact_runs %}{{ recent_contact_runs[0].status|replace('_', ' ') }}{% else %}Never run{% endif %}</p>
+          <p class="text-xs text-slate-500">{% if recent_contact_runs %}{{ recent_contact_runs[0].started_at.strftime('%Y-%m-%d %H:%M') }}{% else %}Manual action required{% endif %}</p>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <h3 class="text-sm font-semibold">People</h3>
+        {% if contact_people %}
+        <div class="mt-2 overflow-x-auto">
+          <table class="data-table">
+            <thead><tr><th>Name / role</th><th>Buyer fit</th><th>Identity</th><th>Sources</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for person in contact_people %}
+              <tr class="{% if not person.is_active %}opacity-50{% endif %}">
+                <td><p class="font-medium">{{ person.full_name }}</p><p class="text-xs text-slate-500">{{ person.job_title or 'Role unstated' }} · {{ person.role_category|replace('_', ' ') }}</p></td>
+                <td>{{ person.buyer_role_score }}/100{% if person.is_primary_candidate %} <span class="badge badge-blue">primary</span>{% endif %}</td>
+                <td><span class="badge badge-slate">{{ person.company_match_state }}</span><p class="mt-1 text-xs text-slate-500">{{ person.identity_confidence }}/100 · {{ person.source_count }} source(s)</p></td>
+                <td>{% for source in person.source_urls %}<a href="{{ source }}" target="_blank" rel="noopener noreferrer" class="mr-2 text-xs text-brand-600 hover:underline">Source {{ loop.index }} ↗</a>{% else %}<span class="text-xs text-slate-400">Registry record</span>{% endfor %}</td>
+                <td>
+                  <div class="flex gap-2">
+                    <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body"><input type="hidden" name="person_id" value="{{ person.id }}"><input type="hidden" name="decision" value="primary"><button class="text-xs font-medium text-brand-600">Confirm primary</button></form>
+                    <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body"><input type="hidden" name="person_id" value="{{ person.id }}"><input type="hidden" name="decision" value="reject"><button class="text-xs font-medium text-red-600">Reject</button></form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<p class="mt-2 text-sm text-amber-700">No named buyer found. Use official pages, the switchboard, or manual LinkedIn confirmation.</p>{% endif %}
+      </div>
+
+      <div class="mt-5">
+        <h3 class="text-sm font-semibold">Contact points</h3>
+        {% if contact_points %}
+        <div class="mt-2 overflow-x-auto">
+          <table class="data-table">
+            <thead><tr><th>Path</th><th>Publication</th><th>Deliverability</th><th>Person match</th><th>Utility / reason</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for point in contact_points %}
+              <tr class="{% if point.is_suppressed or point.rejection_reason %}opacity-50{% endif %}">
+                <td><p class="font-mono text-xs break-all">{{ point.value_display }}</p><p class="text-xs text-slate-500">{{ point.kind|replace('_', ' ') }}{% if point.is_primary %} · primary{% endif %}</p>{% for source in point.source_urls %}<a href="{{ source }}" target="_blank" rel="noopener noreferrer" class="mr-2 text-xs text-brand-600 hover:underline">Source {{ loop.index }} ↗</a>{% endfor %}</td>
+                <td><span class="badge badge-slate">{{ point.publication_state }}</span></td>
+                <td><span class="badge {% if point.deliverability_state == 'deliverable' %}badge-blue{% elif point.deliverability_state in ('catch_all','risky','indeterminate') %}badge-amber{% elif point.deliverability_state == 'invalid' %}badge-red{% else %}badge-slate{% endif %}">{{ point.deliverability_state }}</span>{% if point.last_verified_at %}<p class="mt-1 text-xs text-slate-400">{{ point.last_verified_at.strftime('%Y-%m-%d') }}</p>{% endif %}</td>
+                <td class="text-xs">{{ point.person_match_state|replace('_', ' ') }}</td>
+                <td><span class="badge {% if point.is_usable %}badge-blue{% else %}badge-amber{% endif %}">{{ point.utility_state|replace('_', ' ') }}</span>{% if point.requires_manual_review %}<p class="mt-1 text-xs text-amber-700">Manual confirmation required</p>{% elif point.rejection_reason %}<p class="mt-1 text-xs text-red-600">{{ point.rejection_reason }}</p>{% endif %}</td>
+                <td>
+                  <div class="flex flex-col gap-1">
+                    <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body"><input type="hidden" name="contact_point_id" value="{{ point.id }}"><input type="hidden" name="decision" value="primary"><button class="text-left text-xs font-medium text-brand-600">Confirm primary</button></form>
+                    <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body"><input type="hidden" name="contact_point_id" value="{{ point.id }}"><input type="hidden" name="decision" value="reject"><button class="text-left text-xs font-medium text-red-600">Reject</button></form>
+                    <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body"><input type="hidden" name="contact_point_id" value="{{ point.id }}"><input type="hidden" name="decision" value="suppress"><button class="text-left text-xs font-medium text-red-600">Suppress</button></form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<p class="mt-2 text-sm text-amber-700">No legitimate path found. Guessed addresses are not promoted to the prospect email.</p>{% endif %}
+      </div>
+
+      <details class="mt-5 rounded-lg border border-slate-200 p-3">
+        <summary class="cursor-pointer text-sm font-semibold">Add a manually confirmed public source</summary>
+        <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/add" hx-target="body" class="mt-3 grid gap-3 sm:grid-cols-2">
+          <div><label class="label">Type</label><select name="kind" class="input"><option value="linkedin">LinkedIn profile</option><option value="phone">Business phone</option><option value="contact_form">Contact form</option><option value="email">Published email</option></select></div>
+          <div><label class="label">Publication</label><select name="publication_state" class="input"><option value="published_personal">Published personal</option><option value="published_role">Published role</option><option value="published_generic">Published generic</option><option value="unknown">Unknown</option></select></div>
+          <div class="sm:col-span-2"><label class="label">Contact value</label><input required name="value" class="input" placeholder="Public business contact or URL"></div>
+          <div class="sm:col-span-2"><label class="label">Evidence URL</label><input required name="source_url" class="input" placeholder="https://official-company.example/contact"></div>
+          <div class="sm:col-span-2"><button class="btn-secondary">Add with audit record</button></div>
+        </form>
+      </details>
+
+      {% if recent_contact_runs %}
+      <details class="mt-4 rounded-lg border border-slate-200 p-3">
+        <summary class="cursor-pointer text-sm font-semibold">Recent discovery runs</summary>
+        <ul class="mt-2 space-y-2 text-xs">
+        {% for run in recent_contact_runs %}<li><span class="font-medium">{{ run.status }}</span> · {{ run.started_at.strftime('%Y-%m-%d %H:%M') }} · {{ run.pages_examined }} pages · {{ run.people_found }} people · {{ run.contact_points_found }} paths · {{ run.manual_review_required }} review{% if run.error_summary %} · {{ run.error_summary }}{% endif %}</li>{% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+    </section>
+
     {% if message_drafts %}
     <section class="card" id="message-drafts">
       <div class="flex flex-wrap items-start justify-between gap-3">

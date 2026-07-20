@@ -32,6 +32,18 @@ ACCEPT_REQUIRED = (
     "offer_match_confirmed",
 )
 
+CONTACT_TASK_TYPES = {
+    "confirm_buyer_identity",
+    "confirm_linkedin_profile",
+    "review_catch_all_email",
+    "review_pattern_inferred_email",
+    "call_switchboard_for_buyer",
+    "use_contact_form",
+    "resolve_domain_ambiguity",
+    "review_conflicting_role",
+    "refresh_stale_contact",
+}
+
 
 async def _daily_queue(
     db: AsyncSession,
@@ -122,6 +134,9 @@ async def _daily_queue(
         if has_research:
             return (4, -(p.opportunity_score or 0))
 
+        if any(t.task_type in CONTACT_TASK_TYPES for t in tasks):
+            return (4, -(p.opportunity_score or 0))
+
         # Priority 5+: Readiness-based
         stage_rank = {
             "contact_ready": 5,
@@ -150,6 +165,8 @@ async def _daily_queue(
             p.action_hint = "Send first outreach"  # type: ignore[attr-defined]
         elif any(t.task_type == "research" for t in tasks):
             p.action_hint = "Research — gather more evidence"  # type: ignore[attr-defined]
+        elif (contact_tasks := [t for t in tasks if t.task_type in CONTACT_TASK_TYPES]):
+            p.action_hint = contact_tasks[0].title  # type: ignore[attr-defined]
         elif p.readiness_state == "contact_ready":
             p.action_hint = "Contact ready — create outreach task"  # type: ignore[attr-defined]
         elif p.readiness_state == "human_review_required":

@@ -98,7 +98,8 @@
           {% if p.decision_maker_title %}<span class="text-slate-500">· {{ p.decision_maker_title }}</span>{% endif %}
         </p>
         <p class="text-xs text-slate-500">Role hint: {{ p.recommended_buyer_role or '—' }} · {{ p.contact_status }}</p>
-        {% if p.email %}<p class="font-mono text-xs mt-1">{{ p.email }} <span class="text-slate-400">({{ p.contact_confidence }} / {{ p.contact_discovery_state or '—' }})</span></p>{% endif %}
+        {% if p.email_redacted %}<p class="font-mono text-xs mt-1">{{ p.email_redacted }} <span class="text-slate-400">({{ p.contact_confidence }} / {{ p.contact_discovery_state or '—' }})</span></p>{% endif %}
+        {% if p.open_tasks %}<ul class="mt-2 space-y-1 text-xs text-amber-700">{% for task in p.open_tasks[:3] %}<li>{{ task.title }}</li>{% endfor %}</ul>{% endif %}
         {% if p.recommended_offer %}
         <p class="mt-2"><span class="text-xs font-semibold uppercase text-slate-400">Offer</span><br>{{ p.recommended_offer }}</p>
         {% endif %}

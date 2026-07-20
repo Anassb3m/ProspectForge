@@ -18,7 +18,7 @@ from app.auth import hash_password
 from app.config import get_settings
 from app.database import async_session_factory, engine, init_db
 from app.models import User
-from app.routers import auth, dashboard, events, prospects, queue, sourcing
+from app.routers import auth, contact_intelligence, dashboard, events, prospects, queue, sourcing
 from app.security import CSRFMiddleware
 
 logging.basicConfig(
@@ -118,6 +118,7 @@ app.include_router(events.router)
 app.include_router(dashboard.router)
 app.include_router(sourcing.router)
 app.include_router(queue.router)
+app.include_router(contact_intelligence.router)
 
 
 @app.get("/health")
