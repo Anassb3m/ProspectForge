@@ -1,45 +1,102 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full bg-slate-50 antialiased selection:bg-indigo-500 selection:text-white">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}ProspectForge{% endblock %}</title>
+  <title>{% block title %}ProspectForge — Client Acquisition Workspace{% endblock %}</title>
+  
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="/static/css/app.css" />
   <script src="/static/js/htmx.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="/static/js/app.js" defer></script>
+  
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    h1, h2, h3, .font-heading { font-family: 'Outfit', sans-serif; }
+    .notion-shadow { box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.03), 0 1px 2px -1px rgba(15, 23, 42, 0.03); }
+    .glass-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); }
+  </style>
   {% block head %}{% endblock %}
 </head>
-<body class="h-full bg-slate-50 text-slate-900 antialiased">
+<body class="h-full bg-[#F8FAFC] text-slate-900 antialiased font-normal">
   {% if user is defined and user %}
   <div class="min-h-full flex flex-col">
-    <nav class="bg-brand-900 text-white shadow">
+    <!-- Sticky Notion-Style Command Bar -->
+    <header class="sticky top-0 z-40 bg-slate-900 text-white border-b border-slate-800 shadow-md">
       <div class="mx-auto w-full px-4 sm:px-6 lg:px-8">
-        <div class="flex h-14 items-center justify-between">
-          <div class="flex items-center gap-8">
-            <a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
-              <span class="inline-flex h-7 w-7 items-center justify-center rounded bg-brand-500 text-sm font-bold">PF</span>
-              ProspectForge
+        <div class="flex h-14 items-center justify-between gap-4">
+          <!-- Logo & Primary Navigation -->
+          <div class="flex items-center gap-6">
+            <a href="/" class="flex items-center gap-2.5 font-bold tracking-tight text-white transition hover:opacity-90">
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-indigo-600 to-indigo-400 text-sm font-extrabold shadow-inner">⚡</span>
+              <span class="font-heading text-lg tracking-tight">ProspectForge</span>
             </a>
-            <div class="hidden sm:flex items-center gap-1 text-sm">
-              <a href="/" class="nav-link {% if request.url.path == '/' %}nav-active{% endif %}">Dashboard</a>
-              <a href="/market-plays" class="nav-link {% if request.url.path.startswith('/market-plays') %}nav-active{% endif %}">Market Plays <span class="ml-1 inline-flex items-center rounded-full bg-brand-500/20 px-1.5 py-0.5 text-[10px] font-medium text-brand-300">UK/FR</span></a>
-              <a href="/queue" class="nav-link {% if request.url.path.startswith('/queue') %}nav-active{% endif %}">Daily queue</a>
-              <a href="/sourcing" class="nav-link {% if request.url.path.startswith('/sourcing') %}nav-active{% endif %}">Sourcing</a>
-              <a href="/prospects" class="nav-link {% if '/prospects' in request.url.path %}nav-active{% endif %}">Prospects</a>
-              <a href="/kanban" class="nav-link {% if request.url.path == '/kanban' %}nav-active{% endif %}">Pipeline</a>
-              <a href="/follow-ups" class="nav-link {% if request.url.path == '/follow-ups' %}nav-active{% endif %}">Follow-ups</a>
-              <a href="/import" class="nav-link {% if request.url.path == '/import' %}nav-active{% endif %}">Import</a>
-            </div>
+            
+            <nav class="hidden md:flex items-center gap-1 text-sm font-medium">
+              <a href="/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path == '/' %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>📊</span> Dashboard
+              </a>
+              <a href="/market-plays" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path.startswith('/market-plays') %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>🌐</span> Market Plays <span class="rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-bold text-indigo-300 border border-indigo-400/30">UK/FR</span>
+              </a>
+              <a href="/sourcing" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path.startswith('/sourcing') %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>🎯</span> Sourcing
+              </a>
+              <a href="/queue" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path.startswith('/queue') %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>⚡</span> Daily Queue
+              </a>
+              <a href="/prospects" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if '/prospects' in request.url.path %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>🏢</span> Database
+              </a>
+              <a href="/kanban" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path == '/kanban' %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>📋</span> Pipeline
+              </a>
+              <a href="/follow-ups" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path == '/follow-ups' %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>⏳</span> Follow-ups
+              </a>
+              <a href="/import" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md transition {% if request.url.path == '/import' %}bg-slate-800 text-white font-semibold shadow-sm{% else %}text-slate-300 hover:bg-slate-800/60 hover:text-white{% endif %}">
+                <span>📥</span> Import
+              </a>
+            </nav>
           </div>
-          <div class="flex items-center gap-4 text-sm text-slate-300">
-            <span class="hidden md:inline">{{ user.email }}</span>
-            <form action="/auth/logout" method="post">
-              <button type="submit" class="rounded px-2 py-1 hover:bg-white/10 hover:text-white">Logout</button>
-            </form>
+
+          <!-- User Profile & Quick Actions -->
+          <div class="flex items-center gap-3 text-sm" x-data="{ open: false }">
+            <div class="hidden lg:flex items-center gap-2 rounded-full bg-slate-800/80 px-3 py-1 text-xs text-slate-300 border border-slate-700/50">
+              <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Dual UK/FR Active</span>
+            </div>
+            
+            <div class="relative">
+              <button @click="open = !open" type="button" class="flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700 focus:outline-none transition">
+                <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">👤</span>
+                <span class="max-w-[120px] truncate">{{ user.email }}</span>
+                <svg class="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </button>
+
+              <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-48 rounded-xl bg-white p-1 text-slate-800 shadow-xl border border-slate-200/80 z-50">
+                <div class="px-3 py-2 border-b border-slate-100">
+                  <p class="text-xs font-semibold text-slate-900">Signed in as</p>
+                  <p class="text-xs text-slate-500 truncate">{{ user.email }}</p>
+                </div>
+                <form action="/auth/logout" method="post" class="mt-1">
+                  <button type="submit" class="w-full text-left rounded-lg px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 font-medium transition">
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </nav>
+    </header>
+
+    <!-- Main Content Workspace -->
     <main class="mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8">
       {% block content %}{% endblock %}
     </main>

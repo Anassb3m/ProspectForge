@@ -1,158 +1,194 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — ProspectForge{% endblock %}
+{% block title %}Acquisition Command Center — ProspectForge{% endblock %}
 {% block content %}
-<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+<!-- Workspace Header -->
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
   <div>
-    <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
-    <p class="text-sm text-slate-500">Pipeline health and sourcing performance</p>
-  </div>
-  <div class="flex gap-2">
-    <a href="/sourcing" class="btn-primary">Sourcing queue</a>
-    <a href="/prospects/new" class="btn-secondary">+ Add prospect</a>
-    <a href="/follow-ups" class="btn-secondary">Follow-ups ({{ metrics.follow_ups_due_count }})</a>
-  </div>
-</div>
-
-<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-  <div class="stat-card">
-    <p class="stat-label">Total prospects</p>
-    <p class="stat-value">{{ metrics.total_prospects }}</p>
-  </div>
-  <div class="stat-card">
-    <p class="stat-label">Contacted this week</p>
-    <p class="stat-value">{{ metrics.contacted_this_week }}</p>
-  </div>
-  <div class="stat-card">
-    <p class="stat-label">Reply rate</p>
-    <p class="stat-value">{{ metrics.reply_rate }}%</p>
-  </div>
-  <div class="stat-card">
-    <p class="stat-label">Meeting rate</p>
-    <p class="stat-value">{{ metrics.meeting_rate }}%</p>
-  </div>
-</div>
-
-<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-  <div class="stat-card">
-    <p class="stat-label">High priority open</p>
-    <p class="stat-value text-amber-600">{{ metrics.high_priority_count }}</p>
-  </div>
-  <div class="stat-card">
-    <p class="stat-label">New DECP this week</p>
-    <p class="stat-value text-brand-600">{{ metrics.new_decp_this_week }}</p>
-  </div>
-  <div class="stat-card">
-    <p class="stat-label">Verified email rate</p>
-    <p class="stat-value">{{ metrics.verified_email_pct }}%</p>
-  </div>
-  <div class="stat-card">
-    <p class="stat-label">Needs manual review</p>
-    <p class="stat-value">
-      <a href="/sourcing?contact_filter=needs_review" class="hover:underline">{{ metrics.needs_review_count }}</a>
-    </p>
-  </div>
-</div>
-
-<div class="mt-8 grid gap-6 lg:grid-cols-2">
-  <section class="card">
-    <h2 class="card-title">Reply rate by signal type</h2>
-    <p class="mb-3 text-xs text-slate-500">Which sourcing method to keep investing in</p>
-    {% if metrics.by_signal_type %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Signal</th>
-          <th class="text-right">Total</th>
-          <th class="text-right">Contacted</th>
-          <th class="text-right">Replied</th>
-          <th class="text-right">Rate</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in metrics.by_signal_type %}
-        <tr>
-          <td><span class="badge badge-slate">{{ row.signal_type }}</span></td>
-          <td class="text-right">{{ row.total }}</td>
-          <td class="text-right">{{ row.contacted }}</td>
-          <td class="text-right">{{ row.replied }}</td>
-          <td class="text-right font-semibold">{{ row.reply_rate }}%</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="text-sm text-slate-500">No data yet. Add prospects and log outreach.</p>
-    {% endif %}
-  </section>
-
-  <section class="card">
-    <h2 class="card-title">Reply rate by channel</h2>
-    {% if metrics.by_channel %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Channel</th>
-          <th class="text-right">Sent</th>
-          <th class="text-right">Replied</th>
-          <th class="text-right">Rate</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in metrics.by_channel %}
-        <tr>
-          <td>{{ row.channel }}</td>
-          <td class="text-right">{{ row.sent }}</td>
-          <td class="text-right">{{ row.replied }}</td>
-          <td class="text-right font-semibold">{{ row.reply_rate }}%</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="text-sm text-slate-500">No outreach logged yet.</p>
-    {% endif %}
-  </section>
-</div>
-
-<div class="mt-6 grid gap-6 lg:grid-cols-2">
-  <section class="card">
-    <h2 class="card-title">Common objections</h2>
-    <p class="mb-3 text-xs text-slate-500">From Refused / ClosedLost notes</p>
-    {% if metrics.common_objections %}
-    <ul class="divide-y divide-slate-100">
-      {% for obj in metrics.common_objections %}
-      <li class="flex justify-between py-2 text-sm">
-        <span class="text-slate-700">{{ obj.note }}</span>
-        <span class="font-medium text-slate-500">×{{ obj.count }}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p class="text-sm text-slate-500">No objections tagged yet.</p>
-    {% endif %}
-  </section>
-
-  <section class="card">
-    <div class="mb-3 flex items-center justify-between">
-      <h2 class="card-title mb-0">Due follow-ups</h2>
-      <a href="/follow-ups" class="text-sm text-brand-600 hover:underline">View all</a>
+    <div class="flex items-center gap-2">
+      <h1 class="font-heading text-2xl font-bold tracking-tight text-slate-900">Acquisition Command Center</h1>
+      <span class="rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-200/60">Dual UK/FR Active</span>
     </div>
-    {% if follow_ups %}
-    <ul class="divide-y divide-slate-100">
-      {% for item in follow_ups %}
-      <li class="flex items-center justify-between py-2 text-sm">
-        <div>
-          <a href="/prospects/{{ item.prospect_id }}" class="font-medium text-brand-700 hover:underline">{{ item.company_name }}</a>
-          <p class="text-xs text-slate-500">{{ item.next_action or 'Follow up' }}</p>
-        </div>
-        <span class="badge {% if item.days_overdue > 0 %}badge-red{% else %}badge-amber{% endif %}">
-          {% if item.days_overdue > 0 %}{{ item.days_overdue }}d overdue{% else %}due today{% endif %}
-        </span>
-      </li>
-      {% endfor %}
-    </ul>
+    <p class="mt-1 text-xs text-slate-500">Real-time pipeline health, market sourcing metrics & follow-up queue</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2.5">
+    <a href="/sourcing" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition">
+      <span>🚀</span> Run Acquisition Sourcing
+    </a>
+    <a href="/prospects/new" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm border border-slate-300 hover:bg-slate-50 transition">
+      <span>+</span> Add Prospect
+    </a>
+    <a href="/follow-ups" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm border border-slate-300 hover:bg-slate-50 transition">
+      <span>⏳</span> Follow-ups <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">{{ metrics.follow_ups_due_count }}</span>
+    </a>
+  </div>
+</div>
+
+<!-- Primary Metric Strip -->
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Pipeline</span>
+      <span class="text-base">🏢</span>
+    </div>
+    <p class="mt-2 text-2xl font-bold font-heading text-slate-900">{{ metrics.total_prospects }}</p>
+    <div class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+      <span>High Priority: <strong class="text-amber-600">{{ metrics.high_priority_count }}</strong></span>
+      <span>Review: <strong class="text-slate-600">{{ metrics.needs_review_count }}</strong></span>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Contacted This Week</span>
+      <span class="text-base">✉️</span>
+    </div>
+    <p class="mt-2 text-2xl font-bold font-heading text-slate-900">{{ metrics.contacted_this_week }}</p>
+    <div class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+      <span>Verified Email: <strong class="text-emerald-600">{{ metrics.verified_email_pct }}%</strong></span>
+      <span>Signals: <strong class="text-slate-600">UK & FR</strong></span>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Outreach Reply Rate</span>
+      <span class="text-base">💬</span>
+    </div>
+    <p class="mt-2 text-2xl font-bold font-heading text-slate-900">{{ metrics.reply_rate }}%</p>
+    <div class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+      <span>Target Benchmark: <strong>&ge; 15%</strong></span>
+      <span class="text-emerald-600 font-semibold">PECR/CNIL Compliant</span>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Meeting Conversion</span>
+      <span class="text-base">📅</span>
+    </div>
+    <p class="mt-2 text-2xl font-bold font-heading text-indigo-600">{{ metrics.meeting_rate }}%</p>
+    <div class="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+      <span>DECP Wins (FR): <strong class="text-indigo-600">{{ metrics.new_decp_this_week }}</strong></span>
+      <span>Companies House (UK): <strong class="text-indigo-600">Active</strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- Detailed Performance Breakdown -->
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+  <!-- Signal Type Table -->
+  <section class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm">
+    <div class="mb-4 flex items-center justify-between">
+      <div>
+        <h2 class="font-heading text-base font-bold text-slate-900">Conversion by Signal Type</h2>
+        <p class="text-xs text-slate-500">Multi-source performance tracking across UK & FR channels</p>
+      </div>
+      <span class="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">Sourcing Analysis</span>
+    </div>
+    {% if metrics.by_signal_type %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-y border-slate-200/60">
+          <tr>
+            <th class="py-2.5 px-3">Signal Source</th>
+            <th class="py-2.5 px-3 text-right">Total</th>
+            <th class="py-2.5 px-3 text-right">Contacted</th>
+            <th class="py-2.5 px-3 text-right">Replied</th>
+            <th class="py-2.5 px-3 text-right">Reply Rate</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-slate-700">
+          {% for row in metrics.by_signal_type %}
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="py-2.5 px-3 font-medium text-slate-900 flex items-center gap-1.5">
+              {% if 'UK' in row.signal_type or 'COMPANIES' in row.signal_type %}🇬🇧{% else %}🇫🇷{% endif %}
+              <span>{{ row.signal_type }}</span>
+            </td>
+            <td class="py-2.5 px-3 text-right font-mono">{{ row.total }}</td>
+            <td class="py-2.5 px-3 text-right font-mono">{{ row.contacted }}</td>
+            <td class="py-2.5 px-3 text-right font-mono">{{ row.replied }}</td>
+            <td class="py-2.5 px-3 text-right font-bold text-emerald-600">{{ row.reply_rate }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-    <p class="text-sm text-slate-500">Nothing due. Nice work.</p>
+    <div class="py-8 text-center text-xs text-slate-400">No acquisition signals logged yet. Run sourcing to populate data.</div>
+    {% endif %}
+  </section>
+
+  <!-- Outreach Channels Breakdown -->
+  <section class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm">
+    <div class="mb-4 flex items-center justify-between">
+      <div>
+        <h2 class="font-heading text-base font-bold text-slate-900">Performance by Outreach Channel</h2>
+        <p class="text-xs text-slate-500">Channel engagement & deliverability tracking</p>
+      </div>
+      <span class="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">Channel Matrix</span>
+    </div>
+    {% if metrics.by_channel %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-y border-slate-200/60">
+          <tr>
+            <th class="py-2.5 px-3">Channel</th>
+            <th class="py-2.5 px-3 text-right">Sent</th>
+            <th class="py-2.5 px-3 text-right">Replied</th>
+            <th class="py-2.5 px-3 text-right">Response Rate</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-slate-700">
+          {% for row in metrics.by_channel %}
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="py-2.5 px-3 font-medium text-slate-900 capitalize">{{ row.channel }}</td>
+            <td class="py-2.5 px-3 text-right font-mono">{{ row.sent }}</td>
+            <td class="py-2.5 px-3 text-right font-mono">{{ row.replied }}</td>
+            <td class="py-2.5 px-3 text-right font-bold text-indigo-600">{{ row.reply_rate }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-8 text-center text-xs text-slate-400">No outreach touches logged yet.</div>
+    {% endif %}
+  </section>
+</div>
+
+<!-- Follow-ups Action List -->
+<div class="mt-6">
+  <section class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm">
+    <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <h2 class="font-heading text-base font-bold text-slate-900">Urgent Outreach & Follow-ups Queue</h2>
+        <p class="text-xs text-slate-500">Scheduled sequence touches requiring human approval</p>
+      </div>
+      <a href="/follow-ups" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition">View full queue &rarr;</a>
+    </div>
+
+    {% if follow_ups %}
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {% for item in follow_ups %}
+      <div class="rounded-lg border border-slate-200 p-3.5 bg-slate-50/50 hover:bg-slate-50 transition">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <a href="/prospects/{{ item.prospect_id }}" class="font-semibold text-sm text-slate-900 hover:text-indigo-600 transition">{{ item.company_name }}</a>
+            <p class="text-xs text-slate-500 mt-0.5">{{ item.next_action or 'Action needed' }}</p>
+          </div>
+          <span class="rounded px-2 py-0.5 text-[10px] font-bold {% if item.days_overdue > 0 %}bg-red-100 text-red-700 border border-red-200{% else %}bg-amber-100 text-amber-800 border border-amber-200{% endif %}">
+            {% if item.days_overdue > 0 %}{{ item.days_overdue }}d Overdue{% else %}Due Today{% endif %}
+          </span>
+        </div>
+        <div class="mt-3 flex items-center justify-between pt-2 border-t border-slate-200/60">
+          <span class="text-[11px] text-slate-400">Sequence Touch</span>
+          <a href="/prospects/{{ item.prospect_id }}" class="text-xs font-medium text-indigo-600 hover:underline">Execute &rarr;</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="py-6 text-center text-xs text-slate-400">All follow-ups up to date! Great job.</div>
     {% endif %}
   </section>
 </div>

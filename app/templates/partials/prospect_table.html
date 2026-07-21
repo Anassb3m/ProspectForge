@@ -1,41 +1,46 @@
-<div class="card overflow-x-auto p-0">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Company</th>
-        <th>Signal</th>
-        <th>Score</th>
-        <th>Priority</th>
-        <th>Status</th>
-        <th>Contact</th>
-        <th>Quick action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for prospect in prospects %}
-        {% include "partials/prospect_row.html" %}
-      {% else %}
-      <tr>
-        <td colspan="7" class="py-10 text-center text-sm text-slate-500">
-          No prospects match these filters.
-          <a href="/prospects/new" class="text-brand-600 hover:underline">Add one</a>
-          or <a href="/import" class="text-brand-600 hover:underline">import CSV</a>.
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% if total > 50 %}
-<div class="mt-4 flex items-center justify-between px-2">
-  <p class="text-xs text-slate-500">Showing page {{ page }} of {{ ((total - 1) // 50) + 1 }} ({{ total }} total)</p>
-  <div class="flex gap-2">
-    {% if page > 1 %}
-    <button type="button" class="btn-secondary py-1 px-3 text-xs" hx-get="/prospects?page={{ page - 1 }}" hx-include="#filter-form" hx-target="#prospect-table" hx-push-url="true">Previous</button>
-    {% endif %}
-    {% if (page * 50) < total %}
-    <button type="button" class="btn-secondary py-1 px-3 text-xs" hx-get="/prospects?page={{ page + 1 }}" hx-include="#filter-form" hx-target="#prospect-table" hx-push-url="true">Next</button>
-    {% endif %}
+<div class="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
+  <div class="overflow-x-auto">
+    <table class="w-full text-left text-xs">
+      <thead class="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200/80">
+        <tr>
+          <th class="py-3 px-4">Market & Company</th>
+          <th class="py-3 px-3">Signal Source</th>
+          <th class="py-3 px-3">Urgency Score</th>
+          <th class="py-3 px-3">Priority Rank</th>
+          <th class="py-3 px-3">Status</th>
+          <th class="py-3 px-4">Target Contact</th>
+          <th class="py-3 px-4 text-right">Quick Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 text-slate-700">
+        {% for prospect in prospects %}
+          {% include "partials/prospect_row.html" %}
+        {% else %}
+        <tr>
+          <td colspan="7" class="py-12 text-center text-sm text-slate-500">
+            <p class="font-medium text-slate-700">No prospect records match these filters.</p>
+            <p class="text-xs text-slate-400 mt-1">
+              <a href="/prospects/new" class="text-indigo-600 font-semibold hover:underline">Add a prospect manually</a>
+              or <a href="/sourcing" class="text-indigo-600 font-semibold hover:underline">run acquisition sourcing</a>.
+            </p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+
+  {% if total > 50 %}
+  <div class="flex items-center justify-between border-t border-slate-200/80 bg-slate-50/50 px-4 py-3 text-xs">
+    <p class="text-slate-500">Showing page <strong class="text-slate-800">{{ page }}</strong> of <strong class="text-slate-800">{{ ((total - 1) // 50) + 1 }}</strong> ({{ total }} total records)</p>
+    <div class="flex gap-2">
+      {% if page > 1 %}
+      <button type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition" hx-get="/prospects?page={{ page - 1 }}" hx-include="#filter-form" hx-target="#prospect-table" hx-push-url="true">Previous</button>
+      {% endif %}
+      {% if (page * 50) < total %}
+      <button type="button" class="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition" hx-get="/prospects?page={{ page + 1 }}" hx-include="#filter-form" hx-target="#prospect-table" hx-push-url="true">Next</button>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
-{% endif %}
