@@ -1,0 +1,21 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/anass/Documents/Systems/ProspectForge
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.14.2, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 140 items
+
+tests/test_api.py .................                                      [ 12%]
+tests/test_config.py ...                                                 [ 14%]
+tests/test_contact_intelligence.py ..................................... [ 40%]
+.............                                                            [ 50%]
+tests/test_discovery.py ...............                                  [ 60%]
+tests/test_icp.py ...                                                    [ 62%]
+tests/test_messaging.py ...........                                      [ 70%]
+tests/test_p0_commercial.py ...................                          [ 84%]
+tests/test_scoring.py .................                                  [ 96%]
+tests/test_v3_scoring.py .....                                           [100%]
+
+============================= 140 passed in 14.21s =============================

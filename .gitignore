@@ -19,6 +19,7 @@ node_modules/
 .vscode/
 .DS_Store
 *.swp
+askpass*
 
 # Testing / coverage
 .pytest_cache/

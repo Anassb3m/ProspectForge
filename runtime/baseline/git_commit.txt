@@ -1,0 +1,23 @@
+commit c691ce50311ee4f4b039da2b89035324d6dbdddd
+Author: Anassb3m <anassb3m@gmail.com>
+Date:   Tue Jul 21 00:00:38 2026 +0100
+
+    docs: record contact intelligence design and release evidence
+
+ GUIDE.md                                           |  8 +++
+ README.md                                          |  6 +++
+ .../COMPLIANCE_AND_PROVENANCE.md                   | 16 ++++++
+ docs/contact-intelligence/CONFIDENCE_MODEL.md      | 21 ++++++++
+ .../CONTACT_DISCOVERY_GAP_MATRIX.md                | 26 ++++++++++
+ .../CONTACT_INTELLIGENCE_ARCHITECTURE.md           | 59 ++++++++++++++++++++++
+ docs/contact-intelligence/CURRENT_STATE.md         | 46 +++++++++++++++++
+ docs/contact-intelligence/DATA_MODEL.md            | 36 +++++++++++++
+ docs/contact-intelligence/DEPLOYMENT_RECORD.md     | 35 +++++++++++++
+ docs/contact-intelligence/IMPLEMENTATION_PLAN.md   | 23 +++++++++
+ docs/contact-intelligence/KNOWN_LIMITATIONS.md     | 14 +++++
+ docs/contact-intelligence/OPERATOR_PLAYBOOK.md     | 30 +++++++++++
+ docs/contact-intelligence/PILOT_EVALUATION.md      | 26 ++++++++++
+ .../SECURITY_AND_SSRF_REVIEW.md                    | 24 +++++++++
+ docs/contact-intelligence/SOURCE_ADAPTER_MATRIX.md | 15 ++++++
+ docs/contact-intelligence/TEST_PLAN.md             | 44 ++++++++++++++++
+ 16 files changed, 429 insertions(+)

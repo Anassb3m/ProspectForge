@@ -1,0 +1,151 @@
+F811 [*] Redefinition of unused `HTMLResponse` from line 16
+  --> app/routers/prospects.py:50:31
+   |
+48 | from app import services
+49 | from datetime import datetime, timezone
+50 | from fastapi.responses import HTMLResponse, StreamingResponse, Response
+   |                               ^^^^^^^^^^^^ `HTMLResponse` redefined here
+51 |
+52 | router = APIRouter(tags=["prospects"])
+   |
+  ::: app/routers/prospects.py:16:31
+   |
+14 |     status,
+15 | )
+16 | from fastapi.responses import HTMLResponse, StreamingResponse
+   |                               ------------ previous definition of `HTMLResponse` here
+17 | from fastapi.templating import Jinja2Templates
+18 | from sqlalchemy import select
+   |
+help: Remove definition: `HTMLResponse`
+
+F811 [*] Redefinition of unused `StreamingResponse` from line 16
+  --> app/routers/prospects.py:50:45
+   |
+48 | from app import services
+49 | from datetime import datetime, timezone
+50 | from fastapi.responses import HTMLResponse, StreamingResponse, Response
+   |                                             ^^^^^^^^^^^^^^^^^ `StreamingResponse` redefined here
+51 |
+52 | router = APIRouter(tags=["prospects"])
+   |
+  ::: app/routers/prospects.py:16:45
+   |
+14 |     status,
+15 | )
+16 | from fastapi.responses import HTMLResponse, StreamingResponse
+   |                                             ----------------- previous definition of `StreamingResponse` here
+17 | from fastapi.templating import Jinja2Templates
+18 | from sqlalchemy import select
+   |
+help: Remove definition: `StreamingResponse`
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:458:22
+    |
+456 |     lines.append(f"- **Sector:** {prospect.sector}")
+457 |     lines.append(f"- **Size:** {prospect.company_size}")
+458 |     if prospect.siren: lines.append(f"- **SIREN:** {prospect.siren}")
+    |                      ^
+459 |     if prospect.siret: lines.append(f"- **SIRET:** {prospect.siret}")
+460 |     if prospect.naf_code: lines.append(f"- **NAF:** {prospect.naf_code}")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:459:22
+    |
+457 |     lines.append(f"- **Size:** {prospect.company_size}")
+458 |     if prospect.siren: lines.append(f"- **SIREN:** {prospect.siren}")
+459 |     if prospect.siret: lines.append(f"- **SIRET:** {prospect.siret}")
+    |                      ^
+460 |     if prospect.naf_code: lines.append(f"- **NAF:** {prospect.naf_code}")
+461 |     if prospect.website: lines.append(f"- **Website:** {prospect.website}")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:460:25
+    |
+458 |     if prospect.siren: lines.append(f"- **SIREN:** {prospect.siren}")
+459 |     if prospect.siret: lines.append(f"- **SIRET:** {prospect.siret}")
+460 |     if prospect.naf_code: lines.append(f"- **NAF:** {prospect.naf_code}")
+    |                         ^
+461 |     if prospect.website: lines.append(f"- **Website:** {prospect.website}")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:461:24
+    |
+459 |     if prospect.siret: lines.append(f"- **SIRET:** {prospect.siret}")
+460 |     if prospect.naf_code: lines.append(f"- **NAF:** {prospect.naf_code}")
+461 |     if prospect.website: lines.append(f"- **Website:** {prospect.website}")
+    |                        ^
+462 |
+463 |     if prospect.award_history:
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:492:35
+    |
+490 |     if prospect.notes or prospect.signal_details:
+491 |         lines.append("\n## Notes & Signal Details")
+492 |         if prospect.signal_details: lines.append(f"**Signal Details:**\n{prospect.signal_details}\n")
+    |                                   ^
+493 |         if prospect.notes: lines.append(f"**Notes:**\n{prospect.notes}\n")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:493:26
+    |
+491 |         lines.append("\n## Notes & Signal Details")
+492 |         if prospect.signal_details: lines.append(f"**Signal Details:**\n{prospect.signal_details}\n")
+493 |         if prospect.notes: lines.append(f"**Notes:**\n{prospect.notes}\n")
+    |                          ^
+494 |
+495 |     if prospect.suspected_pain or prospect.why_now or prospect.recommended_offer:
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:497:28
+    |
+495 |     if prospect.suspected_pain or prospect.why_now or prospect.recommended_offer:
+496 |         lines.append("\n## Commercial Strategy")
+497 |         if prospect.why_now: lines.append(f"**Why Now (Trigger):**\n{prospect.why_now}\n")
+    |                            ^
+498 |         if prospect.suspected_pain: lines.append(f"**Suspected Pain:**\n{prospect.suspected_pain}\n")
+499 |         if prospect.recommended_buyer_role: lines.append(f"**Target Role:**\n{prospect.recommended_buyer_role}\n")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:498:35
+    |
+496 |         lines.append("\n## Commercial Strategy")
+497 |         if prospect.why_now: lines.append(f"**Why Now (Trigger):**\n{prospect.why_now}\n")
+498 |         if prospect.suspected_pain: lines.append(f"**Suspected Pain:**\n{prospect.suspected_pain}\n")
+    |                                   ^
+499 |         if prospect.recommended_buyer_role: lines.append(f"**Target Role:**\n{prospect.recommended_buyer_role}\n")
+500 |         if prospect.recommended_offer: lines.append(f"**Recommended Offer:**\n{prospect.recommended_offer}\n")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:499:43
+    |
+497 |         if prospect.why_now: lines.append(f"**Why Now (Trigger):**\n{prospect.why_now}\n")
+498 |         if prospect.suspected_pain: lines.append(f"**Suspected Pain:**\n{prospect.suspected_pain}\n")
+499 |         if prospect.recommended_buyer_role: lines.append(f"**Target Role:**\n{prospect.recommended_buyer_role}\n")
+    |                                           ^
+500 |         if prospect.recommended_offer: lines.append(f"**Recommended Offer:**\n{prospect.recommended_offer}\n")
+    |
+
+E701 Multiple statements on one line (colon)
+   --> app/routers/prospects.py:500:38
+    |
+498 |         if prospect.suspected_pain: lines.append(f"**Suspected Pain:**\n{prospect.suspected_pain}\n")
+499 |         if prospect.recommended_buyer_role: lines.append(f"**Target Role:**\n{prospect.recommended_buyer_role}\n")
+500 |         if prospect.recommended_offer: lines.append(f"**Recommended Offer:**\n{prospect.recommended_offer}\n")
+    |                                      ^
+501 |
+502 |     md_content = "\n".join(lines)
+    |
+
+Found 12 errors.
+[*] 2 fixable with the `--fix` option.

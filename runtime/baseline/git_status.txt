@@ -1,0 +1,18 @@
+On branch antigravity/prospectforge-production-pilot
+Your branch is up to date with 'origin/antigravity/prospectforge-production-pilot'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   app/discovery/decp.py
+	modified:   app/routers/prospects.py
+	modified:   app/templates/base.html
+	modified:   app/templates/partials/prospect_table.html
+	modified:   app/templates/prospect_detail.html
+	modified:   app/templates/prospects.html
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	askpass.sh
+
+no changes added to commit (use "git add" and/or "git commit -a")

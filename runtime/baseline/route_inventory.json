@@ -1,0 +1,63 @@
+[
+  {
+    "path": "/static",
+    "name": "static",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e52914ad0>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e52914ad0>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e3d695e00>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e3d695e00>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e3d679cd0>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e3d679cd0>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e3d723110>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e3d723110>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e3d5b4270>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e3d5b4270>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e3d775c70>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e3d775c70>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "_IncludedRouter(original_router=<fastapi.routing.APIRouter object at 0x7f1e3d722850>, include_context=_RouterIncludeContext(included_router=<fastapi.routing.APIRouter object at 0x7f1e3d722850>, prefix='', tags=[], dependencies=[], default_response_class=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559b80>, responses={}, callbacks=[], deprecated=None, include_in_schema=True, generate_unique_id_function=<fastapi.datastructures.DefaultPlaceholder object at 0x7f1e55559bd0>, strict_content_type=True, dependency_overrides_provider=<fastapi.applications.FastAPI object at 0x7f1e3d576e40>), _effective_candidates=[], _effective_candidates_version=None, _effective_low_priority_routes=[], _effective_low_priority_routes_version=None)",
+    "name": "",
+    "methods": []
+  },
+  {
+    "path": "/health",
+    "name": "health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/ready",
+    "name": "ready",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/login",
+    "name": "login_page",
+    "methods": [
+      "GET"
+    ]
+  }
+]

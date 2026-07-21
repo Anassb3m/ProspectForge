@@ -1,5 +1,6 @@
 """SQLAlchemy 2.0 models — prospects, outreach events, users."""
 
+import uuid
 from datetime import datetime
 from typing import Any, Optional
 
@@ -730,3 +731,362 @@ class OfferAsset(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     proof_tags: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+
+
+# ── Multi-Market Domain Models ────────────────────────────────────────────────
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    canonical_name: Mapped[str] = mapped_column(String(255), index=True)
+    legal_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    country_code: Mapped[str] = mapped_column(String(2), default="GB", index=True)
+    jurisdiction_code: Mapped[str] = mapped_column(String(10), default="GB-EW")
+    legal_form_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    entity_status: Mapped[str] = mapped_column(String(50), default="active", index=True)
+    incorporated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    dissolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    primary_domain_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    merged_into_company_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("companies.id"), nullable=True
+    )
+    record_version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    identifiers: Mapped[list["CompanyIdentifier"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    domains: Mapped[list["CompanyDomain"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    classifications: Mapped[list["CompanyClassification"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    locations: Mapped[list["CompanyLocation"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    estimates: Mapped[list["CompanyEstimate"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    opportunities: Mapped[list["Opportunity"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+
+
+class CompanyIdentifier(Base):
+    __tablename__ = "company_identifiers"
+    __table_args__ = (UniqueConstraint("scheme", "value_normalized", name="uq_identifier_scheme_value"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    scheme: Mapped[str] = mapped_column(String(50), index=True)
+    value_normalized: Mapped[str] = mapped_column(String(100), index=True)
+    value_display: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
+    source_record_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    company: Mapped["Company"] = relationship(back_populates="identifiers")
+
+
+class CompanyName(Base):
+    __tablename__ = "company_names"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    name_type: Mapped[str] = mapped_column(String(50), default="legal")
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CompanyClassification(Base):
+    __tablename__ = "company_classifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    scheme: Mapped[str] = mapped_column(String(50), index=True)
+    code: Mapped[str] = mapped_column(String(50), index=True)
+    label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    company: Mapped["Company"] = relationship(back_populates="classifications")
+
+
+class CompanyLocation(Base):
+    __tablename__ = "company_locations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    location_type: Mapped[str] = mapped_column(String(50), default="registered")
+    street: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    locality: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    postal_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
+    country_code: Mapped[str] = mapped_column(String(2), default="GB")
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    company: Mapped["Company"] = relationship(back_populates="locations")
+
+
+class CompanyDomain(Base):
+    __tablename__ = "company_domains"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    domain_normalized: Mapped[str] = mapped_column(String(255), index=True)
+    domain_role: Mapped[str] = mapped_column(String(50), default="primary")
+    verification_state: Mapped[str] = mapped_column(String(50), default="candidate")
+    match_score: Mapped[float] = mapped_column(Float, default=0.0)
+    match_reasons_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    company: Mapped["Company"] = relationship(back_populates="domains")
+
+
+class CompanyEstimate(Base):
+    __tablename__ = "company_estimates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    estimate_type: Mapped[str] = mapped_column(String(50), default="field_technicians")
+    lower_bound: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    upper_bound: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    point_estimate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    method_code: Mapped[str] = mapped_column(String(50), default="composite")
+    confidence: Mapped[str] = mapped_column(String(20), default="medium")
+    assumptions_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    company: Mapped["Company"] = relationship(back_populates="estimates")
+
+
+class SourceConnector(Base):
+    __tablename__ = "source_connectors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    version: Mapped[str] = mapped_column(String(20), default="1.0.0")
+    country_coverage: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SourceRun(Base):
+    __tablename__ = "source_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    connector_code: Mapped[str] = mapped_column(String(50), index=True)
+    play_version_code: Mapped[str] = mapped_column(String(100), index=True)
+    query_config_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="running")
+    items_discovered: Mapped[int] = mapped_column(Integer, default=0)
+    items_normalized: Mapped[int] = mapped_column(Integer, default=0)
+    items_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    records: Mapped[list["SourceRecord"]] = relationship(back_populates="source_run")
+
+
+class SourceRecord(Base):
+    __tablename__ = "source_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("source_runs.id"), index=True
+    )
+    external_id: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
+    record_type: Mapped[str] = mapped_column(String(50), default="company")
+    payload_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    payload_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    source_run: Mapped["SourceRun"] = relationship(back_populates="records")
+
+
+class MarketPlayVersion(Base):
+    __tablename__ = "market_play_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    play_code: Mapped[str] = mapped_column(String(100), index=True)
+    version: Mapped[str] = mapped_column(String(20), default="1.0.0")
+    status: Mapped[str] = mapped_column(String(20), default="pilot")
+    jurisdiction: Mapped[str] = mapped_column(String(10), default="GB")
+    locale: Mapped[str] = mapped_column(String(10), default="en-GB")
+    icp_config_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    opportunities: Mapped[list["Opportunity"]] = relationship(back_populates="play_version")
+
+
+class Opportunity(Base):
+    __tablename__ = "opportunities"
+    __table_args__ = (UniqueConstraint("company_id", "play_version_id", name="uq_company_play_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    play_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("market_play_versions.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(50), default="discovered", index=True)
+    status_reason_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    priority: Mapped[str] = mapped_column(String(20), default="Medium")
+    latest_score: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    company: Mapped["Company"] = relationship(back_populates="opportunities")
+    play_version: Mapped["MarketPlayVersion"] = relationship(back_populates="opportunities")
+    evidence_items: Mapped[list["EvidenceItem"]] = relationship(back_populates="opportunity")
+    compliance_decisions: Mapped[list["ComplianceDecision"]] = relationship(back_populates="opportunity")
+    score_snapshots: Mapped[list["ScoreSnapshot"]] = relationship(back_populates="opportunity")
+
+
+class EvidenceItem(Base):
+    __tablename__ = "evidence_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    opportunity_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("opportunities.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    code: Mapped[str] = mapped_column(String(100), index=True)
+    category: Mapped[str] = mapped_column(String(50), index=True)
+    evidence_text: Mapped[str] = mapped_column(Text)
+    source_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    verification_state: Mapped[str] = mapped_column(String(50), default="verified")
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    opportunity: Mapped[Optional["Opportunity"]] = relationship(back_populates="evidence_items")
+
+
+class Person(Base):
+    __tablename__ = "people"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    first_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    full_name: Mapped[str] = mapped_column(String(200), index=True)
+    linkedin_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    roles: Mapped[list["PersonRole"]] = relationship(back_populates="person", cascade="all, delete-orphan")
+
+
+class PersonRole(Base):
+    __tablename__ = "person_roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    person_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("people.id", ondelete="CASCADE"), index=True
+    )
+    company_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    raw_title: Mapped[str] = mapped_column(String(200))
+    normalized_role: Mapped[str] = mapped_column(String(100), index=True)
+    seniority: Mapped[str] = mapped_column(String(50), default="executive")
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    source_evidence_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    person: Mapped["Person"] = relationship(back_populates="roles")
+
+
+class CompliancePolicy(Base):
+    __tablename__ = "compliance_policies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    code: Mapped[str] = mapped_column(String(50), index=True)
+    jurisdiction: Mapped[str] = mapped_column(String(10))
+    rules_config_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ComplianceDecision(Base):
+    __tablename__ = "compliance_decisions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    opportunity_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("opportunities.id", ondelete="CASCADE"), index=True
+    )
+    policy_code: Mapped[str] = mapped_column(String(50))
+    decision: Mapped[str] = mapped_column(String(20))
+    reasons_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    opportunity: Mapped["Opportunity"] = relationship(back_populates="compliance_decisions")
+
+
+class ScoreSnapshot(Base):
+    __tablename__ = "score_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    opportunity_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("opportunities.id", ondelete="CASCADE"), index=True
+    )
+    total_score: Mapped[float] = mapped_column(Float)
+    hard_gates_passed: Mapped[bool] = mapped_column(Boolean, default=True)
+    breakdown_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    opportunity: Mapped["Opportunity"] = relationship(back_populates="score_snapshots")
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(200))
+    play_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("market_play_versions.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(50), default="draft")
+    daily_send_cap: Mapped[int] = mapped_column(Integer, default=10)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    touches: Mapped[list["Touch"]] = relationship(back_populates="campaign")
+
+
+class Touch(Base):
+    __tablename__ = "touches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("campaigns.id"), index=True
+    )
+    opportunity_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("opportunities.id"), index=True
+    )
+    step_number: Mapped[int] = mapped_column(Integer, default=1)
+    channel: Mapped[str] = mapped_column(String(50), default="Email")
+    status: Mapped[str] = mapped_column(String(50), default="scheduled")
+    subject: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_citations_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    campaign: Mapped["Campaign"] = relationship(back_populates="touches")
+

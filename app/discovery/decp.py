@@ -12,7 +12,7 @@ import httpx
 import polars as pl
 
 from app.config import get_settings
-from app.plays import DEFAULT_PLAY_CODE, get_play
+from app.plays import get_play
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +135,10 @@ def filter_relevant(
     """
     Filter awards using market-play CPV/keywords (not universal IT defaults).
     """
-    play = get_play(play_code or DEFAULT_PLAY_CODE)
-    cpv_prefixes = tuple(cpv_prefixes or play.get("cpv_prefixes") or ())
-    keywords = tuple(keywords or play.get("positive_keywords") or ())
+    play_code = play_code or "FIELD_SERVICE_OPERATIONS_FR"
+    play = get_play(play_code)
+    cpv_prefixes = tuple(cpv_prefixes or play.get("cpv_prefixes") or ("45", "50", "507", "453", "397", "425", "4533", "4531", "9091", "713", "7999"))
+    keywords = tuple(keywords or play.get("positive_keywords") or ("maintenance", "entretien", "froid", "réfrigération", "clim", "climatisation", "chauffage", "hvac", "électrique", "intervention", "technicien"))
     negative_keywords = tuple(negative_keywords or play.get("negative_keywords") or ())
 
     df = _normalize_columns(df)
@@ -165,6 +166,7 @@ def filter_relevant(
             pl.col("acheteur_nom").cast(pl.Utf8, strict=False),
             pl.col("montant").cast(pl.Float64, strict=False),
             pl.col("id").cast(pl.Utf8, strict=False),
+            pl.col("dateAttribution").cast(pl.Utf8, strict=False),
         ]
     )
 

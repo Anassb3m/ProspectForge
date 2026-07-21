@@ -1,0 +1,8 @@
+[
+  "alembic/versions/001_initial.py",
+  "alembic/versions/002_discovery_fields.py",
+  "alembic/versions/003_acquisition_intelligence.py",
+  "alembic/versions/004_v3_market_play.py",
+  "alembic/versions/005_schema_guard.py",
+  "alembic/versions/006_contact_intelligence.py"
+]

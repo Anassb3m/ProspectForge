@@ -46,6 +46,8 @@ from app.schemas import (
     ProspectUpdate,
 )
 from app import services
+from datetime import datetime, timezone
+from fastapi.responses import Response
 
 router = APIRouter(tags=["prospects"])
 templates = Jinja2Templates(directory="app/templates")
@@ -416,6 +418,106 @@ async def form_create_prospect(
     from fastapi.responses import RedirectResponse
 
     return RedirectResponse(url=f"/prospects/{prospect.id}", status_code=303)
+
+
+@router.get("/prospects/{prospect_id}/report.md", response_class=Response)
+async def page_download_markdown_report(
+    prospect_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(get_current_user)],
+):
+    prospect = await services.get_prospect(db, prospect_id)
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+
+    people = list((await db.execute(
+        select(ContactPerson)
+        .where(ContactPerson.prospect_id == prospect.id)
+        .order_by(ContactPerson.is_primary_candidate.desc(), ContactPerson.buyer_role_score.desc())
+    )).scalars().all())
+
+    points = list((await db.execute(
+        select(ContactPoint)
+        .where(ContactPoint.prospect_id == prospect.id)
+        .order_by(ContactPoint.is_primary.desc(), ContactPoint.confidence_score.desc())
+    )).scalars().all())
+
+    evidence = list((await db.execute(
+        select(ContactEvidence).where(ContactEvidence.prospect_id == prospect.id)
+    )).scalars().all())
+
+    lines = []
+    lines.append(f"# Intelligence Report: {prospect.company_name}")
+    lines.append(f"\n**Generated on:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    lines.append(f"**Priority:** {prospect.priority_level} | **Urgency:** {prospect.urgency_score} | **Opportunity:** {prospect.opportunity_score}")
+    lines.append(f"**Status:** {prospect.current_status} | **Signal:** {prospect.signal_type}")
+
+    lines.append("\n## Company Profile")
+    lines.append(f"- **Sector:** {prospect.sector}")
+    lines.append(f"- **Size:** {prospect.company_size}")
+    if prospect.siren:
+        lines.append(f"- **SIREN:** {prospect.siren}")
+    if prospect.siret:
+        lines.append(f"- **SIRET:** {prospect.siret}")
+    if prospect.naf_code:
+        lines.append(f"- **NAF:** {prospect.naf_code}")
+    if prospect.website:
+        lines.append(f"- **Website:** {prospect.website}")
+
+    if prospect.award_history:
+        lines.append("\n## Award History")
+        for a in prospect.award_history[:10]:
+            lines.append(f"- **{a.get('date', '—')}**: {a.get('objet', 'Award')} (Value: {a.get('montant', '—')})")
+
+    lines.append("\n## Contact Intelligence")
+    if people:
+        lines.append("### Key People")
+        for p in people:
+            lines.append(f"- **{p.full_name}** ({p.job_title or 'Unknown role'}) - Confidence: {p.identity_confidence}/100")
+    else:
+        lines.append("*No specific people identified.*")
+
+    if points:
+        lines.append("\n### Contact Paths")
+        for pt in points:
+            lines.append(f"- **{pt.value_display}** ({pt.kind.replace('_', ' ')}) - Deliverability: {pt.deliverability_state} - Utility: {pt.utility_state.replace('_', ' ')}")
+    else:
+        lines.append("*No reliable contact paths discovered.*")
+
+    lines.append("\n## Evidence & Triggers")
+    if evidence:
+        for ev in evidence:
+            lines.append(f"- **[{ev.category}] {ev.label}**: {ev.evidence_text} (Strength: {ev.strength}/100)")
+    else:
+        lines.append("*No direct evidence logged.*")
+
+    if prospect.notes or prospect.signal_details:
+        lines.append("\n## Notes & Signal Details")
+        if prospect.signal_details:
+            lines.append(f"**Signal Details:**\n{prospect.signal_details}\n")
+        if prospect.notes:
+            lines.append(f"**Notes:**\n{prospect.notes}\n")
+
+    if prospect.suspected_pain or prospect.why_now or prospect.recommended_offer:
+        lines.append("\n## Commercial Strategy")
+        if prospect.why_now:
+            lines.append(f"**Why Now (Trigger):**\n{prospect.why_now}\n")
+        if prospect.suspected_pain:
+            lines.append(f"**Suspected Pain:**\n{prospect.suspected_pain}\n")
+        if prospect.recommended_buyer_role:
+            lines.append(f"**Target Role:**\n{prospect.recommended_buyer_role}\n")
+        if prospect.recommended_offer:
+            lines.append(f"**Recommended Offer:**\n{prospect.recommended_offer}\n")
+
+    md_content = "\n".join(lines)
+    safe_name = prospect.company_name.lower().replace(" ", "_")
+    safe_name = "".join(c for c in safe_name if c.isalnum() or c == "_")
+
+    return Response(
+        content=md_content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f"attachment; filename=\"{safe_name}_report.md\""}
+    )
 
 
 @router.get("/prospects/{prospect_id}", response_class=HTMLResponse)
