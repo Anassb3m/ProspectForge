@@ -31,18 +31,21 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 async def bootstrap_admin() -> None:
-    """Create the admin user from env if the users table is empty."""
+    """Create or update the admin user from env."""
     async with async_session_factory() as session:
-        result = await session.execute(select(User).limit(1))
-        if result.scalar_one_or_none() is not None:
-            return
-        admin = User(
-            email=settings.admin_email,
-            hashed_password=hash_password(settings.admin_password),
-        )
-        session.add(admin)
+        result = await session.execute(select(User).where(User.email == settings.admin_email))
+        admin = result.scalar_one_or_none()
+        if admin is None:
+            admin = User(
+                email=settings.admin_email,
+                hashed_password=hash_password(settings.admin_password),
+            )
+            session.add(admin)
+            logger.info("Bootstrap admin created: %s", settings.admin_email)
+        else:
+            admin.hashed_password = hash_password(settings.admin_password)
+            logger.info("Bootstrap admin password updated: %s", settings.admin_email)
         await session.commit()
-        logger.info("Bootstrap admin created: %s", settings.admin_email)
 
 
 async def seed_market_plays() -> None:
