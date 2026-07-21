@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     enable_scheduler: bool = False
 
     # ── Discovery / enrichment (v2.1) ─────────────────────────────────────
+    companies_house_api_key: str = ""  # UK Companies House REST API
     insee_api_key: str = ""  # X-INSEE-Api-Key-Integration
     sirene_delay_seconds: float = 2.1  # stay under 30 req/min
 

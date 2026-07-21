@@ -19,7 +19,8 @@ class CompaniesHouseAdapter(SourceAdapter):
     country_coverage: list[str] = ["GB"]
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or os.getenv("COMPANIES_HOUSE_API_KEY", "")
+        raw_key = api_key or os.getenv("COMPANIES_HOUSE_API_KEY", "")
+        self.api_key = raw_key.strip()
 
     async def validate_config(self, config: dict[str, Any]) -> None:
         if not self.api_key and not config.get("allow_mock", True):
