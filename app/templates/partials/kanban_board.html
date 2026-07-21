@@ -1,50 +1,54 @@
-<div class="flex gap-4 overflow-x-auto pb-6">
+<div class="flex gap-5 overflow-x-auto pb-8">
   {% for col_name, prospects in columns.items() %}
-  <div class="w-80 flex-shrink-0 flex flex-col rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden" data-column="{{ col_name }}">
+  <div class="w-84 flex-shrink-0 flex flex-col rounded-2xl glass-panel shadow-2xl overflow-hidden" data-column="{{ col_name }}">
     <!-- Column Header -->
-    <div class="flex items-center justify-between border-b border-slate-200/80 bg-slate-50/80 px-3.5 py-3">
-      <div class="flex items-center gap-2">
-        <span class="h-2 w-2 rounded-full {% if loop.index == 1 %}bg-slate-400{% elif loop.index == 2 %}bg-indigo-500{% elif loop.index == 3 %}bg-amber-500{% elif loop.index == 4 %}bg-emerald-500{% else %}bg-purple-500{% endif %}"></span>
-        <h3 class="font-heading text-xs font-bold text-slate-800 uppercase tracking-wider">{{ col_name }}</h3>
+    <div class="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/80 px-4 py-3.5">
+      <div class="flex items-center gap-2.5">
+        <span class="h-2.5 w-2.5 rounded-full {% if loop.index == 1 %}bg-slate-400{% elif loop.index == 2 %}bg-cyan-400 glow-cyan{% elif loop.index == 3 %}bg-amber-400{% elif loop.index == 4 %}bg-emerald-400 glow-emerald{% else %}bg-purple-400{% endif %}"></span>
+        <h3 class="font-heading text-xs font-bold text-white uppercase tracking-wider">{{ col_name }}</h3>
       </div>
-      <span class="rounded-full bg-slate-200/80 px-2 py-0.5 text-[11px] font-bold text-slate-700 font-mono">{{ prospects|length }}</span>
+      <span class="rounded-full bg-slate-800 px-2.5 py-0.5 text-[11px] font-mono font-bold text-cyan-400 border border-slate-700">{{ prospects|length }}</span>
     </div>
 
     <!-- Drop Zone -->
     <div
-      class="kanban-drop min-h-[360px] flex-1 space-y-2.5 p-3 bg-[#F8FAFC]/50 transition"
+      class="kanban-drop min-h-[380px] flex-1 space-y-3 p-3.5 bg-[#0B0F17]/40 transition"
       data-column="{{ col_name }}"
-      ondragover="event.preventDefault(); this.classList.add('bg-indigo-50/50', 'ring-2', 'ring-indigo-400')"
-      ondragleave="this.classList.remove('bg-indigo-50/50', 'ring-2', 'ring-indigo-400')"
-      ondrop="this.classList.remove('bg-indigo-50/50', 'ring-2', 'ring-indigo-400'); handleKanbanDrop(event, '{{ col_name }}')"
+      ondragover="event.preventDefault(); this.classList.add('bg-cyan-500/10', 'ring-2', 'ring-cyan-400')"
+      ondragleave="this.classList.remove('bg-cyan-500/10', 'ring-2', 'ring-cyan-400')"
+      ondrop="this.classList.remove('bg-cyan-500/10', 'ring-2', 'ring-cyan-400'); handleKanbanDrop(event, '{{ col_name }}')"
     >
       {% for p in prospects %}
       <div
-        class="kanban-card cursor-grab rounded-lg border border-slate-200/90 bg-white p-3 shadow-xs hover:shadow-md hover:border-indigo-300 transition active:cursor-grabbing"
+        class="kanban-card cursor-grab rounded-xl border border-slate-800/90 bg-[#0F172A]/90 p-3.5 shadow-xl hover:border-cyan-500/50 hover:shadow-cyan-500/10 transition active:cursor-grabbing"
         draggable="true"
         data-prospect-id="{{ p.id }}"
         ondragstart="handleKanbanDrag(event)"
       >
-        <div class="flex items-start justify-between gap-1.5">
-          <div class="flex items-center gap-1.5">
-            {% if p.siren or p.siret %}<span title="FR SAS/SARL">🇫🇷</span>{% else %}<span title="UK Ltd">🇬🇧</span>{% endif %}
-            <a href="/prospects/{{ p.id }}" class="font-bold text-xs text-slate-900 hover:text-indigo-600 transition" onclick="event.stopPropagation()">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2">
+            {% if p.siren or p.siret %}
+            <span class="rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-bold text-emerald-300 border border-emerald-500/30">FR</span>
+            {% else %}
+            <span class="rounded bg-sky-500/20 px-1 py-0.5 text-[9px] font-bold text-sky-300 border border-sky-500/30">UK</span>
+            {% endif %}
+            <a href="/prospects/{{ p.id }}" class="font-bold text-xs text-white hover:text-cyan-400 transition" onclick="event.stopPropagation()">
               {{ p.company_name }}
             </a>
           </div>
           <span class="font-mono text-[10px] font-bold text-slate-500">#{{ p.id }}</span>
         </div>
 
-        <div class="mt-2 flex flex-wrap items-center gap-1.5">
-          <span class="rounded px-1.5 py-0.5 text-[10px] font-bold {% if p.priority_level == 'High' %}bg-red-50 text-red-700 border border-red-200{% elif p.priority_level == 'Medium' %}bg-amber-50 text-amber-800 border border-amber-200{% else %}bg-slate-100 text-slate-600 border border-slate-200{% endif %}">
+        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <span class="rounded-lg px-2 py-0.5 text-[10px] font-mono font-bold {% if p.priority_level == 'High' %}bg-rose-500/20 text-rose-300 border border-rose-500/30{% elif p.priority_level == 'Medium' %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
             {{ p.priority_level }} ({{ p.urgency_score }})
           </span>
-          <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">{{ p.signal_type }}</span>
+          <span class="rounded-lg bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-slate-300 border border-slate-700">{{ p.signal_type }}</span>
         </div>
 
         {% if p.decision_maker_name %}
-        <div class="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[11px] text-slate-500">
-          <span class="truncate font-medium text-slate-700">👤 {{ p.decision_maker_name }}</span>
+        <div class="mt-2.5 flex items-center justify-between border-t border-slate-800/80 pt-2 text-[11px] text-slate-400">
+          <span class="truncate font-semibold text-slate-200">👤 {{ p.decision_maker_name }}</span>
         </div>
         {% endif %}
       </div>

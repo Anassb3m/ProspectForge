@@ -1,47 +1,47 @@
 {% extends "base.html" %}
-{% block title %}CSV Import Workspace — ProspectForge{% endblock %}
+{% block title %}CSV Import Workspace — Level 300 ProspectForge OS{% endblock %}
 {% block content %}
 <!-- Workspace Header -->
-<div class="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
+<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
   <div>
-    <div class="flex items-center gap-2">
-      <h1 class="font-heading text-2xl font-bold tracking-tight text-slate-900">Bulk CSV Ingestion Workspace</h1>
-      <span class="rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-200">Audit-Validated Upload</span>
+    <div class="flex items-center gap-3">
+      <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">Bulk CSV Ingestion Workspace</h1>
+      <span class="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30">LEVEL 300</span>
     </div>
-    <p class="mt-1 text-xs text-slate-500">Bulk import prospect records with instant row-level validation & GDPR origin auditing</p>
+    <p class="mt-1.5 text-xs text-slate-400">Bulk import prospect records with instant row-level validation & GDPR origin auditing</p>
   </div>
   <div>
-    <a href="/prospects" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition">
+    <a href="/prospects" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
       <span>🏢</span> Prospect Database
     </a>
   </div>
 </div>
 
-<div class="grid gap-6 lg:grid-cols-2">
+<div class="grid gap-8 lg:grid-cols-2">
   <!-- Upload Box -->
-  <section class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm">
-    <h2 class="font-heading text-base font-bold text-slate-900 mb-3">Upload CSV File</h2>
+  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
+    <h2 class="font-heading text-base font-bold text-white mb-4">Upload CSV File</h2>
     <form method="post" action="/import" enctype="multipart/form-data" class="space-y-4">
-      <div class="rounded-xl border-2 border-dashed border-slate-300 p-6 text-center bg-slate-50/50 hover:bg-slate-50 transition">
-        <span class="text-3xl mb-2 block">📥</span>
-        <label class="block text-xs font-semibold text-slate-700 mb-2">Select CSV File from computer</label>
-        <input type="file" name="file" accept=".csv,text/csv" required class="mx-auto block text-xs text-slate-500 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-indigo-500 cursor-pointer" />
+      <div class="rounded-2xl border-2 border-dashed border-slate-700 p-8 text-center bg-slate-900/60 hover:bg-slate-900 transition">
+        <span class="text-4xl mb-3 block">📥</span>
+        <label class="block text-xs font-bold text-white uppercase tracking-wider mb-2">Select CSV File from computer</label>
+        <input type="file" name="file" accept=".csv,text/csv" required class="mx-auto block text-xs text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-cyan-500 file:to-indigo-600 file:px-4 file:py-2 file:text-xs file:font-bold file:text-white hover:file:opacity-90 cursor-pointer" />
       </div>
-      <button type="submit" class="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 transition">
+      <button type="submit" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 py-3 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.01]">
         Start Bulk Ingestion
       </button>
     </form>
 
     {% if result %}
-    <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <p class="text-xs font-bold text-slate-900">
-        Created Records: <span class="text-emerald-600 font-mono">{{ result.created }}</span>
-        · Failed Rows: <span class="{% if result.failed %}text-red-600{% else %}text-slate-600{% endif %} font-mono">{{ result.failed }}</span>
+    <div class="mt-6 rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+      <p class="text-xs font-bold text-white">
+        Created Records: <span class="text-emerald-400 font-mono font-bold">{{ result.created }}</span>
+        · Failed Rows: <span class="{% if result.failed %}text-rose-400{% else %}text-slate-400{% endif %} font-mono font-bold">{{ result.failed }}</span>
       </p>
       {% if result.errors %}
       <ul class="mt-3 max-h-64 space-y-2 overflow-y-auto text-xs">
         {% for err in result.errors %}
-        <li class="rounded bg-red-50 p-2 text-red-800 border border-red-200">
+        <li class="rounded-lg bg-rose-500/10 p-2.5 text-rose-300 border border-rose-500/30">
           <span class="font-bold">Row {{ err.row }}:</span>
           {{ err.errors | join('; ') }}
         </li>
@@ -53,16 +53,16 @@
   </section>
 
   <!-- Format Specification Card -->
-  <section class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm">
-    <h2 class="font-heading text-base font-bold text-slate-900 mb-1">Expected CSV Schema Header</h2>
-    <p class="mb-4 text-xs text-slate-500">Must contain valid column header row. Mandatory fields marked with *</p>
-    <ul class="space-y-1.5 font-mono text-xs text-slate-700 bg-slate-50/80 p-4 rounded-lg border border-slate-200">
-      <li><strong class="text-indigo-600">company_name *</strong> — e.g. Acme HVAC Ltd</li>
-      <li><strong class="text-indigo-600">sector *</strong> — Construction | Manufacturing | Logistics | Engineering | Professional Services | Other</li>
-      <li><strong class="text-indigo-600">company_size *</strong> — 1-10 | 11-50 | 51-200 | 200+</li>
-      <li><strong class="text-indigo-600">signal_type *</strong> — BOAMP_WIN | MOROCCO_OPS | PAIN_POST | OTHER</li>
-      <li><strong class="text-indigo-600">source *</strong> — BOAMP | LinkedIn | Manual | Registry | Companies House</li>
-      <li><strong class="text-indigo-600">data_source *</strong> — Origin trail for audit (e.g. Companies House REST API)</li>
+  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
+    <h2 class="font-heading text-base font-bold text-white mb-1">Expected CSV Schema Header</h2>
+    <p class="mb-5 text-xs text-slate-400">Must contain valid column header row. Mandatory fields marked with *</p>
+    <ul class="space-y-2 font-mono text-xs text-slate-300 bg-slate-900/80 p-5 rounded-xl border border-slate-800">
+      <li><strong class="text-cyan-400">company_name *</strong> — e.g. Acme HVAC Ltd</li>
+      <li><strong class="text-cyan-400">sector *</strong> — Construction | Manufacturing | Logistics | Engineering | Professional Services | Other</li>
+      <li><strong class="text-cyan-400">company_size *</strong> — 1-10 | 11-50 | 51-200 | 200+</li>
+      <li><strong class="text-cyan-400">signal_type *</strong> — BOAMP_WIN | MOROCCO_OPS | PAIN_POST | OTHER</li>
+      <li><strong class="text-cyan-400">source *</strong> — BOAMP | LinkedIn | Manual | Registry | Companies House</li>
+      <li><strong class="text-cyan-400">data_source *</strong> — Origin trail for audit (e.g. Companies House REST API)</li>
       <li>signal_details, decision_maker_name, decision_maker_title</li>
       <li>linkedin_url, email, phone, website, notes</li>
     </ul>

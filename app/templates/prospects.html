@@ -1,45 +1,45 @@
 {% extends "base.html" %}
-{% block title %}Prospect Database — ProspectForge{% endblock %}
+{% block title %}Prospect Database — Level 300 ProspectForge OS{% endblock %}
 {% block content %}
 <!-- Workspace Header -->
-<div class="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
+<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
   <div>
-    <div class="flex items-center gap-2">
-      <h1 class="font-heading text-2xl font-bold tracking-tight text-slate-900">Prospect Database Workspace</h1>
-      <span class="rounded-md bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-200/70">{{ total }} Verified Records</span>
+    <div class="flex items-center gap-3">
+      <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">Prospect Database Workspace</h1>
+      <span class="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30">{{ total }} Records</span>
     </div>
-    <p class="mt-1 text-xs text-slate-500">Notion-style interactive directory · UK & France legal entities · PECR/CNIL compliance indicators</p>
+    <p class="mt-1.5 text-xs text-slate-400">High-density database workspace · UK & France legal entities · PECR/CNIL compliance indicators</p>
   </div>
-  <div class="flex flex-wrap items-center gap-2.5">
-    <a href="/api/prospects/export/csv" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm border border-slate-300 hover:bg-slate-50 transition">
+  <div class="flex flex-wrap items-center gap-3">
+    <a href="/api/prospects/export/csv" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 border border-slate-800 hover:bg-slate-800 transition">
       <span>📥</span> Export CSV
     </a>
-    <a href="/import" class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm border border-slate-300 hover:bg-slate-50 transition">
+    <a href="/import" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 border border-slate-800 hover:bg-slate-800 transition">
       <span>📤</span> Import CSV
     </a>
-    <a href="/prospects/new" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition">
+    <a href="/prospects/new" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
       <span>+</span> Add Prospect
     </a>
   </div>
 </div>
 
-<!-- High-Density Notion Database Filter Bar -->
+<!-- Level 300 Filter Bar -->
 <form
   id="filter-form"
-  class="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6"
+  class="glass-panel rounded-2xl p-5 shadow-2xl mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-6"
   hx-get="/prospects"
   hx-target="#prospect-table"
   hx-trigger="change, keyup changed delay:400ms from:#search"
   hx-push-url="true"
 >
   <div>
-    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Search Keywords</label>
-    <input id="search" name="search" value="{{ filters.search }}" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none" placeholder="Company, DM name, SIREN..." />
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Search Keywords</label>
+    <input id="search" name="search" value="{{ filters.search }}" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 shadow-inner focus:border-cyan-500 focus:outline-none" placeholder="Company, DM name, SIREN..." />
   </div>
 
   <div>
-    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Industry Sector</label>
-    <select name="sector" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none">
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Industry Sector</label>
+    <select name="sector" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
       <option value="">All Sectors</option>
       {% for s in sectors %}
       <option value="{{ s }}" {% if filters.sector == s %}selected{% endif %}>{{ s }}</option>
@@ -48,8 +48,8 @@
   </div>
 
   <div>
-    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Signal Type</label>
-    <select name="signal_type" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none">
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Signal Type</label>
+    <select name="signal_type" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
       <option value="">All Signal Types</option>
       {% for s in signal_types %}
       <option value="{{ s }}" {% if filters.signal_type == s %}selected{% endif %}>{{ s }}</option>
@@ -58,8 +58,8 @@
   </div>
 
   <div>
-    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Priority Rank</label>
-    <select name="priority_level" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none">
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Priority Rank</label>
+    <select name="priority_level" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
       <option value="">All Priorities</option>
       {% for p in priority_levels %}
       <option value="{{ p }}" {% if filters.priority_level == p %}selected{% endif %}>{{ p }}</option>
@@ -68,8 +68,8 @@
   </div>
 
   <div>
-    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Outreach Status</label>
-    <select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none">
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Outreach Status</label>
+    <select name="status" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
       <option value="">All Statuses</option>
       {% for e in event_types %}
       <option value="{{ e }}" {% if filters.status == e %}selected{% endif %}>{{ e }}</option>
@@ -78,8 +78,8 @@
   </div>
 
   <div>
-    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Sort Priority</label>
-    <select name="sort_by" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none">
+    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Sort Priority</label>
+    <select name="sort_by" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
       <option value="urgency_score" {% if filters.sort_by == 'urgency_score' %}selected{% endif %}>Urgency Score</option>
       <option value="company_name" {% if filters.sort_by == 'company_name' %}selected{% endif %}>Company Name</option>
       <option value="created_at" {% if filters.sort_by == 'created_at' %}selected{% endif %}>Created Date</option>
