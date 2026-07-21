@@ -55,12 +55,18 @@ async def seed_market_plays() -> None:
             existing = await session.execute(select(MarketPlay).where(MarketPlay.code == code))
             if existing.scalar_one_or_none():
                 continue
+            raw_ver = cfg.get("version")
+            try:
+                ver_int = int(str(raw_ver).split(".")[0])
+            except (ValueError, TypeError):
+                ver_int = 1
+
             session.add(
                 MarketPlay(
                     code=code,
                     name=cfg["name"],
-                    version=int(cfg.get("version") or 1),
-                    is_active=bool(cfg.get("is_active")),
+                    version=ver_int,
+                    is_active=bool(cfg.get("is_active", True)),
                     config_json=cfg,
                     offer_name=cfg.get("offer_name"),
                     offer_summary=cfg.get("offer_summary"),
