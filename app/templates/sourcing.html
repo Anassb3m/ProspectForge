@@ -24,11 +24,19 @@
   <div class="flex flex-wrap gap-4 items-end">
     <form hx-post="/sourcing/run-ingestion" hx-target="#ingestion-status" hx-swap="innerHTML" class="flex flex-wrap items-end gap-3">
       <div>
-        <label class="label">Mode</label>
+        <label class="label">Market Play</label>
+        <select name="play_code" class="input">
+          <option value="FIELD_OPERATIONS_UK_V1">🇬🇧 FIELD_OPERATIONS_UK_V1 (UK HVAC/Elec 10-75 Techs)</option>
+          <option value="FIELD_OPERATIONS_FR_V2">🇫🇷 FIELD_OPERATIONS_FR_V2 (FR Maintenance Froid)</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Source Adapter</label>
         <select name="mode" class="input">
-          <option value="full">Full (DECP awards + field-service registry)</option>
-          <option value="decp">DECP public awards only</option>
-          <option value="registry">Field-service registry only</option>
+          <option value="companies_house">🇬🇧 Companies House REST API (UK)</option>
+          <option value="full">🇫🇷 Full (Sirene Registry + DECP Procurement)</option>
+          <option value="decp">🇫🇷 DECP Public Awards Only</option>
+          <option value="registry">🇫🇷 Sirene NAF Field Registry Only</option>
         </select>
       </div>
       <div>

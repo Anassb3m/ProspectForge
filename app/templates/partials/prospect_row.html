@@ -1,6 +1,13 @@
 <tr id="prospect-row-{{ prospect.id }}" class="{% if prospect.opted_out %}opacity-50{% endif %}">
   <td>
-    <a href="/prospects/{{ prospect.id }}" class="font-medium text-brand-700 hover:underline">{{ prospect.company_name }}</a>
+    <div class="flex items-center gap-1.5">
+      {% if prospect.siren or prospect.siret %}
+        <span title="France Legal Entity (CNIL B2B compliant)">🇫🇷</span>
+      {% else %}
+        <span title="UK Legal Entity (PECR B2B compliant)">🇬🇧</span>
+      {% endif %}
+      <a href="/prospects/{{ prospect.id }}" class="font-medium text-brand-700 hover:underline">{{ prospect.company_name }}</a>
+    </div>
     <p class="text-xs text-slate-500">{{ prospect.sector }} · {{ prospect.company_size }}</p>
   </td>
   <td><span class="badge badge-slate">{{ prospect.signal_type }}</span></td>
