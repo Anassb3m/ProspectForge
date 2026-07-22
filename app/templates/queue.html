@@ -4,48 +4,63 @@
 <!-- Page Icon & Title -->
 <div class="mb-8 flex items-center justify-between">
   <div>
-    <div class="text-5xl mb-4">⚡</div>
-    <div class="flex items-center gap-3 mb-2">
-      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Daily Action Queue</h1>
-      <span class="rounded bg-[#f1f1ef] px-2 py-0.5 text-xs font-medium text-notion-gray border border-notion-border">{{ play.name }}</span>
+    <div class="flex items-center gap-4 mb-3">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-3xl font-bold text-white tracking-tight">Daily Action Queue</h1>
+          <span class="rounded bg-brand-500/20 px-2.5 py-1 text-xs font-bold text-brand-400 border border-brand-500/30">{{ play.name }}</span>
+        </div>
+        <p class="text-slate-400 text-sm mt-1">Meeting-ready work first · strict human review & qualification before outreach</p>
+      </div>
     </div>
-    <p class="text-notion-gray text-base">Meeting-ready work first · strict human review & qualification before outreach</p>
   </div>
   <div>
-    <a href="/sourcing" class="btn-primary">
-      <span>🚀</span> Run Discovery Ingestion
+    <a href="/sourcing" class="btn-primary shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+      Run Discovery Ingestion
     </a>
   </div>
 </div>
 
 <!-- Metrics Bar -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Queue Total</div>
-    <div class="text-2xl font-bold text-notion-text">{{ stats.total }}</div>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-8">
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0">
+    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-slate-400"></div> Queue Total
+    </div>
+    <div class="text-3xl font-extrabold text-white">{{ stats.total }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Unreviewed</div>
-    <div class="text-2xl font-bold text-[#d9730d]">{{ stats.need_review }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-amber-500/50">
+    <div class="text-[11px] font-bold text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div> Unreviewed
+    </div>
+    <div class="text-3xl font-extrabold text-amber-400">{{ stats.need_review }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Contact-Ready</div>
-    <div class="text-2xl font-bold text-[#0f7b6c]">{{ stats.ready }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-emerald-500/50">
+    <div class="text-[11px] font-bold text-emerald-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-emerald-500"></div> Contact-Ready
+    </div>
+    <div class="text-3xl font-extrabold text-emerald-400">{{ stats.ready }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Opportunity Score &ge; 65</div>
-    <div class="text-2xl font-bold text-notion-blue">{{ stats.high }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-brand-500/50">
+    <div class="text-[11px] font-bold text-brand-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-brand-500"></div> Score &ge; 65
+    </div>
+    <div class="text-3xl font-extrabold text-brand-400">{{ stats.high }}</div>
   </div>
 </div>
 
 <!-- Filter Bar -->
 <div class="mb-8">
-  <form class="card bg-[#f9f9f8] grid grid-cols-1 sm:grid-cols-3 gap-4" method="get" action="/queue">
+  <form class="card grid grid-cols-1 sm:grid-cols-3 gap-5 items-end" method="get" action="/queue">
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Readiness State</label>
-      <select name="readiness" class="input-field bg-white">
-        <option value="">All Readiness States</option>
-        <option value="human_review_required" {% if filters.readiness == 'human_review_required' %}selected{% endif %}>Needs Human Review</option>
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Readiness State</label>
+      <select name="readiness" class="input-field appearance-none">
+        <option value="">All States</option>
+        <option value="human_review_required" {% if filters.readiness == 'human_review_required' %}selected{% endif %}>Needs Review</option>
         <option value="contact_ready" {% if filters.readiness == 'contact_ready' %}selected{% endif %}>Contact-Ready</option>
         <option value="research_required" {% if filters.readiness == 'research_required' %}selected{% endif %}>Research Required</option>
         <option value="contact_required" {% if filters.readiness == 'contact_required' %}selected{% endif %}>Contact Required</option>
@@ -53,9 +68,9 @@
     </div>
 
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Review State</label>
-      <select name="review" class="input-field bg-white">
-        <option value="">All Review States</option>
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Review State</label>
+      <select name="review" class="input-field appearance-none">
+        <option value="">All Reviews</option>
         <option value="unreviewed" {% if filters.review == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
         <option value="accepted" {% if filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
         <option value="rejected" {% if filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
@@ -63,13 +78,11 @@
     </div>
 
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Min Opportunity Score</label>
-      <input type="number" name="min_score" value="{{ filters.min_score }}" class="input-field font-mono bg-white" min="0" max="100" />
-    </div>
-
-    <div class="sm:col-span-3 flex items-center justify-between pt-2 border-t border-notion-border">
-      <button type="submit" class="btn-primary">Apply Filters</button>
-      <a href="/sourcing" class="text-sm font-medium text-notion-blue hover:underline">Sourcing Cockpit &rarr;</a>
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Min Score</label>
+      <div class="flex items-center gap-3">
+        <input type="number" name="min_score" value="{{ filters.min_score }}" class="input-field font-mono" min="0" max="100" />
+        <button type="submit" class="btn-primary py-2.5">Filter</button>
+      </div>
     </div>
   </form>
 </div>
@@ -77,78 +90,88 @@
 <!-- Action Queue Cards -->
 <div class="space-y-4">
   {% for p in prospects %}
-  <div class="card border-l-4 {% if p.readiness_state == 'contact_ready' %}border-l-[#0f7b6c]{% elif p.manual_review_state == 'unreviewed' %}border-l-[#d9730d]{% else %}border-l-notion-border{% endif %} hover:bg-[#f9f9f8] transition group">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+  <div class="card {% if p.readiness_state == 'contact_ready' %}border-l-2 border-l-emerald-500{% elif p.manual_review_state == 'unreviewed' %}border-l-2 border-l-amber-500{% endif %} group hover:bg-surface-100 transition-all duration-300">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
       <div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
           {% if p.siren or p.siret %}
-          <span class="rounded bg-[#e7f7ed] px-1.5 py-0.5 text-[10px] font-bold text-[#0f7b6c] border border-[#bce8cb]">🇫🇷 FR</span>
+          <span class="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-emerald-400 border border-emerald-500/20">🇫🇷 FR</span>
           {% else %}
-          <span class="rounded bg-notion-blueBg px-1.5 py-0.5 text-[10px] font-bold text-notion-blue border border-[#cce4f7]">🇬🇧 UK</span>
+          <span class="rounded bg-brand-500/10 px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-brand-400 border border-brand-500/20">🇬🇧 UK</span>
           {% endif %}
-          <a href="/prospects/{{ p.id }}" class="text-lg font-bold text-notion-text group-hover:text-notion-blue transition">{{ p.company_name }}</a>
+          <a href="/prospects/{{ p.id }}" class="text-xl font-bold text-white group-hover:text-brand-400 transition">{{ p.company_name }}</a>
         </div>
-        <p class="text-sm text-notion-gray mt-1">
-          {{ p.sector }} &middot; {{ p.company_size }}
-          {% if p.city %} &middot; {{ p.city }}{% endif %}
-          {% if p.siren %}<span class="font-mono text-xs text-notion-gray"> &middot; SIREN {{ p.siren }}</span>{% endif %}
+        <p class="text-sm text-slate-400 mt-1 font-medium">
+          {{ p.sector }} <span class="text-slate-600 mx-1">&bull;</span> {{ p.company_size }}
+          {% if p.city %} <span class="text-slate-600 mx-1">&bull;</span> {{ p.city }}{% endif %}
+          {% if p.siren %}<span class="font-mono text-xs text-slate-500 ml-2">SIREN {{ p.siren }}</span>{% endif %}
         </p>
       </div>
 
       <div class="flex items-center gap-2">
-        <span class="rounded bg-[#f9f9f8] px-2 py-1 text-xs font-mono font-medium text-notion-text border border-notion-border">Score: {{ p.opportunity_score }}</span>
-        <span class="rounded bg-[#f9f9f8] px-2 py-1 text-xs font-mono font-medium text-notion-gray border border-notion-border">{{ p.readiness_state|replace('_', ' ') }}</span>
+        <div class="flex items-center gap-2 rounded-lg bg-surface-50 px-3 py-1.5 border border-surface-border">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Score</span>
+          <span class="text-sm font-extrabold font-mono text-white">{{ p.opportunity_score }}</span>
+        </div>
+        <span class="rounded-lg bg-surface-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300 border border-surface-border">
+          {{ p.readiness_state|replace('_', ' ') }}
+        </span>
       </div>
     </div>
 
     {% if p.decision_maker_name %}
-    <div class="py-3 border-y border-[#f1f1ef] text-sm text-notion-gray flex items-center justify-between">
-      <span>Target Buyer: <span class="font-medium text-notion-text">{{ p.decision_maker_name }}</span> ({{ p.decision_maker_title or 'Dirigeant / MD' }})</span>
-      {% if p.email %}<span class="font-mono font-medium text-notion-text">{{ p.email }}</span>{% endif %}
+    <div class="py-3 border-y border-surface-border text-sm flex items-center justify-between bg-surface-50/30 px-4 -mx-5 mb-4">
+      <span class="text-slate-400">Target Buyer: <span class="font-semibold text-white ml-1">{{ p.decision_maker_name }}</span> <span class="text-slate-500">({{ p.decision_maker_title or 'Dirigeant / MD' }})</span></span>
+      {% if p.email %}<span class="font-mono text-brand-400">{{ p.email }}</span>{% endif %}
     </div>
     {% endif %}
 
-    <div class="mt-3 flex items-center justify-between pt-1">
-      <div class="flex items-center gap-2">
-        <form hx-post="/queue/review/{{ p.id }}" hx-target="this" class="inline">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <form hx-post="/queue/review/{{ p.id }}" hx-target="closest .card" hx-swap="outerHTML" class="inline">
           <input type="hidden" name="decision" value="accepted" />
-          <button type="submit" class="bg-[#0f7b6c] hover:bg-[#0b5c51] text-white px-3 py-1.5 rounded text-sm font-medium transition">
-            ✓ Accept
+          <button type="submit" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            Accept
           </button>
         </form>
-        <form hx-post="/queue/review/{{ p.id }}" hx-target="this" class="inline">
+        <form hx-post="/queue/review/{{ p.id }}" hx-target="closest .card" hx-swap="outerHTML" class="inline">
           <input type="hidden" name="decision" value="rejected" />
-          <button type="submit" class="bg-white border border-[#e03e3e] text-[#e03e3e] hover:bg-[#ffebe6] px-3 py-1.5 rounded text-sm font-medium transition">
-            ✕ Reject
+          <button type="submit" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            Reject
           </button>
         </form>
       </div>
-      <a href="/prospects/{{ p.id }}#message-drafts" class="text-sm font-medium text-notion-blue hover:underline">
-        Inspect Draft Copy &rarr;
+      <a href="/prospects/{{ p.id }}#message-drafts" class="text-sm font-semibold text-brand-400 hover:text-brand-300 transition flex items-center gap-1">
+        Inspect Draft Copy 
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
       </a>
     </div>
   </div>
   {% else %}
-  <div class="card p-12 text-center bg-[#f9f9f8] border-dashed">
-    <div class="text-3xl mb-2">🎉</div>
-    <h3 class="font-semibold text-notion-text mb-1">Queue Empty</h3>
-    <p class="text-sm text-notion-gray">No items match your queue filters. Run discovery sourcing to add newly qualified candidates.</p>
+  <div class="card p-16 text-center border-dashed border-surface-border bg-surface-50">
+    <div class="flex h-16 w-16 items-center justify-center rounded-full bg-surface-100 mx-auto mb-4">
+      <svg class="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" /></svg>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-2">Queue Empty</h3>
+    <p class="text-slate-400">No items match your queue filters. Run discovery sourcing to add newly qualified candidates.</p>
   </div>
   {% endfor %}
 </div>
 
 <!-- Pagination -->
 {% if stats.total > filters.page_size|default(40) %}
-<div class="mt-8 flex justify-between items-center bg-[#f9f9f8] p-4 rounded card">
-  <div class="text-sm text-notion-gray">
-    Showing {{ ((filters.page|default(1)) - 1) * (filters.page_size|default(40)) + 1 }} to {{ min((filters.page|default(1)) * (filters.page_size|default(40)), stats.total) }} of {{ stats.total }}
+<div class="mt-8 flex justify-between items-center card">
+  <div class="text-sm font-medium text-slate-400">
+    Showing <span class="text-white">{{ ((filters.page|default(1)) - 1) * (filters.page_size|default(40)) + 1 }}</span> to <span class="text-white">{{ min((filters.page|default(1)) * (filters.page_size|default(40)), stats.total) }}</span> of <span class="text-white">{{ stats.total }}</span>
   </div>
   <div class="flex gap-2">
     {% if filters.page|default(1) > 1 %}
-    <a href="/queue?readiness={{ filters.readiness }}&review={{ filters.review }}&min_score={{ filters.min_score }}&page={{ (filters.page|default(1)) - 1 }}" class="btn-primary bg-white text-notion-text border border-notion-border hover:bg-[#f1f1ef]">Previous</a>
+    <a href="/queue?readiness={{ filters.readiness }}&review={{ filters.review }}&min_score={{ filters.min_score }}&page={{ (filters.page|default(1)) - 1 }}" class="btn-secondary">Previous</a>
     {% endif %}
     {% if (filters.page|default(1)) * (filters.page_size|default(40)) < stats.total %}
-    <a href="/queue?readiness={{ filters.readiness }}&review={{ filters.review }}&min_score={{ filters.min_score }}&page={{ (filters.page|default(1)) + 1 }}" class="btn-primary bg-white text-notion-text border border-notion-border hover:bg-[#f1f1ef]">Next</a>
+    <a href="/queue?readiness={{ filters.readiness }}&review={{ filters.review }}&min_score={{ filters.min_score }}&page={{ (filters.page|default(1)) + 1 }}" class="btn-secondary">Next</a>
     {% endif %}
   </div>
 </div>

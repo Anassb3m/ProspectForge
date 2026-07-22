@@ -2,30 +2,33 @@
 {% block title %}{{ prospect.company_name }} — Prospect Workspace{% endblock %}
 {% block content %}
 <!-- Page Icon & Title -->
-<div class="mb-8">
-  <div class="mb-6">
-    <a href="/prospects" class="text-sm font-medium text-notion-gray hover:text-notion-text transition flex items-center gap-1">
-      &larr; Back to Database
+<div class="mb-10">
+  <div class="mb-8">
+    <a href="/prospects" class="text-sm font-bold text-slate-400 hover:text-white transition flex items-center gap-2 w-fit group">
+      <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+      Back to Database
     </a>
   </div>
   
-  <div class="flex items-start justify-between">
-    <div class="flex items-start gap-4">
-      <div class="text-6xl">{% if prospect.siren or prospect.siret %}🇫🇷{% else %}🇬🇧{% endif %}</div>
+  <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+    <div class="flex items-start gap-5">
+      <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/20 text-3xl shrink-0">
+        {% if prospect.siren or prospect.siret %}🇫🇷{% else %}🇬🇧{% endif %}
+      </div>
       <div>
-        <h1 class="text-4xl font-bold text-notion-text tracking-tight mb-3">{{ prospect.company_name }}</h1>
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center rounded bg-[#f1f1ef] px-2 py-0.5 text-xs font-medium text-notion-text border border-notion-border">
-            Priority {{ prospect.priority_level }} &middot; Score {{ prospect.urgency_score }}
+        <h1 class="text-4xl font-extrabold text-white tracking-tight mb-4">{{ prospect.company_name }}</h1>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="inline-flex items-center rounded bg-surface-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-300 border border-surface-border">
+            Priority {{ prospect.priority_level }} <span class="mx-2 text-slate-500">&bull;</span> Score {{ prospect.urgency_score }}
           </span>
-          <span class="inline-flex items-center rounded bg-notion-blueBg px-2 py-0.5 text-xs font-medium text-notion-blue border border-[#cce4f7]">
+          <span class="inline-flex items-center rounded bg-brand-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-400 border border-brand-500/20">
             {{ prospect.current_status }}
           </span>
-          <span class="inline-flex items-center rounded bg-[#f1f1ef] px-2 py-0.5 text-xs font-medium text-notion-gray border border-notion-border">
+          <span class="inline-flex items-center rounded bg-surface-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 border border-surface-border">
             {{ prospect.signal_type }}
           </span>
           {% if prospect.opted_out %}
-          <span class="inline-flex items-center rounded bg-[#ffebe6] px-2 py-0.5 text-xs font-medium text-[#c03426] border border-[#ffdbd1]">
+          <span class="inline-flex items-center rounded bg-rose-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-rose-400 border border-rose-500/20">
             Opted Out
           </span>
           {% endif %}
@@ -35,12 +38,15 @@
     
     <div class="flex flex-wrap items-center gap-3">
       <a href="/prospects/{{ prospect.id }}/report.md" class="btn-secondary" download>
-        <span>📥</span> Download Report
+        <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        Download Report
       </a>
       <button type="button" onclick="openEnrichDetail()" class="btn-primary">
-        <span>⚡</span> Discover Contacts
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+        Discover Contacts
       </button>
       <a href="/prospects/{{ prospect.id }}/edit" class="btn-secondary">
+        <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
         Edit
       </a>
     </div>
@@ -48,70 +54,87 @@
 </div>
 
 <!-- Enrich Modal -->
-<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#f7f7f5]/80 p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white border border-notion-border shadow-xl text-notion-text" id="enrich-modal-body"></div>
+<div id="enrich-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-[#0B0F19]/80 backdrop-blur-sm p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-surface-0 border border-surface-border shadow-2xl" id="enrich-modal-body"></div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
   <!-- Left Column: Properties -->
   <div class="space-y-6 lg:col-span-1 min-w-0">
     <div class="card">
-      <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider mb-4 border-b border-notion-border pb-2">Properties</h2>
-      <dl class="space-y-3 text-sm">
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Sector</dt><dd class="font-medium text-notion-text text-right">{{ prospect.sector }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Scale</dt><dd class="font-medium text-notion-text text-right">{{ prospect.company_size }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Source</dt><dd class="font-medium text-notion-text text-right">{{ prospect.source }}</dd></div>
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5 flex items-center gap-2">
+        <svg class="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+        Properties
+      </h2>
+      <dl class="space-y-4 text-sm">
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">Sector</dt><dd class="font-bold text-white text-right">{{ prospect.sector }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">Scale</dt><dd class="font-bold text-white text-right">{{ prospect.company_size }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">Source</dt><dd class="font-bold text-white text-right">{{ prospect.source }}</dd></div>
         {% if prospect.siren %}
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">SIREN</dt><dd class="font-mono text-notion-text">{{ prospect.siren }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">SIREN</dt><dd class="font-mono text-white">{{ prospect.siren }}</dd></div>
         {% endif %}
         {% if prospect.siret %}
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">SIRET</dt><dd class="font-mono text-notion-text">{{ prospect.siret }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">SIRET</dt><dd class="font-mono text-white">{{ prospect.siret }}</dd></div>
         {% endif %}
         {% if prospect.naf_code %}
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">NAF</dt><dd class="font-mono text-notion-text">{{ prospect.naf_code }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">NAF</dt><dd class="font-mono text-white">{{ prospect.naf_code }}</dd></div>
         {% endif %}
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Contact Status</dt>
-          <dd><span class="rounded bg-[#f9f9f8] px-2 py-0.5 font-medium border border-notion-border">{{ prospect.contact_status }}</span></dd>
+        <div class="flex justify-between items-center gap-4 pt-2 border-t border-surface-border">
+          <dt class="text-slate-500 font-medium">Contact Status</dt>
+          <dd><span class="rounded bg-surface-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider border border-surface-border text-white">{{ prospect.contact_status }}</span></dd>
         </div>
         {% if prospect.website %}
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Website</dt>
-          <dd><a href="{{ prospect.website }}" class="text-notion-blue hover:underline truncate max-w-[160px]" target="_blank" rel="noopener">{{ prospect.website }}</a></dd>
+        <div class="flex justify-between items-center gap-4 pt-2"><dt class="text-slate-500 font-medium">Website</dt>
+          <dd><a href="{{ prospect.website }}" class="text-brand-400 hover:text-brand-300 transition hover:underline truncate max-w-[160px] font-medium" target="_blank" rel="noopener">{{ prospect.website }}</a></dd>
         </div>
         {% endif %}
       </dl>
     </div>
 
     <!-- Compliance Card -->
-    <div class="card border-l-4 {% if prospect.siren or prospect.siret %}border-l-[#0f7b6c]{% else %}border-l-notion-blue{% endif %}">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider">Compliance</h2>
+    <div class="card relative overflow-hidden">
+      {% if prospect.siren or prospect.siret %}
+      <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
+      {% else %}
+      <div class="absolute left-0 top-0 bottom-0 w-1 bg-brand-500"></div>
+      {% endif %}
+      
+      <div class="flex items-center justify-between mb-5 ml-2">
+        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+          Compliance
+        </h2>
         {% if prospect.siren or prospect.siret %}
-        <span class="inline-flex items-center gap-1 rounded bg-[#e7f7ed] px-2 py-0.5 text-xs font-medium text-[#0f7b6c] border border-[#bce8cb]">
+        <span class="inline-flex items-center gap-1.5 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/20">
           🇫🇷 CNIL Pass
         </span>
         {% else %}
-        <span class="inline-flex items-center gap-1 rounded bg-notion-blueBg px-2 py-0.5 text-xs font-medium text-notion-blue border border-[#cce4f7]">
+        <span class="inline-flex items-center gap-1.5 rounded bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-400 border border-brand-500/20">
           🇬🇧 PECR Pass
         </span>
         {% endif %}
       </div>
-      <dl class="space-y-2 text-sm">
-        <div class="flex justify-between"><dt class="text-notion-gray">Entity</dt><dd class="font-medium">Verified</dd></div>
-        <div class="flex justify-between"><dt class="text-notion-gray">Gate Policy</dt><dd class="font-medium text-[#0f7b6c]">Human Review</dd></div>
+      <dl class="space-y-3 text-sm ml-2">
+        <div class="flex justify-between items-center"><dt class="text-slate-500 font-medium">Entity</dt><dd class="font-bold text-white flex items-center gap-1"><svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Verified</dd></div>
+        <div class="flex justify-between items-center"><dt class="text-slate-500 font-medium">Gate Policy</dt><dd class="font-bold text-amber-400 flex items-center gap-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> Human Review</dd></div>
       </dl>
     </div>
 
     <!-- Buyer Profile -->
     <div class="card">
-      <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider mb-4 border-b border-notion-border pb-2">Target Buyer</h2>
-      <dl class="space-y-3 text-sm">
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Name</dt><dd class="font-medium text-notion-text text-right">{{ prospect.decision_maker_name or '—' }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Title</dt><dd class="text-notion-gray text-right">{{ prospect.decision_maker_title or '—' }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Email</dt><dd class="font-mono text-notion-text text-right">{{ prospect.email or '—' }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Phone</dt><dd class="font-mono text-notion-gray text-right">{{ prospect.phone or '—' }}</dd></div>
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-5 flex items-center gap-2 border-b border-surface-border pb-3">
+        <svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+        Target Buyer
+      </h2>
+      <dl class="space-y-4 text-sm">
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">Name</dt><dd class="font-bold text-white text-right">{{ prospect.decision_maker_name or '—' }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">Title</dt><dd class="font-medium text-slate-300 text-right">{{ prospect.decision_maker_title or '—' }}</dd></div>
+        <div class="flex justify-between items-center gap-4 pt-2 border-t border-surface-border"><dt class="text-slate-500 font-medium">Email</dt><dd class="font-mono font-bold text-brand-400 text-right">{{ prospect.email or '—' }}</dd></div>
+        <div class="flex justify-between items-center gap-4"><dt class="text-slate-500 font-medium">Phone</dt><dd class="font-mono text-slate-300 text-right">{{ prospect.phone or '—' }}</dd></div>
         {% if prospect.linkedin_url %}
-        <div class="flex justify-between gap-4"><dt class="text-notion-gray">LinkedIn</dt>
-          <dd><a href="{{ prospect.linkedin_url }}" class="text-notion-blue hover:underline" target="_blank" rel="noopener">Profile &rarr;</a></dd>
+        <div class="flex justify-between items-center gap-4 pt-2">
+          <dt class="text-slate-500 font-medium">LinkedIn</dt>
+          <dd><a href="{{ prospect.linkedin_url }}" class="text-brand-400 hover:text-brand-300 font-bold hover:underline flex items-center gap-1" target="_blank" rel="noopener">Profile <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a></dd>
         </div>
         {% endif %}
       </dl>
@@ -122,38 +145,41 @@
   <div class="space-y-6 lg:col-span-2 min-w-0">
     <!-- Contact Intelligence Waterfall -->
     <div class="card p-0 overflow-hidden">
-      <div class="p-4 border-b border-notion-border bg-[#f9f9f8] flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-notion-text">Contact Intelligence</h2>
+      <div class="p-5 border-b border-surface-border bg-surface-50/50 flex items-center justify-between">
+        <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+          Contact Intelligence
+        </h2>
       </div>
 
       {% if contact_points %}
       <div class="overflow-x-auto">
-        <table>
-          <thead class="bg-[#f9f9f8]">
+        <table class="w-full text-left">
+          <thead class="bg-surface-50">
             <tr>
-              <th>Type</th>
-              <th>Contact Value</th>
-              <th>Deliverability</th>
-              <th>Match</th>
-              <th class="text-right">Action</th>
+              <th class="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Type</th>
+              <th class="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Contact Value</th>
+              <th class="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Deliverability</th>
+              <th class="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match</th>
+              <th class="px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="divide-y divide-surface-border">
             {% for point in contact_points %}
-            <tr>
-              <td class="font-medium uppercase">{{ point.kind }}</td>
-              <td class="font-mono">{{ point.value }}</td>
-              <td>
-                <span class="rounded px-2 py-0.5 text-xs font-medium {% if point.deliverability_state == 'deliverable' %}bg-[#e7f7ed] text-[#0f7b6c] border border-[#bce8cb]{% elif point.deliverability_state in ('catch_all','risky') %}bg-[#fff3e0] text-[#e65100] border border-[#ffd2b3]{% else %}bg-[#f1f1ef] text-notion-gray border border-notion-border{% endif %}">
+            <tr class="hover:bg-surface-100 transition">
+              <td class="px-5 py-4 font-bold text-white text-xs uppercase">{{ point.kind }}</td>
+              <td class="px-5 py-4 font-mono font-bold text-slate-300 text-sm">{{ point.value }}</td>
+              <td class="px-5 py-4">
+                <span class="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider {% if point.deliverability_state == 'deliverable' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% elif point.deliverability_state in ('catch_all','risky') %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% else %}bg-surface-100 text-slate-400 border border-surface-border{% endif %}">
                   {{ point.deliverability_state }}
                 </span>
               </td>
-              <td class="capitalize">{{ point.person_match_state|replace('_', ' ') }}</td>
-              <td class="text-right">
+              <td class="px-5 py-4 capitalize text-sm font-medium text-slate-400">{{ point.person_match_state|replace('_', ' ') }}</td>
+              <td class="px-5 py-4 text-right">
                 <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body" class="inline">
                   <input type="hidden" name="contact_point_id" value="{{ point.id }}">
                   <input type="hidden" name="decision" value="primary">
-                  <button class="text-xs font-medium text-notion-blue hover:underline">Set Primary</button>
+                  <button class="text-[11px] font-bold text-brand-400 hover:text-brand-300 uppercase tracking-wider transition">Set Primary</button>
                 </form>
               </td>
             </tr>
@@ -162,49 +188,63 @@
         </table>
       </div>
       {% else %}
-      <div class="p-8 text-center text-sm text-notion-gray">No verified contact paths found yet. Click <span class="font-medium">Discover Contacts</span> to trigger waterfall.</div>
+      <div class="p-12 text-center text-sm font-medium text-slate-500">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-50 mx-auto mb-3">
+          <svg class="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+        </div>
+        No verified contact paths found yet.<br>Click <span class="font-bold text-white">Discover Contacts</span> to trigger waterfall.
+      </div>
       {% endif %}
     </div>
 
     <!-- Outreach Drafts -->
     {% if message_drafts %}
     <div class="card" id="message-drafts">
-      <div class="mb-4 flex items-center justify-between border-b border-notion-border pb-3">
+      <div class="mb-5 flex items-center justify-between border-b border-surface-border pb-4">
         <div>
-          <h2 class="text-sm font-semibold text-notion-text">Drafted Outreach</h2>
-          <p class="text-xs text-notion-gray mt-1">Localized copy for review</p>
+          <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <svg class="w-4 h-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+            Drafted Outreach
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">Localized copy for review</p>
         </div>
       </div>
 
-      <div class="space-y-4">
-        <div class="bg-[#f9f9f8] border border-notion-border rounded-md p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <label class="text-xs font-semibold text-notion-gray uppercase tracking-wider">LinkedIn connection note</label>
-            <button type="button" onclick="copyDraft('draft-linkedin-connection', this)" class="btn-secondary py-1 px-2 text-xs bg-white">
+      <div class="space-y-5">
+        <div class="bg-surface-50 border border-surface-border rounded-xl p-4">
+          <div class="mb-3 flex items-center justify-between">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-brand-500"></div> LinkedIn connection note
+            </label>
+            <button type="button" onclick="copyDraft('draft-linkedin-connection', this)" class="btn-secondary py-1 px-3 text-[10px] uppercase tracking-wider">
               Copy
             </button>
           </div>
-          <textarea id="draft-linkedin-connection" class="w-full bg-white border border-notion-border rounded-md p-2 text-sm focus:border-notion-blue focus:outline-none resize-none" rows="2">{{ message_drafts.linkedin_connection_note }}</textarea>
+          <textarea id="draft-linkedin-connection" class="w-full bg-surface-0 border border-surface-border rounded-lg p-3 text-sm text-slate-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none resize-none transition" rows="2">{{ message_drafts.linkedin_connection_note }}</textarea>
         </div>
 
-        <div class="bg-[#f9f9f8] border border-notion-border rounded-md p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <label class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Email Subject</label>
-            <button type="button" onclick="copyDraft('draft-email-subject', this)" class="btn-secondary py-1 px-2 text-xs bg-white">
+        <div class="bg-surface-50 border border-surface-border rounded-xl p-4">
+          <div class="mb-3 flex items-center justify-between">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Email Subject
+            </label>
+            <button type="button" onclick="copyDraft('draft-email-subject', this)" class="btn-secondary py-1 px-3 text-[10px] uppercase tracking-wider">
               Copy
             </button>
           </div>
-          <input id="draft-email-subject" value="{{ message_drafts.email_subject }}" class="w-full bg-white border border-notion-border rounded-md p-2 text-sm font-medium focus:border-notion-blue focus:outline-none" />
+          <input id="draft-email-subject" value="{{ message_drafts.email_subject }}" class="w-full bg-surface-0 border border-surface-border rounded-lg p-3 text-sm font-bold text-white focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none transition" />
         </div>
 
-        <div class="bg-[#f9f9f8] border border-notion-border rounded-md p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <label class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Email Body</label>
-            <button type="button" onclick="copyDraft('draft-email-body', this)" class="btn-secondary py-1 px-2 text-xs bg-white">
+        <div class="bg-surface-50 border border-surface-border rounded-xl p-4">
+          <div class="mb-3 flex items-center justify-between">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-purple-500"></div> Email Body
+            </label>
+            <button type="button" onclick="copyDraft('draft-email-body', this)" class="btn-secondary py-1 px-3 text-[10px] uppercase tracking-wider">
               Copy
             </button>
           </div>
-          <textarea id="draft-email-body" class="w-full bg-white border border-notion-border rounded-md p-2 text-sm focus:border-notion-blue focus:outline-none leading-relaxed" rows="8">{{ message_drafts.email_body }}</textarea>
+          <textarea id="draft-email-body" class="w-full bg-surface-0 border border-surface-border rounded-lg p-3 text-sm text-slate-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none leading-relaxed transition" rows="8">{{ message_drafts.email_body }}</textarea>
         </div>
       </div>
     </div>
@@ -225,7 +265,7 @@ function openEnrichDetail() {
   const body = document.getElementById('enrich-modal-body');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
-  body.innerHTML = '<p class="p-8 text-center text-sm font-medium text-notion-gray">Discovering contacts across waterfall...</p>';
+  body.innerHTML = '<div class="p-12 text-center text-sm font-bold text-slate-400 flex flex-col items-center gap-4"><svg class="w-8 h-8 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Discovering contacts across waterfall...</div>';
   fetch('/prospects/{{ prospect.id }}/enrich', { credentials: 'same-origin' })
     .then(r => r.text())
     .then(html => { body.innerHTML = html; });
@@ -242,11 +282,11 @@ async function copyDraft(fieldId, button) {
     document.execCommand('copy');
   }
   const original = button.textContent;
-  button.textContent = 'Copied!';
-  button.classList.add('bg-[#e7f7ed]', 'text-[#0f7b6c]');
+  button.textContent = 'COPIED!';
+  button.classList.add('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
   window.setTimeout(() => {
     button.textContent = original;
-    button.classList.remove('bg-[#e7f7ed]', 'text-[#0f7b6c]');
+    button.classList.remove('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
   }, 1600);
 }
 </script>

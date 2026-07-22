@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-white antialiased">
+<html lang="en" class="h-full bg-[#0B0F19] antialiased">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,26 +7,42 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
           },
           colors: {
-            notion: {
-              text: '#37352f',
-              bg: '#ffffff',
-              hover: '#efefef',
-              border: '#e9e9e7',
-              gray: '#787774',
-              blue: '#2383e2',
-              blueHover: '#0070e0',
-              blueBg: '#e6f3fb'
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              900: '#312e81',
+            },
+            surface: {
+              0: '#0B0F19',
+              50: 'rgba(255, 255, 255, 0.03)',
+              100: 'rgba(255, 255, 255, 0.05)',
+              200: 'rgba(255, 255, 255, 0.1)',
+              border: 'rgba(255, 255, 255, 0.1)',
+            }
+          },
+          animation: {
+            'blob': 'blob 7s infinite',
+          },
+          keyframes: {
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
             }
           }
         }
@@ -41,158 +57,252 @@
   
   <style>
     body { 
-      color: #37352f;
-      background-color: #ffffff;
+      color: #e2e8f0; /* slate-200 */
+      background-color: #0B0F19;
     }
     
-    /* Notion-like interactive elements */
+    /* Modern Glassmorphic Components */
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    
+    .card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Buttons */
     .btn-primary {
-      background-color: #2383e2;
+      background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
       color: white;
       border: none;
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.25rem;
-      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
       font-size: 0.875rem;
-      transition: background-color 0.1s ease;
+      transition: all 0.3s ease;
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
+      box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
     }
     .btn-primary:hover {
-      background-color: #0070e0;
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+      transform: translateY(-1px);
+    }
+    .btn-primary:active {
+      transform: translateY(1px);
     }
     
     .btn-secondary {
-      background-color: transparent;
-      color: #37352f;
-      border: 1px solid #e9e9e7;
-      padding: 0.375rem 0.75rem;
-      border-radius: 0.25rem;
-      font-weight: 500;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
       font-size: 0.875rem;
-      transition: background-color 0.1s ease;
+      transition: all 0.2s ease;
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
+      backdrop-filter: blur(8px);
     }
     .btn-secondary:hover {
-      background-color: #efefef;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
     }
     
+    /* Navigation */
     .nav-link {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
+      gap: 0.75rem;
+      padding: 0.625rem 0.875rem;
+      border-radius: 0.5rem;
       font-size: 0.875rem;
-      color: #787774;
-      transition: background-color 0.1s ease, color 0.1s ease;
+      font-weight: 500;
+      color: #94a3b8; /* slate-400 */
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .nav-link svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      opacity: 0.7;
+      transition: all 0.2s ease;
     }
     .nav-link:hover {
-      background-color: #efefef;
-      color: #37352f;
+      background: rgba(255, 255, 255, 0.05);
+      color: #f8fafc;
+    }
+    .nav-link:hover svg {
+      opacity: 1;
+      transform: scale(1.1);
     }
     .nav-link.active {
-      background-color: #efefef;
-      color: #37352f;
-      font-weight: 500;
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+      color: #6366f1;
+      border-left: 2px solid #6366f1;
+    }
+    .nav-link.active svg {
+      color: #6366f1;
+      opacity: 1;
     }
     
-    .card {
-      border: 1px solid #e9e9e7;
-      border-radius: 0.375rem;
-      background-color: #ffffff;
-      padding: 1rem;
-    }
-    
+    /* Inputs */
     .input-field {
-      border: 1px solid #e9e9e7;
-      border-radius: 0.25rem;
-      padding: 0.375rem 0.5rem;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
       font-size: 0.875rem;
+      color: white;
       width: 100%;
       outline: none;
-      transition: border-color 0.1s ease, box-shadow 0.1s ease;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(4px);
     }
     .input-field:focus {
-      border-color: #2383e2;
-      box-shadow: 0 0 0 1px #2383e2;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      background: rgba(0, 0, 0, 0.4);
+    }
+    .input-field::placeholder {
+      color: #64748b;
     }
     
+    /* Tables */
     table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-size: 0.875rem;
     }
     th {
       text-align: left;
-      font-weight: 500;
-      color: #787774;
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid #e9e9e7;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.02);
     }
     td {
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid #e9e9e7;
+      padding: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #cbd5e1;
+    }
+    tr {
+      transition: background-color 0.2s ease;
     }
     tr:hover td {
-      background-color: #f9f9f8;
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+    
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
   </style>
   {% block head %}{% endblock %}
 </head>
-<body class="h-full font-sans selection:bg-notion-blueBg">
+<body class="h-full font-sans selection:bg-brand-500/30 selection:text-white relative overflow-hidden">
+  
+  <!-- Ambient Background Orbs -->
+  <div class="absolute top-0 -left-40 w-96 h-96 bg-indigo-500 rounded-full mix-blend-screen filter blur-[128px] opacity-20 animate-blob pointer-events-none"></div>
+  <div class="absolute top-0 -right-40 w-96 h-96 bg-purple-500 rounded-full mix-blend-screen filter blur-[128px] opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+  <div class="absolute -bottom-40 left-20 w-96 h-96 bg-emerald-500 rounded-full mix-blend-screen filter blur-[128px] opacity-10 animate-blob animation-delay-4000 pointer-events-none"></div>
+
   {% if user is defined and user %}
-  <div class="flex h-full">
+  <div class="flex h-full relative z-10 p-4 gap-4">
+    
     <!-- Sidebar -->
-    <aside class="w-64 border-r border-notion-border bg-[#f7f7f5] flex-shrink-0 flex flex-col h-full overflow-y-auto">
-      <div class="p-4 flex items-center justify-between group">
-        <a href="/" class="flex items-center gap-2 text-sm font-semibold text-notion-text">
-          <div class="flex h-5 w-5 items-center justify-center rounded bg-notion-text text-white text-[10px] font-bold">PF</div>
+    <aside class="w-64 flex-shrink-0 flex flex-col h-full rounded-2xl bg-surface-50 backdrop-blur-xl border border-surface-border shadow-2xl overflow-y-auto">
+      <div class="p-6 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-3 text-lg font-bold text-white tracking-tight">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
           ProspectForge
         </a>
       </div>
       
-      <div class="px-3 py-2">
-        <div class="text-[11px] font-medium text-notion-gray uppercase tracking-wider mb-1 px-2">Workspaces</div>
-        <nav class="space-y-0.5">
+      <div class="px-4 py-2">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-3">Workspaces</div>
+        <nav class="space-y-1">
           <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
-            <span>🏠</span> Dashboard
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            Dashboard
           </a>
           <a href="/market-plays" class="nav-link {% if request.url.path.startswith('/market-plays') %}active{% endif %}">
-            <span>🌐</span> Market Plays
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+            Market Plays
           </a>
           <a href="/sourcing" class="nav-link {% if request.url.path.startswith('/sourcing') %}active{% endif %}">
-            <span>🎯</span> Sourcing
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            Sourcing
           </a>
           <a href="/prospects" class="nav-link {% if '/prospects' in request.url.path %}active{% endif %}">
-            <span>🏢</span> Database
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            Database
           </a>
           <a href="/kanban" class="nav-link {% if request.url.path == '/kanban' %}active{% endif %}">
-            <span>📋</span> Pipeline
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
+            Pipeline
           </a>
           <a href="/queue" class="nav-link {% if request.url.path.startswith('/queue') %}active{% endif %}">
-            <span>⚡</span> Daily Queue
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+            Daily Queue
           </a>
           <a href="/follow-ups" class="nav-link {% if request.url.path == '/follow-ups' %}active{% endif %}">
-            <span>⏳</span> Follow-ups
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Follow-ups
           </a>
           <a href="/import" class="nav-link {% if request.url.path == '/import' %}active{% endif %}">
-            <span>📥</span> Import
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            Import
           </a>
         </nav>
       </div>
       
-      <div class="mt-auto p-3 border-t border-notion-border">
-        <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[#efefef] transition cursor-pointer text-sm" x-data="{ open: false }" @click="open = !open">
-          <div class="h-6 w-6 rounded bg-notion-gray/20 flex items-center justify-center text-xs">👤</div>
-          <div class="flex-1 truncate font-medium">{{ user.email }}</div>
+      <div class="mt-auto p-4 border-t border-surface-border">
+        <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition cursor-pointer" x-data="{ open: false }" @click="open = !open">
+          <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-md">
+            {{ user.email[0]|upper }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">{{ user.email }}</p>
+            <p class="text-[10px] text-slate-400">Admin</p>
+          </div>
           
-          <div x-show="open" @click.away="open = false" style="display: none;" class="absolute bottom-12 left-4 w-56 bg-white border border-notion-border rounded-md shadow-lg p-1 z-50">
+          <div x-show="open" @click.away="open = false" style="display: none;" class="absolute bottom-16 left-4 w-56 bg-surface-0 border border-surface-border rounded-xl shadow-2xl p-1 z-50 backdrop-blur-xl">
             <form action="/auth/logout" method="post">
-              <button type="submit" class="w-full text-left px-3 py-1.5 text-sm rounded hover:bg-[#efefef]">Log out</button>
+              <button type="submit" class="w-full text-left px-4 py-2 text-sm text-slate-300 rounded-lg hover:bg-white/10 hover:text-white transition">Log out</button>
             </form>
           </div>
         </div>
@@ -200,13 +310,14 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full overflow-hidden bg-white">
-      <div class="flex-1 overflow-y-auto">
-        <div class="max-w-5xl mx-auto px-12 py-12">
+    <main class="flex-1 flex flex-col h-full overflow-hidden rounded-2xl bg-surface-50 backdrop-blur-xl border border-surface-border shadow-2xl">
+      <div class="flex-1 overflow-y-auto relative">
+        <div class="max-w-6xl mx-auto px-10 py-10">
           {% block content %}{% endblock %}
         </div>
       </div>
     </main>
+    
   </div>
   {% else %}
     {% block guest %}{% endblock %}

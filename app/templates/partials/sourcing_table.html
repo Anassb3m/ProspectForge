@@ -1,28 +1,34 @@
-<div class="overflow-x-auto pb-4">
+<div class="overflow-x-auto">
   <table class="w-full text-left border-collapse whitespace-nowrap">
-    <thead class="bg-[#f9f9f8] border-b border-notion-border">
+    <thead>
       <tr>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Company / ICP</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Decision-maker</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Signal</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Why this lead</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Scores</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Contact</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium">Stage</th>
-        <th class="px-4 py-3 text-xs font-semibold text-notion-gray font-medium text-right">Actions</th>
+        <th>Company / ICP</th>
+        <th>Decision-maker</th>
+        <th>Signal</th>
+        <th>Why this lead</th>
+        <th>Scores</th>
+        <th>Contact</th>
+        <th>Stage</th>
+        <th class="text-right">Actions</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-notion-border">
+    <tbody class="divide-y divide-surface-border">
       {% for prospect in prospects %}
         {% include "partials/sourcing_row.html" %}
       {% else %}
       <tr>
-        <td colspan="8" class="px-4 py-12 text-center text-sm text-notion-gray">
-          Queue empty. Run <span class="font-medium text-notion-text">Discovery Ingestion</span> above, then check Daily Action Queue.
+        <td colspan="8" class="p-12 text-center text-sm font-medium text-slate-500">
+          <div class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-50 mx-auto mb-3">
+            <svg class="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </div>
+          Queue empty. Run <span class="font-bold text-white">Discovery Ingestion</span> above, then check Daily Action Queue.
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<p class="p-3 text-xs text-notion-gray border-t border-notion-border bg-[#f9f9f8]">Showing {{ prospects|length }} &middot; ranked by acquisition score (fit × timing × contactability × value)</p>
+<div class="p-4 border-t border-surface-border bg-surface-50/50 flex items-center justify-between">
+  <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Showing {{ prospects|length }} Prospects</p>
+  <p class="text-xs text-slate-500">Ranked by acquisition score (fit × timing × reach × value)</p>
+</div>

@@ -2,108 +2,136 @@
 {% block title %}Acquisition Cockpit — ProspectForge OS{% endblock %}
 {% block content %}
 <!-- Page Icon & Title -->
-<div class="mb-8">
+<div class="mb-10">
   <div class="flex items-center justify-between">
     <div>
-      <div class="text-5xl mb-4">🎯</div>
-      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Acquisition Cockpit</h1>
-      <p class="mt-2 text-notion-gray text-base">Multi-Source Discovery Engine & Hard-Gated Acquisition Pipeline</p>
+      <div class="flex items-center gap-4 mb-3">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30">
+          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-white tracking-tight">Acquisition Cockpit</h1>
+          <p class="mt-1 text-slate-400 text-sm">Multi-Source Discovery Engine & Hard-Gated Acquisition Pipeline</p>
+        </div>
+      </div>
     </div>
     <div>
       <a href="/market-plays" class="btn-secondary">
-        <span>🌐</span> Active Market Plays &rarr;
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+        Active Market Plays
+        <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
       </a>
     </div>
   </div>
 </div>
 
 <!-- Pipeline Stats -->
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Total Pipeline</div>
-    <div class="text-2xl font-bold text-notion-text">{{ stats.total }}</div>
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5 mb-12">
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0">
+    <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-slate-500"></div> Total Pipeline
+    </div>
+    <div class="text-3xl font-extrabold text-white">{{ stats.total }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Hot (&ge;70)</div>
-    <div class="text-2xl font-bold text-[#e03e3e]">{{ stats.hot }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-rose-500/50">
+    <div class="text-[11px] font-bold text-rose-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div> Hot (&ge;70)
+    </div>
+    <div class="text-3xl font-extrabold text-rose-400">{{ stats.hot }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Contact-Ready</div>
-    <div class="text-2xl font-bold text-[#0f7b6c]">{{ stats.ready }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-emerald-500/50">
+    <div class="text-[11px] font-bold text-emerald-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-emerald-500"></div> Contact-Ready
+    </div>
+    <div class="text-3xl font-extrabold text-emerald-400">{{ stats.ready }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Decision Maker</div>
-    <div class="text-2xl font-bold text-notion-text">{{ stats.with_dm }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0">
+    <div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-slate-400"></div> Decision Maker
+    </div>
+    <div class="text-3xl font-extrabold text-white">{{ stats.with_dm }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Public Award Wins</div>
-    <div class="text-2xl font-bold text-notion-blue">{{ stats.decp }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-indigo-500/50">
+    <div class="text-[11px] font-bold text-indigo-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-indigo-500"></div> DECP Wins
+    </div>
+    <div class="text-3xl font-extrabold text-indigo-400">{{ stats.decp }}</div>
   </div>
-  <div class="card">
-    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Needs Review</div>
-    <div class="text-2xl font-bold text-[#d9730d]">{{ stats.review }}</div>
+  <div class="card bg-gradient-to-b from-surface-50 to-surface-0 border-t-amber-500/50">
+    <div class="text-[11px] font-bold text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div> Needs Review
+    </div>
+    <div class="text-3xl font-extrabold text-amber-400">{{ stats.review }}</div>
   </div>
 </div>
 
 <!-- Engine Acquisition & Enrichment Controls -->
-<div class="mb-10">
-  <h2 class="text-xl font-semibold mb-4 text-notion-text flex items-center gap-2">
-    <span class="text-lg">⚙️</span> Discovery Engine & Ingestion Connectors
+<div class="mb-12">
+  <h2 class="text-lg font-bold text-white mb-5 flex items-center gap-2">
+    <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+    Discovery Engine & Ingestion Connectors
   </h2>
   
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Ingestion Form -->
-    <div class="lg:col-span-2 card bg-[#f9f9f8]">
-      <form hx-post="/sourcing/run-ingestion" hx-target="#ingestion-status" hx-swap="innerHTML" class="space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="lg:col-span-2 card">
+      <form hx-post="/sourcing/run-ingestion" hx-target="#ingestion-status" hx-swap="innerHTML" class="space-y-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label class="block text-xs font-semibold text-notion-text mb-1">Target Market Play</label>
-            <select name="play_code" class="input-field bg-white">
-              <option value="FIELD_OPERATIONS_UK_V1">🇬🇧 FIELD_OPERATIONS_UK_V1 (UK HVAC/Elec)</option>
-              <option value="FIELD_OPERATIONS_FR_V2">🇫🇷 FIELD_OPERATIONS_FR_V2 (FR Maintenance Froid)</option>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Target Market Play</label>
+            <select name="play_code" class="input-field appearance-none">
+              <option value="FIELD_OPERATIONS_UK_V1">🇬🇧 FIELD_OPERATIONS_UK_V1</option>
+              <option value="FIELD_OPERATIONS_FR_V2">🇫🇷 FIELD_OPERATIONS_FR_V2</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-notion-text mb-1">Source Adapter Connector</label>
-            <select name="mode" class="input-field bg-white">
-              <option value="companies_house">🇬🇧 Companies House REST API (UK)</option>
-              <option value="full">🇫🇷 Full (Sirene Registry + DECP Procurement)</option>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Source Adapter Connector</label>
+            <select name="mode" class="input-field appearance-none">
+              <option value="companies_house">🇬🇧 Companies House REST API</option>
+              <option value="full">🇫🇷 Full (Sirene + DECP)</option>
               <option value="decp">🇫🇷 DECP Public Awards Only</option>
               <option value="registry">🇫🇷 Sirene NAF Field Registry Only</option>
             </select>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between pt-2 border-t border-notion-border mt-4 pt-4">
-          <div class="flex items-center gap-5">
-            <div class="flex items-center gap-2">
-              <label class="text-sm font-medium text-notion-text">Max Candidates:</label>
-              <input type="number" name="max_companies" value="60" min="1" max="500" class="input-field w-20 bg-white" />
+        <div class="flex flex-wrap items-center justify-between pt-5 border-t border-surface-border mt-2">
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3">
+              <label class="text-sm font-bold text-slate-300 uppercase tracking-wider">Max Candidates</label>
+              <input type="number" name="max_companies" value="60" min="1" max="500" class="input-field w-24 font-mono text-center" />
             </div>
-            <label class="flex items-center gap-2 text-sm text-notion-text cursor-pointer">
-              <input type="checkbox" name="contacts" value="1" class="rounded border-notion-border text-notion-blue focus:ring-notion-blue" />
-              <span>Run Contact Waterfall</span>
+            <label class="flex items-center gap-3 text-sm font-bold text-slate-300 cursor-pointer group">
+              <div class="relative flex items-center">
+                <input type="checkbox" name="contacts" value="1" class="peer appearance-none w-5 h-5 border-2 border-slate-500 rounded bg-transparent checked:bg-brand-500 checked:border-brand-500 transition-all cursor-pointer" />
+                <svg class="absolute w-3.5 h-3.5 text-white left-0.5 top-1 opacity-0 peer-checked:opacity-100 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <span class="group-hover:text-white transition">Run Contact Waterfall</span>
             </label>
           </div>
-          <button type="submit" class="btn-primary mt-4 sm:mt-0">
-            <span>🚀</span> Launch Discovery Ingestion
+          <button type="submit" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Launch Ingestion
           </button>
         </div>
       </form>
     </div>
 
     <!-- Bulk Deep-Enrich -->
-    <div class="card bg-[#f9f9f8] flex flex-col">
-      <div class="mb-4">
-        <h3 class="text-sm font-semibold text-notion-text mb-1">Bulk Deep Enrich</h3>
-        <p class="text-xs text-notion-gray">Enrich thin prospect records with web evidence & contact waterfall</p>
+    <div class="card flex flex-col justify-between">
+      <div class="mb-5">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          Bulk Deep Enrich
+        </h3>
+        <p class="text-sm text-slate-400">Enrich thin prospect records with web evidence & contact waterfall</p>
       </div>
-      <form hx-post="/sourcing/bulk-enrich" hx-target="#ingestion-status" hx-swap="innerHTML" class="mt-auto flex items-end gap-2">
+      <form hx-post="/sourcing/bulk-enrich" hx-target="#ingestion-status" hx-swap="innerHTML" class="flex items-end gap-3 mt-auto">
         <div class="flex-1">
-          <label class="block text-xs font-semibold text-notion-text mb-1">Batch Limit</label>
-          <input type="number" name="limit" value="25" min="1" max="100" class="input-field bg-white" />
+          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Batch Limit</label>
+          <input type="number" name="limit" value="25" min="1" max="100" class="input-field font-mono" />
         </div>
-        <button type="submit" class="btn-secondary bg-white">Enrich</button>
+        <button type="submit" class="btn-secondary">Enrich</button>
       </form>
     </div>
   </div>
@@ -113,28 +141,31 @@
 <!-- Filter Bar -->
 <div class="mb-6">
   <form
-    class="card bg-[#f9f9f8] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4"
+    class="card grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5 items-end"
     hx-get="/sourcing"
     hx-target="#sourcing-table"
     hx-trigger="change, keyup changed delay:400ms from:#src-search"
     hx-push-url="true"
   >
-    <div class="lg:col-span-2">
-      <label class="block text-xs font-semibold text-notion-text mb-1">Search Keywords</label>
-      <input id="src-search" name="search" value="{{ filters.search }}" class="input-field bg-white" placeholder="Company, DM, SIREN, Companies House #, city…" />
+    <div class="lg:col-span-2 relative">
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Search Keywords</label>
+      <div class="absolute inset-y-0 left-0 top-6 pl-3 flex items-center pointer-events-none">
+        <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+      </div>
+      <input id="src-search" name="search" value="{{ filters.search }}" class="input-field pl-10" placeholder="Company, DM, SIREN…" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Signal Source</label>
-      <select name="signal_type" class="input-field bg-white">
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Signal Source</label>
+      <select name="signal_type" class="input-field appearance-none">
         <option value="" {% if not filters.signal_type %}selected{% endif %}>All Sources</option>
-        <option value="COMPANIES_HOUSE_UK" {% if filters.signal_type == 'COMPANIES_HOUSE_UK' %}selected{% endif %}>🇬🇧 Companies House UK</option>
-        <option value="PUBLIC_AWARD" {% if filters.signal_type == 'PUBLIC_AWARD' %}selected{% endif %}>🇫🇷 Public Awards (DECP)</option>
-        <option value="REGISTRY_FIELD" {% if filters.signal_type == 'REGISTRY_FIELD' %}selected{% endif %}>🇫🇷 Sirene Registry</option>
+        <option value="COMPANIES_HOUSE_UK" {% if filters.signal_type == 'COMPANIES_HOUSE_UK' %}selected{% endif %}>🇬🇧 UK House</option>
+        <option value="PUBLIC_AWARD" {% if filters.signal_type == 'PUBLIC_AWARD' %}selected{% endif %}>🇫🇷 DECP</option>
+        <option value="REGISTRY_FIELD" {% if filters.signal_type == 'REGISTRY_FIELD' %}selected{% endif %}>🇫🇷 Sirene</option>
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Stage</label>
-      <select name="stage" class="input-field bg-white">
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Stage</label>
+      <select name="stage" class="input-field appearance-none">
         <option value="">All Stages</option>
         <option value="discovered" {% if filters.stage == 'discovered' %}selected{% endif %}>Discovered</option>
         <option value="enriched" {% if filters.stage == 'enriched' %}selected{% endif %}>Enriched</option>
@@ -142,23 +173,23 @@
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Contact Quality</label>
-      <select name="contact_filter" class="input-field bg-white">
-        <option value="">All Candidates</option>
-        <option value="has_dirigeant" {% if filters.contact_filter == 'has_dirigeant' %}selected{% endif %}>Has Dirigeant/MD</option>
-        <option value="ready" {% if filters.contact_filter == 'ready' %}selected{% endif %}>Contact-Ready</option>
-        <option value="verified" {% if filters.contact_filter == 'verified' %}selected{% endif %}>Verified Email</option>
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Quality</label>
+      <select name="contact_filter" class="input-field appearance-none">
+        <option value="">All</option>
+        <option value="has_dirigeant" {% if filters.contact_filter == 'has_dirigeant' %}selected{% endif %}>Has DM</option>
+        <option value="ready" {% if filters.contact_filter == 'ready' %}selected{% endif %}>Ready</option>
+        <option value="verified" {% if filters.contact_filter == 'verified' %}selected{% endif %}>Verified</option>
         <option value="needs_review" {% if filters.contact_filter == 'needs_review' %}selected{% endif %}>Needs Review</option>
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-notion-text mb-1">Sort</label>
-      <select name="sort" class="input-field bg-white">
-        <option value="acquisition" {% if filters.sort == 'acquisition' %}selected{% endif %}>Acquisition Score</option>
-        <option value="timing" {% if filters.sort == 'timing' %}selected{% endif %}>Timing Signal</option>
+      <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Sort By</label>
+      <select name="sort" class="input-field appearance-none">
+        <option value="acquisition" {% if filters.sort == 'acquisition' %}selected{% endif %}>Score</option>
+        <option value="timing" {% if filters.sort == 'timing' %}selected{% endif %}>Timing</option>
         <option value="fit" {% if filters.sort == 'fit' %}selected{% endif %}>ICP Fit</option>
-        <option value="urgency" {% if filters.sort == 'urgency' %}selected{% endif %}>Urgency Score</option>
-        <option value="recent" {% if filters.sort == 'recent' %}selected{% endif %}>Newest First</option>
+        <option value="urgency" {% if filters.sort == 'urgency' %}selected{% endif %}>Urgency</option>
+        <option value="recent" {% if filters.sort == 'recent' %}selected{% endif %}>Newest</option>
       </select>
     </div>
   </form>
@@ -170,8 +201,8 @@
 </div>
 
 <!-- Enrich Modal -->
-<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#f7f7f5]/80 p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white border border-notion-border shadow-xl text-notion-text" id="enrich-modal-body"></div>
+<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0B0F19]/80 backdrop-blur-sm p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-surface-0 border border-surface-border shadow-2xl" id="enrich-modal-body"></div>
 </div>
 {% endblock %}
 
@@ -182,7 +213,7 @@ function openEnrich(prospectId) {
   const body = document.getElementById('enrich-modal-body');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
-  body.innerHTML = '<div class="p-8 text-center text-sm font-medium text-notion-gray">Loading deep enrichment records...</div>';
+  body.innerHTML = '<div class="p-12 text-center text-sm font-bold text-slate-400 flex flex-col items-center gap-4"><svg class="w-8 h-8 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading deep enrichment records...</div>';
   htmx.ajax('GET', `/sourcing/enrich-modal/${prospectId}`, {target: '#enrich-modal-body', swap: 'innerHTML'});
 }
 </script>
