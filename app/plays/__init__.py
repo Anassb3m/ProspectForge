@@ -24,17 +24,7 @@ def get_play(code: str | None = None) -> dict[str, Any]:
 
 def list_active_plays() -> list[dict[str, Any]]:
     """List all registered active and pilot market plays."""
-    return [
-        {
-            "code": p.get("code"),
-            "name": p.get("name"),
-            "version": p.get("version"),
-            "jurisdiction": p.get("jurisdiction", "FR"),
-            "locale": p.get("locale", "fr-FR" if p.get("jurisdiction") == "FR" else "en-GB"),
-            "status": p.get("status", "active"),
-        }
-        for p in ACTIVE_PLAYS.values()
-    ]
+    return list(ACTIVE_PLAYS.values())
 
 
 __all__ = [
