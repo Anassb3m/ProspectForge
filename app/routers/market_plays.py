@@ -20,6 +20,7 @@ async def page_market_plays(
     """Render Market Plays Management Operating System page."""
     plays = list_active_plays()
     return templates.TemplateResponse(
+        request,
         "market_plays.html",
         {"request": request, "user": current_user, "plays": plays},
     )
