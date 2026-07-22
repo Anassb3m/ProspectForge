@@ -51,8 +51,9 @@ async def _daily_queue(
     readiness: str | None = None,
     min_score: int | None = 55,
     review_state: str | None = None,
-    limit: int = 40,
-) -> list[Prospect]:
+    page: int = 1,
+    page_size: int = 40,
+) -> tuple[list[Prospect], int]:
     q = (
         select(Prospect)
         .options(selectinload(Prospect.outreach_events))
@@ -74,7 +75,16 @@ async def _daily_queue(
                 Prospect.acquisition_score >= min_score,
             )
         )
-    result = await db.execute(q.limit(500))
+    
+    # Get total count
+    count_q = select(func.count()).select_from(q.subquery())
+    total_result = await db.execute(count_q)
+    total = total_result.scalar_one_or_none() or 0
+
+    # Paginate
+    offset = (page - 1) * page_size
+    q = q.offset(offset).limit(page_size)
+    result = await db.execute(q)
     items = list(result.scalars().unique().all())
 
     # Load open tasks for all prospects in this batch
@@ -178,7 +188,7 @@ async def _daily_queue(
         p.open_tasks = tasks  # type: ignore[attr-defined]
 
     items.sort(key=_action_priority)
-    return items[:limit]
+    return items, total
 
 
 @router.get("/queue", response_class=HTMLResponse)
@@ -188,10 +198,12 @@ async def page_daily_queue(
     user: Annotated[User, Depends(get_current_user)],
     readiness: Optional[str] = None,
     min_score: Optional[int] = Query(50),
-    review: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(40, ge=1, le=100),
 ):
-    items = await _daily_queue(
-        db, readiness=readiness, min_score=min_score, review_state=review, limit=40
+    from sqlalchemy import func
+    items, total = await _daily_queue(
+        db, readiness=readiness, min_score=min_score, review_state=review, page=page, page_size=page_size
     )
     play = get_play(DEFAULT_PLAY_CODE)
     stats = {
@@ -399,13 +411,52 @@ async def api_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
     min_score: int = 50,
-    limit: int = 40,
+    page: int = 1,
+    page_size: int = 40,
 ):
-    items = await _daily_queue(db, min_score=min_score, limit=limit)
+    from sqlalchemy import func
+    items, total = await _daily_queue(db, min_score=min_score, page=page, page_size=page_size)
     from app.routers.prospects import _to_out
 
     return {
         "play": DEFAULT_PLAY_CODE,
         "items": [_to_out(p) for p in items],
-        "total": len(items),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
     }
+
+from pydantic import BaseModel
+class BulkQualifyRequest(BaseModel):
+    prospect_ids: list[int]
+    decision: str
+    notes: Optional[str] = None
+    flags: dict[str, bool] = {}
+
+@router.post("/api/queue/bulk-qualify")
+async def bulk_qualify(
+    request: BulkQualifyRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    if request.decision not in ("accept", "reject", "park", "research_more"):
+        raise HTTPException(status_code=400, detail="Invalid decision")
+        
+    for prospect_id in request.prospect_ids:
+        # Very simplified version for Phase 9 implementation
+        prospect = await services.get_prospect(db, prospect_id)
+        if not prospect:
+            continue
+        review = QualificationReview(
+            prospect_id=prospect.id,
+            reviewer_email=user.email,
+            decision=request.decision,
+            notes=request.notes,
+            **{k: v for k, v in request.flags.items() if k in ACCEPT_REQUIRED}
+        )
+        db.add(review)
+        prospect.qualification_decision = request.decision
+        prospect.reviewed_at = datetime.now(timezone.utc)
+        
+    await db.flush()
+    return {"status": "success", "processed": len(request.prospect_ids)}

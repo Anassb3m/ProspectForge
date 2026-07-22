@@ -7,12 +7,8 @@ from app.sources.companies_house import CompaniesHouseAdapter
 @pytest.mark.asyncio
 async def test_companies_house_discover_fixture():
     adapter = CompaniesHouseAdapter(api_key="")
-    records = await adapter.discover({"query": "Apex Commercial Refrigeration & HVAC Ltd"})
-    assert len(records) == 1
-    assert records[0].connector_code == "companies_house"
-    assert records[0].external_id == "12984570"
-
-
+    with pytest.raises(RuntimeError, match="Companies House API key missing"):
+        await adapter.discover({"query": "Apex Commercial Refrigeration & HVAC Ltd"})
 def test_companies_house_normalize():
     adapter = CompaniesHouseAdapter(api_key="")
     from app.sources.base import RawSourceRecord

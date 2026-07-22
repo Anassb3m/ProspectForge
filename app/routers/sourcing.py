@@ -141,16 +141,14 @@ async def api_run_ingestion(
     contacts: bool = False,
     skip_sirene: bool = False,
 ):
-    from app.jobs.ingestion import run_ingestion, run_ingestion_safe
+    from app.jobs.ingestion import run_ingestion
+    from app.workers.tasks import ingest_market_play
 
     if background:
-        background_tasks.add_task(
-            run_ingestion_safe,
+        ingest_market_play.delay(
+            play_code="DEFAULT",
             mode=mode,
-            days_back=days,
-            max_companies=max_companies,
-            run_contact_discovery=contacts,
-            skip_sirene=skip_sirene,
+            limit=max_companies,
         )
         return IngestionResult(companies=0, created=0, updated=0)
     stats = await run_ingestion(
@@ -229,31 +227,13 @@ async def api_bulk_enrich(
     )
     ids = [p.id for p in result.scalars().all()]
 
-    async def _job(pids: list[int]) -> None:
-        from app.database import async_session_factory
+    from app.workers.tasks import extract_website_evidence, contact_discovery_run
 
-        async with async_session_factory() as session:
-            for pid in pids:
-                r = await session.execute(
-                    select(Prospect)
-                    .options(selectinload(Prospect.outreach_events))
-                    .where(Prospect.id == pid)
-                )
-                p = r.scalar_one_or_none()
-                if not p:
-                    continue
-                data = await deep_enrich(
-                    siren=p.siren,
-                    siret=p.siret,
-                    company_name=p.company_name,
-                    existing={"website": p.website, "email": p.email},
-                    run_contacts=run_contacts,
-                    verify_email=False,
-                )
-                apply_enrichment_to_prospect(p, data)
-                await session.commit()
-
-    background_tasks.add_task(_job, ids)
+    for pid in ids:
+        extract_website_evidence.delay(company_id=str(pid), url="")
+        if run_contacts:
+            contact_discovery_run.delay(company_id=str(pid))
+            
     return {"queued": len(ids), "ids": ids}
 
 
@@ -610,24 +590,25 @@ async def form_run_ingestion(
     user: Annotated[User, Depends(get_current_user)],
     max_companies: Annotated[int, Form()] = 60,
     mode: Annotated[str, Form()] = "full",
+    play_code: Annotated[str, Form()] = "FIELD_OPERATIONS_FR_V2",
     contacts: Annotated[Optional[str], Form()] = None,
     skip_sirene: Annotated[Optional[str], Form()] = None,
 ):
-    from app.jobs.ingestion import run_ingestion_safe
+    from app.workers.tasks import ingest_market_play
 
-    if mode not in ("full", "decp", "registry"):
+    if mode not in ("full", "decp", "registry", "companies_house"):
         mode = "full"
-    background_tasks.add_task(
-        run_ingestion_safe,
+    
+    ingest_market_play.delay(
+        play_code=play_code,
         mode=mode,
-        max_companies=max_companies,
-        run_contact_discovery=bool(contacts),
-        skip_sirene=bool(skip_sirene),
+        limit=max_companies,
     )
     labels = {
         "full": "DECP awards + field-service registry",
         "decp": "DECP public awards only",
         "registry": "Field-service registry only",
+        "companies_house": "Companies House (UK)",
     }
     return templates.TemplateResponse(
         request,
@@ -666,31 +647,12 @@ async def form_bulk_enrich(
     )
     ids = [row[0] for row in result.all()]
 
-    async def _job(pids: list[int]) -> None:
-        from app.database import async_session_factory
+    from app.workers.tasks import extract_website_evidence, contact_discovery_run
 
-        async with async_session_factory() as session:
-            for pid in pids:
-                r = await session.execute(
-                    select(Prospect)
-                    .options(selectinload(Prospect.outreach_events))
-                    .where(Prospect.id == pid)
-                )
-                p = r.scalar_one_or_none()
-                if not p:
-                    continue
-                data = await deep_enrich(
-                    siren=p.siren,
-                    siret=p.siret,
-                    company_name=p.company_name,
-                    existing={"website": p.website, "email": p.email},
-                    run_contacts=True,
-                    verify_email=False,
-                )
-                apply_enrichment_to_prospect(p, data)
-                await session.commit()
-
-    background_tasks.add_task(_job, ids)
+    for pid in ids:
+        extract_website_evidence.delay(company_id=str(pid), url="")
+        contact_discovery_run.delay(company_id=str(pid))
+        
     return templates.TemplateResponse(
         request,
         "partials/ingestion_status.html",

@@ -57,6 +57,71 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  x-celery-worker: &celery-worker
+    build: .
+    image: ${APP_IMAGE:-prospectforge:latest}
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-prospectforge}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-prospectforge}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - internal
+    restart: unless-stopped
+    volumes:
+      - app_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker-ingestion:
+    <<: *celery-worker
+    command: celery -A app.workers.celery_app worker -Q source-ingestion --loglevel=info
+
+  worker-domain:
+    <<: *celery-worker
+    command: celery -A app.workers.celery_app worker -Q identity-domain --loglevel=info
+
+  worker-evidence:
+    <<: *celery-worker
+    command: celery -A app.workers.celery_app worker -Q website-evidence --loglevel=info
+
+  worker-contact:
+    <<: *celery-worker
+    command: celery -A app.workers.celery_app worker -Q buyer-contact --loglevel=info
+
+  worker-campaign:
+    <<: *celery-worker
+    command: celery -A app.workers.celery_app worker -Q campaigns-notifications --loglevel=info
+
+  celery-beat:
+    <<: *celery-worker
+    command: celery -A app.workers.celery_app beat --loglevel=info
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - redis_data:/data
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
   db:
     image: postgres:16-alpine
     environment:
@@ -185,6 +250,7 @@ volumes:
   app_backups:
   caddy_data:
   caddy_config:
+  redis_data:
 
 networks:
   internal:

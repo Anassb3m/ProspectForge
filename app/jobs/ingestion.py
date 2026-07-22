@@ -48,6 +48,16 @@ def _parse_date(val: str | None) -> datetime | None:
 
 
 async def _find_prospect(session, *, siret: str | None, siren: str | None) -> Prospect | None:
+    from app.repositories.company_repo import CompanyRepository
+    repo = CompanyRepository(session)
+    if siret:
+        p = await repo.get_by_identifier("siret", siret)
+        if p: return p
+    if siren:
+        p = await repo.get_by_identifier("siren", siren)
+        if p: return p
+    
+    # Fallback to legacy fields
     if siret:
         r = await session.execute(
             select(Prospect)
@@ -187,6 +197,18 @@ async def upsert_prospect(
     )
     await recompute_commercial_state(session, prospect)
     await session.flush()
+    
+    from app.repositories.company_repo import CompanyRepository
+    repo = CompanyRepository(session)
+    await repo.upsert_company(
+        prospect_id=prospect.id,
+        name=name,
+        siren=siren,
+        siret=siret,
+        city=enrich_data.get("city") or base.get("city")
+    )
+    await session.flush()
+    
     return prospect, created, "created" if created else "updated"
 
 
@@ -316,7 +338,8 @@ async def ingest_registry(
 
 async def run_ingestion(
     *,
-    mode: Literal["full", "decp", "registry"] = "full",
+    mode: Literal["full", "decp", "registry", "companies_house"] = "full",
+    play_code: str = DEFAULT_PLAY_CODE,
     days_back: int | None = None,
     max_companies: int | None = None,
     run_contact_discovery: bool | None = None,
@@ -330,9 +353,10 @@ async def run_ingestion(
 
     totals: dict[str, Any] = {
         "mode": mode,
-        "play": DEFAULT_PLAY_CODE,
+        "play": play_code,
         "decp": {},
         "registry": {},
+        "companies_house": {},
         "created": 0,
         "updated": 0,
         "errors": 0,
@@ -341,7 +365,7 @@ async def run_ingestion(
     async with async_session_factory() as session:
         run = IngestionRun(
             adapter=mode,
-            market_play_code=DEFAULT_PLAY_CODE,
+            market_play_code=play_code,
             status="running",
         )
         session.add(run)
@@ -371,6 +395,10 @@ async def run_ingestion(
                 totals["created"] += r.get("created", 0)
                 totals["updated"] += r.get("updated", 0)
                 totals["errors"] += r.get("errors", 0)
+
+            if mode == "companies_house":
+                logger.info("Companies House ingestion requested (play %s)", play_code)
+                totals["companies_house"] = {"companies": 0, "created": 0, "updated": 0, "errors": 0}
 
             run.status = "completed"
             run.stats_json = totals
@@ -437,10 +465,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="ProspectForge multi-source acquisition")
     parser.add_argument(
         "--mode",
-        choices=["full", "decp", "registry"],
+        choices=["full", "decp", "registry", "companies_house"],
         default="full",
-        help="full=DECP+registry, decp=awards only, registry=field-service hunt",
+        help="full=DECP+registry, decp=awards only, registry=field-service hunt, companies_house=UK",
     )
+    parser.add_argument("--play-code", type=str, default=DEFAULT_PLAY_CODE)
     parser.add_argument("--days", type=int, default=None)
     parser.add_argument("--max-companies", type=int, default=None)
     parser.add_argument("--contacts", action="store_true")

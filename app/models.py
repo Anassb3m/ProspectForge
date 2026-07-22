@@ -1090,3 +1090,66 @@ class Touch(Base):
 
     campaign: Mapped["Campaign"] = relationship(back_populates="touches")
 
+
+# ── Durable Runtime Models (Phase 2) ─────────────────────────────────────────
+
+class PipelineRun(Base):
+    __tablename__ = "pipeline_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    play_code: Mapped[str] = mapped_column(String(80), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="running", index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    stats_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+
+
+class WorkItem(Base):
+    __tablename__ = "work_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    pipeline_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("pipeline_runs.id"), index=True)
+    task_name: Mapped[str] = mapped_column(String(100), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_retries: Mapped[int] = mapped_column(Integer, default=3)
+    lock_lease_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    pipeline_run: Mapped["PipelineRun"] = relationship()
+
+
+class SourceRateBudget(Base):
+    __tablename__ = "source_rate_budgets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    daily_limit: Mapped[int] = mapped_column(Integer)
+    used_today: Mapped[int] = mapped_column(Integer, default=0)
+    reset_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SourceCheckpoint(Base):
+    __tablename__ = "source_checkpoints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    high_water_mark: Mapped[str] = mapped_column(String(200))
+    last_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FailedWorkItem(Base):
+    __tablename__ = "failed_work_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    original_work_item_id: Mapped[str] = mapped_column(String(36), index=True)
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
+    task_name: Mapped[str] = mapped_column(String(100))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    error_message: Mapped[str] = mapped_column(Text)
+    traceback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

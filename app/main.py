@@ -43,8 +43,7 @@ async def bootstrap_admin() -> None:
             session.add(admin)
             logger.info("Bootstrap admin created: %s", settings.admin_email)
         else:
-            admin.hashed_password = hash_password(settings.admin_password)
-            logger.info("Bootstrap admin password updated: %s", settings.admin_email)
+            logger.debug("Bootstrap admin already exists: %s", settings.admin_email)
         await session.commit()
 
 
@@ -88,14 +87,9 @@ async def lifespan(app: FastAPI):
     await bootstrap_admin()
     await seed_market_plays()
 
-    if settings.enable_scheduler:
-        from app.jobs.scheduler import start_scheduler, stop_scheduler
-
-        start_scheduler()
-        yield
-        stop_scheduler()
-    else:
-        yield
+    # Scheduler will be moved to isolated workers.
+    # We yield directly to the application lifespan without starting an in-process scheduler.
+    yield
 
 
 _docs_url = None if settings.is_production and not settings.debug else "/docs"

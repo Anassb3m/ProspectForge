@@ -33,29 +33,7 @@ class CompaniesHouseAdapter(SourceAdapter):
         sic_codes = query_params.get("sic_codes", [])
 
         if not self.api_key:
-            # Fixture mode when API key is not configured
-            return [
-                RawSourceRecord(
-                    connector_code=self.code,
-                    external_id=company_number or "12984570",
-                    record_type="company",
-                    payload={
-                        "company_number": company_number or "12984570",
-                        "company_name": query or "Apex Commercial Refrigeration & HVAC Ltd",
-                        "company_status": "active",
-                        "type": "ltd",
-                        "date_of_creation": "2018-05-14",
-                        "sic_codes": sic_codes or ["43220", "43210"],
-                        "registered_office_address": {
-                            "address_line_1": "10 Commercial Way",
-                            "locality": "Manchester",
-                            "postal_code": "M1 2AB",
-                            "country": "England",
-                        },
-                    },
-                    source_url=f"https://find-and-update.company-information.service.gov.uk/company/{company_number or '12984570'}",
-                )
-            ]
+            raise RuntimeError("Companies House API key missing. Cannot perform discovery.")
 
         records: list[RawSourceRecord] = []
         async with httpx.AsyncClient(
@@ -119,7 +97,7 @@ class CompaniesHouseAdapter(SourceAdapter):
     async def healthcheck(self) -> SourceHealth:
         if not self.api_key:
             return SourceHealth(
-                code=self.code, is_healthy=True, status_message="Running in fixture mode (no API key set)"
+                code=self.code, is_healthy=False, status_message="Blocked: API key missing"
             )
         async with httpx.AsyncClient(auth=(self.api_key, ""), timeout=5.0) as client:
             try:

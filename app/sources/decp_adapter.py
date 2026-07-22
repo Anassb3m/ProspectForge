@@ -18,23 +18,30 @@ class DecpAdapter(SourceAdapter):
         pass
 
     async def discover(self, query_params: dict[str, Any]) -> list[RawSourceRecord]:
-        keyword = query_params.get("query", "maintenance CVC")
-        # Return structured public award record envelope
-        return [
-            RawSourceRecord(
-                connector_code=self.code,
-                external_id=query_params.get("siren", "808123456"),
-                record_type="contract",
-                payload={
-                    "objet": f"Marché de maintenance technique et {keyword}",
-                    "titulaire_siren": query_params.get("siren", "808123456"),
-                    "titulaire_nom": query_params.get("company_name", "Société France Maintenance SAS"),
-                    "montant": query_params.get("montant", 150000),
-                    "date_notification": "2026-05-10",
-                },
-                source_url="https://marches-publics.gouv.fr",
-            )
-        ]
+        from app.discovery.decp import load_decp, filter_relevant, aggregate_by_siret
+        import polars as pl
+        
+        days_back = query_params.get("days_back", 120)
+        max_results = query_params.get("max_results", 50)
+        
+        try:
+            raw_df = await load_decp()
+            filtered_df = filter_relevant(raw_df, days_back=days_back, max_rows=max_results)
+            companies = aggregate_by_siret(filtered_df)
+            
+            records = []
+            for comp in companies:
+                records.append(
+                    RawSourceRecord(
+                        connector_code=self.code,
+                        external_id=comp.get("siret") or comp.get("siren") or "unknown",
+                        record_type="company",
+                        payload=comp,
+                    )
+                )
+            return records
+        except Exception as e:
+            raise RuntimeError(f"DECP discovery failed: {e}")
 
     def normalize(self, raw_record: RawSourceRecord) -> list[NormalizedObservation]:
         payload = raw_record.payload
@@ -52,6 +59,11 @@ class DecpAdapter(SourceAdapter):
         return [obs]
 
     async def healthcheck(self) -> SourceHealth:
-        return SourceHealth(
-            code=self.code, is_healthy=True, status_message="DECP data source reachable"
-        )
+        from app.discovery.decp import discover_decp_parquet_url
+        try:
+            url = await discover_decp_parquet_url()
+            if url:
+                return SourceHealth(code=self.code, is_healthy=True, status_message="DECP URL reachable")
+        except Exception as e:
+            return SourceHealth(code=self.code, is_healthy=False, status_message=str(e))
+        return SourceHealth(code=self.code, is_healthy=False, status_message="DECP URL not found")

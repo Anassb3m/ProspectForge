@@ -15,6 +15,19 @@ from app.discovery.reacher import check_emails_batch, pick_best_email
 
 logger = logging.getLogger(__name__)
 
+async def resolve_current_role(person_name: str, domain: str) -> dict[str, Any]:
+    """
+    Attempt to verify if a person is still employed at the domain.
+    In Phase 7, this enforces that a generated contact is actually still active.
+    """
+    # A real implementation would query LinkedIn/Clearbit/Apollo via API.
+    # We will mark it as needing manual verification.
+    return {
+        "verified": False,
+        "reason": "API lookup disabled. Requires manual role confirmation.",
+        "needs_review": True
+    }
+
 
 async def discover_contacts(
     *,

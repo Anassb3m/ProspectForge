@@ -1,0 +1,103 @@
+with open("app/templates/market_plays.html", "w") as f:
+    f.write("""{% extends "base.html" %}
+{% block title %}Market Plays — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-notion-border pb-6">
+  <div>
+    <div class="text-5xl mb-4">🌐</div>
+    <div class="flex items-center gap-3">
+      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Active Market Plays</h1>
+    </div>
+    <p class="mt-2 text-base text-notion-gray">Pre-configured acquisition playbooks targeting specific geographies and ICPs.</p>
+  </div>
+</div>
+
+<div class="grid gap-6 md:grid-cols-2">
+  {% for play in plays %}
+  <div class="card flex flex-col justify-between">
+    <div>
+      <div class="flex items-center justify-between border-b border-[#f1f1ef] pb-3 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">{% if play.get('jurisdiction', 'FR') == 'GB' %}🇬🇧{% else %}🇫🇷{% endif %}</span>
+          <h2 class="text-lg font-bold text-notion-text">{{ play.get('name') }}</h2>
+        </div>
+        <span class="rounded bg-[#f1f1ef] px-2 py-0.5 font-mono text-xs font-semibold text-notion-gray">{{ play.get('code') }}</span>
+      </div>
+
+      {% if play.get('offer_summary') %}
+      <p class="text-sm text-notion-text">{{ play.get('offer_summary') }}</p>
+      {% endif %}
+
+      <div class="mt-4 grid grid-cols-2 gap-3 text-xs border-b border-[#f1f1ef] pb-4">
+        <div>
+          <span class="font-semibold text-notion-gray block">Jurisdiction</span>
+          <p class="mt-0.5 font-medium text-notion-text">{{ play.get('jurisdiction', 'FR') }} ({{ play.get('locale', 'fr-FR') }})</p>
+        </div>
+        <div>
+          <span class="font-semibold text-notion-gray block">Target Tech Size</span>
+          {% if play.get('operational_size') %}
+            <p class="mt-0.5 font-medium text-notion-text">{{ play['operational_size'].get('min_field_technicians', '?') }} – {{ play['operational_size'].get('max_field_technicians', '?') }} Techs</p>
+          {% elif play.get('target_sizes') %}
+            <p class="mt-0.5 font-medium text-notion-text">{{ play.get('target_sizes')|join(', ') }}</p>
+          {% else %}
+            <p class="mt-0.5 font-medium text-notion-text">Not specified</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div>
+          <span class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Eligible Classifications</span>
+          <div class="mt-1 flex flex-wrap gap-1">
+            {% if play.get('classifications') and play['classifications'].get('include_codes') %}
+              {% for code in play['classifications']['include_codes'] %}
+              <span class="rounded bg-[#f9f9f8] border border-notion-border px-2 py-0.5 text-xs font-medium text-notion-text" title="{{ code.get('label', '') }}">{{ code.get('code', '') }}</span>
+              {% endfor %}
+            {% elif play.get('target_naf_codes') %}
+              {% for code in play['target_naf_codes'][:10] %}
+              <span class="rounded bg-[#f9f9f8] border border-notion-border px-2 py-0.5 text-xs font-medium text-notion-text">{{ code }}</span>
+              {% endfor %}
+              {% if play['target_naf_codes']|length > 10 %}
+              <span class="rounded bg-[#f9f9f8] border border-notion-border px-2 py-0.5 text-xs font-medium text-notion-gray">+{{ play['target_naf_codes']|length - 10 }}</span>
+              {% endif %}
+            {% else %}
+              <span class="text-xs text-notion-gray">Any</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div>
+          <span class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Compliance Policy</span>
+          <div class="mt-1 flex">
+            <span class="rounded bg-notion-blueBg border border-[#cce4f7] px-2 py-1 text-xs font-medium text-notion-blue">
+              {% if play.get('compliance_policy') %}
+                {{ play['compliance_policy'] }}
+              {% elif play.get('compliance_rules') %}
+                Rule: {{ play['compliance_rules'].get('policy_rule', 'N/A') }} ({{ play['compliance_rules'].get('subscriber_exemption', 'N/A') }})
+              {% else %}
+                Default (B2B Email Corporate)
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Target Buyer Roles</span>
+          <div class="mt-1 flex flex-wrap gap-1">
+            {% for role in play.get('buyer_roles', []) %}
+            <span class="rounded bg-[#f9f9f8] border border-notion-border px-2 py-0.5 text-xs font-medium text-notion-text">{{ role.get('title') or role.get('role', '') }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 border-t border-notion-border pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <span class="text-xs text-notion-gray block">Offer: <strong class="text-notion-text font-semibold">{{ play.get('offer_name', play.get('name', 'Acquisition')) }}</strong></span>
+      <a href="/sourcing?play_code={{ play.get('code') }}" class="btn-primary w-full sm:w-auto justify-center text-xs">Launch Sourcing &rarr;</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+""")

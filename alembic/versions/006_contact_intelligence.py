@@ -16,13 +16,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.alter_column(
-        "prospects",
-        "contact_confidence",
-        existing_type=sa.String(20),
-        type_=sa.String(50),
-        existing_nullable=True,
-    )
+    with op.batch_alter_table("prospects") as batch_op:
+        batch_op.alter_column(
+            "contact_confidence",
+            existing_type=sa.String(20),
+            type_=sa.String(50),
+            existing_nullable=True,
+        )
 
     op.create_table(
         "contact_people",
@@ -241,10 +241,10 @@ def downgrade() -> None:
     op.drop_table("contact_evidence")
     op.drop_table("contact_points")
     op.drop_table("contact_people")
-    op.alter_column(
-        "prospects",
-        "contact_confidence",
-        existing_type=sa.String(50),
-        type_=sa.String(20),
-        existing_nullable=True,
-    )
+    with op.batch_alter_table("prospects") as batch_op:
+        batch_op.alter_column(
+            "contact_confidence",
+            existing_type=sa.String(50),
+            type_=sa.String(20),
+            existing_nullable=True,
+        )
