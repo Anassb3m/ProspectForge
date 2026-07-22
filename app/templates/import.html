@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}CSV Import Workspace — Level 300 ProspectForge OS{% endblock %}
+{% block title %}CSV Import — ProspectForge{% endblock %}
 {% block content %}
-<!-- Workspace Header -->
-<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+<!-- Page Icon & Title -->
+<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-notion-border pb-6">
   <div>
-    <div class="flex items-center gap-3">
-      <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">Bulk CSV Ingestion Workspace</h1>
-      <span class="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30">LEVEL 300</span>
+    <div class="text-5xl mb-4">📥</div>
+    <div class="flex items-center gap-3 mb-2">
+      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Bulk CSV Ingestion</h1>
     </div>
-    <p class="mt-1.5 text-xs text-slate-400">Bulk import prospect records with instant row-level validation & GDPR origin auditing</p>
+    <p class="mt-1 text-base text-notion-gray">Bulk import prospect records with instant row-level validation & GDPR origin auditing.</p>
   </div>
   <div>
-    <a href="/prospects" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
+    <a href="/prospects" class="btn-primary">
       <span>🏢</span> Prospect Database
     </a>
   </div>
@@ -19,29 +19,30 @@
 
 <div class="grid gap-8 lg:grid-cols-2">
   <!-- Upload Box -->
-  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-    <h2 class="font-heading text-base font-bold text-white mb-4">Upload CSV File</h2>
+  <div class="card">
+    <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider mb-4 border-b border-notion-border pb-2">Upload CSV File</h2>
     <form method="post" action="/import" enctype="multipart/form-data" class="space-y-4">
-      <div class="rounded-2xl border-2 border-dashed border-slate-700 p-8 text-center bg-slate-900/60 hover:bg-slate-900 transition">
+      <div class="rounded-md border-2 border-dashed border-notion-border p-8 text-center bg-[#f9f9f8] hover:bg-[#efefef] transition cursor-pointer relative">
         <span class="text-4xl mb-3 block">📥</span>
-        <label class="block text-xs font-bold text-white uppercase tracking-wider mb-2">Select CSV File from computer</label>
-        <input type="file" name="file" accept=".csv,text/csv" required class="mx-auto block text-xs text-slate-400 file:mr-4 file:rounded-xl file:border-0 file:bg-gradient-to-r file:from-cyan-500 file:to-indigo-600 file:px-4 file:py-2 file:text-xs file:font-bold file:text-white hover:file:opacity-90 cursor-pointer" />
+        <label class="block text-sm font-semibold text-notion-text mb-2 cursor-pointer">Select CSV File</label>
+        <input type="file" name="file" accept=".csv,text/csv" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+        <div class="text-xs text-notion-gray">Drag and drop or click to browse</div>
       </div>
-      <button type="submit" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 py-3 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.01]">
+      <button type="submit" class="btn-primary w-full justify-center text-sm py-2">
         Start Bulk Ingestion
       </button>
     </form>
 
     {% if result %}
-    <div class="mt-6 rounded-xl border border-slate-800 bg-slate-900/80 p-4">
-      <p class="text-xs font-bold text-white">
-        Created Records: <span class="text-emerald-400 font-mono font-bold">{{ result.created }}</span>
-        · Failed Rows: <span class="{% if result.failed %}text-rose-400{% else %}text-slate-400{% endif %} font-mono font-bold">{{ result.failed }}</span>
+    <div class="mt-6 rounded-md border border-notion-border bg-[#f9f9f8] p-4">
+      <p class="text-sm font-semibold text-notion-text">
+        Created Records: <span class="text-[#0f7b6c]">{{ result.created }}</span>
+        · Failed Rows: <span class="{% if result.failed %}text-[#e03e3e]{% else %}text-notion-gray{% endif %}">{{ result.failed }}</span>
       </p>
       {% if result.errors %}
       <ul class="mt-3 max-h-64 space-y-2 overflow-y-auto text-xs">
         {% for err in result.errors %}
-        <li class="rounded-lg bg-rose-500/10 p-2.5 text-rose-300 border border-rose-500/30">
+        <li class="rounded bg-[#ffebe6] p-2 text-[#c03426] border border-[#ffdbd1]">
           <span class="font-bold">Row {{ err.row }}:</span>
           {{ err.errors | join('; ') }}
         </li>
@@ -50,22 +51,22 @@
       {% endif %}
     </div>
     {% endif %}
-  </section>
+  </div>
 
   <!-- Format Specification Card -->
-  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-    <h2 class="font-heading text-base font-bold text-white mb-1">Expected CSV Schema Header</h2>
-    <p class="mb-5 text-xs text-slate-400">Must contain valid column header row. Mandatory fields marked with *</p>
-    <ul class="space-y-2 font-mono text-xs text-slate-300 bg-slate-900/80 p-5 rounded-xl border border-slate-800">
-      <li><strong class="text-cyan-400">company_name *</strong> — e.g. Acme HVAC Ltd</li>
-      <li><strong class="text-cyan-400">sector *</strong> — Construction | Manufacturing | Logistics | Engineering | Professional Services | Other</li>
-      <li><strong class="text-cyan-400">company_size *</strong> — 1-10 | 11-50 | 51-200 | 200+</li>
-      <li><strong class="text-cyan-400">signal_type *</strong> — BOAMP_WIN | MOROCCO_OPS | PAIN_POST | OTHER</li>
-      <li><strong class="text-cyan-400">source *</strong> — BOAMP | LinkedIn | Manual | Registry | Companies House</li>
-      <li><strong class="text-cyan-400">data_source *</strong> — Origin trail for audit (e.g. Companies House REST API)</li>
+  <div class="card">
+    <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider mb-4 border-b border-notion-border pb-2">Schema Specification</h2>
+    <p class="mb-4 text-xs text-notion-gray">Must contain valid column header row. Mandatory fields marked with *</p>
+    <ul class="space-y-2 font-mono text-xs text-notion-gray bg-[#f9f9f8] p-4 rounded-md border border-notion-border">
+      <li><strong class="text-notion-text font-semibold">company_name *</strong> — e.g. Acme HVAC Ltd</li>
+      <li><strong class="text-notion-text font-semibold">sector *</strong> — Construction | Manufacturing | Logistics | Engineering | Professional Services | Other</li>
+      <li><strong class="text-notion-text font-semibold">company_size *</strong> — 1-10 | 11-50 | 51-200 | 200+</li>
+      <li><strong class="text-notion-text font-semibold">signal_type *</strong> — BOAMP_WIN | MOROCCO_OPS | PAIN_POST | OTHER</li>
+      <li><strong class="text-notion-text font-semibold">source *</strong> — BOAMP | LinkedIn | Manual | Registry | Companies House</li>
+      <li><strong class="text-notion-text font-semibold">data_source *</strong> — Origin trail for audit (e.g. Companies House REST API)</li>
       <li>signal_details, decision_maker_name, decision_maker_title</li>
       <li>linkedin_url, email, phone, website, notes</li>
     </ul>
-  </section>
+  </div>
 </div>
 {% endblock %}

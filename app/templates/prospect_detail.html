@@ -1,161 +1,159 @@
 {% extends "base.html" %}
-{% block title %}{{ prospect.company_name }} — Level 300 Prospect Workspace{% endblock %}
+{% block title %}{{ prospect.company_name }} — Prospect Workspace{% endblock %}
 {% block content %}
-<!-- Workspace Header -->
-<div class="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800/80 pb-6">
-  <div>
-    <a href="/prospects" class="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1.5 mb-2">
-      &larr; Back to Prospect Database
+<!-- Page Icon & Title -->
+<div class="mb-8">
+  <div class="mb-6">
+    <a href="/prospects" class="text-sm font-medium text-notion-gray hover:text-notion-text transition flex items-center gap-1">
+      &larr; Back to Database
     </a>
-    <div class="flex items-center gap-4">
-      <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800 text-xl font-bold shadow-xl">
-        {% if prospect.siren or prospect.siret %}🇫🇷{% else %}🇬🇧{% endif %}
-      </span>
+  </div>
+  
+  <div class="flex items-start justify-between">
+    <div class="flex items-start gap-4">
+      <div class="text-6xl">{% if prospect.siren or prospect.siret %}🇫🇷{% else %}🇬🇧{% endif %}</div>
       <div>
-        <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">{{ prospect.company_name }}</h1>
-        <div class="mt-1.5 flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-mono font-bold {% if prospect.priority_level == 'High' %}bg-rose-500/20 text-rose-300 border border-rose-500/30{% elif prospect.priority_level == 'Medium' %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% else %}bg-slate-800 text-slate-300 border border-slate-700{% endif %}">
-            Priority {{ prospect.priority_level }} · Score {{ prospect.urgency_score }}
+        <h1 class="text-4xl font-bold text-notion-text tracking-tight mb-3">{{ prospect.company_name }}</h1>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded bg-[#f1f1ef] px-2 py-0.5 text-xs font-medium text-notion-text border border-notion-border">
+            Priority {{ prospect.priority_level }} &middot; Score {{ prospect.urgency_score }}
           </span>
-          <span class="inline-flex items-center rounded-lg bg-cyan-500/10 px-2.5 py-0.5 text-xs font-semibold text-cyan-400 border border-cyan-500/30">
+          <span class="inline-flex items-center rounded bg-notion-blueBg px-2 py-0.5 text-xs font-medium text-notion-blue border border-[#cce4f7]">
             {{ prospect.current_status }}
           </span>
-          <span class="inline-flex items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-xs font-mono font-medium text-slate-300 border border-slate-800">
+          <span class="inline-flex items-center rounded bg-[#f1f1ef] px-2 py-0.5 text-xs font-medium text-notion-gray border border-notion-border">
             {{ prospect.signal_type }}
           </span>
           {% if prospect.opted_out %}
-          <span class="inline-flex items-center rounded-lg bg-rose-500/20 px-2.5 py-0.5 text-xs font-bold text-rose-400 border border-rose-500/30">
+          <span class="inline-flex items-center rounded bg-[#ffebe6] px-2 py-0.5 text-xs font-medium text-[#c03426] border border-[#ffdbd1]">
             Opted Out
           </span>
           {% endif %}
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="flex flex-wrap items-center gap-3">
-    <a href="/prospects/{{ prospect.id }}/report.md" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 border border-slate-800 hover:bg-slate-800 transition" download>
-      <span>📥</span> Download Report
-    </a>
-    <button type="button" onclick="openEnrichDetail()" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
-      <span>⚡</span> Discover Contacts
-    </button>
-    <a href="/prospects/{{ prospect.id }}/edit" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 border border-slate-800 hover:bg-slate-800 transition">
-      Edit Record
-    </a>
+    
+    <div class="flex flex-wrap items-center gap-3">
+      <a href="/prospects/{{ prospect.id }}/report.md" class="btn-secondary" download>
+        <span>📥</span> Download Report
+      </a>
+      <button type="button" onclick="openEnrichDetail()" class="btn-primary">
+        <span>⚡</span> Discover Contacts
+      </button>
+      <a href="/prospects/{{ prospect.id }}/edit" class="btn-secondary">
+        Edit
+      </a>
+    </div>
   </div>
 </div>
 
 <!-- Enrich Modal -->
-<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0B0F17]/80 backdrop-blur-md p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-[#0F172A] border border-slate-800 shadow-2xl text-slate-100" id="enrich-modal-body"></div>
+<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#f7f7f5]/80 p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white border border-notion-border shadow-xl text-notion-text" id="enrich-modal-body"></div>
 </div>
 
-<div class="grid gap-8 lg:grid-cols-3">
-  <!-- Left Column: Properties & Compliance -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  <!-- Left Column: Properties -->
   <div class="space-y-6 lg:col-span-1 min-w-0">
-    <!-- Company Card -->
-    <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-      <h2 class="font-heading text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Entity Properties</h2>
-      <dl class="space-y-3 text-xs">
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Industry Sector</dt><dd class="font-semibold text-white">{{ prospect.sector }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Employee Scale</dt><dd class="font-semibold text-white">{{ prospect.company_size }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Source Adapter</dt><dd class="font-mono text-cyan-400 font-bold">{{ prospect.source }}</dd></div>
+    <div class="card">
+      <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider mb-4 border-b border-notion-border pb-2">Properties</h2>
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Sector</dt><dd class="font-medium text-notion-text text-right">{{ prospect.sector }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Scale</dt><dd class="font-medium text-notion-text text-right">{{ prospect.company_size }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Source</dt><dd class="font-medium text-notion-text text-right">{{ prospect.source }}</dd></div>
         {% if prospect.siren %}
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">SIREN Number</dt><dd class="font-mono text-xs font-bold text-white">{{ prospect.siren }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">SIREN</dt><dd class="font-mono text-notion-text">{{ prospect.siren }}</dd></div>
         {% endif %}
         {% if prospect.siret %}
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">SIRET Number</dt><dd class="font-mono text-xs text-slate-300">{{ prospect.siret }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">SIRET</dt><dd class="font-mono text-notion-text">{{ prospect.siret }}</dd></div>
         {% endif %}
         {% if prospect.naf_code %}
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">NAF Activity Code</dt><dd class="font-mono text-xs text-slate-300">{{ prospect.naf_code }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">NAF</dt><dd class="font-mono text-notion-text">{{ prospect.naf_code }}</dd></div>
         {% endif %}
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Contact Readiness</dt>
-          <dd><span class="rounded-lg bg-slate-900 px-2.5 py-1 font-mono font-semibold text-cyan-400 border border-slate-800">{{ prospect.contact_status }}</span></dd>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Contact Status</dt>
+          <dd><span class="rounded bg-[#f9f9f8] px-2 py-0.5 font-medium border border-notion-border">{{ prospect.contact_status }}</span></dd>
         </div>
         {% if prospect.website %}
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Official Website</dt>
-          <dd><a href="{{ prospect.website }}" class="text-cyan-400 font-semibold hover:underline truncate max-w-[160px]" target="_blank" rel="noopener">{{ prospect.website }}</a></dd>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Website</dt>
+          <dd><a href="{{ prospect.website }}" class="text-notion-blue hover:underline truncate max-w-[160px]" target="_blank" rel="noopener">{{ prospect.website }}</a></dd>
         </div>
         {% endif %}
       </dl>
-    </section>
+    </div>
 
-    <!-- Market Compliance Card -->
-    <section class="glass-panel border-l-4 {% if prospect.siren or prospect.siret %}border-l-emerald-500{% else %}border-l-cyan-500{% endif %} rounded-2xl p-6 shadow-2xl">
-      <div class="flex items-center justify-between">
-        <h2 class="font-heading text-xs font-bold text-slate-400 uppercase tracking-widest mb-0">Policy & Compliance</h2>
+    <!-- Compliance Card -->
+    <div class="card border-l-4 {% if prospect.siren or prospect.siret %}border-l-[#0f7b6c]{% else %}border-l-notion-blue{% endif %}">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider">Compliance</h2>
         {% if prospect.siren or prospect.siret %}
-        <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-500/20 px-2.5 py-1 text-xs font-mono font-bold text-emerald-300 border border-emerald-500/30">
-          🇫🇷 CNIL B2B Pass
+        <span class="inline-flex items-center gap-1 rounded bg-[#e7f7ed] px-2 py-0.5 text-xs font-medium text-[#0f7b6c] border border-[#bce8cb]">
+          🇫🇷 CNIL Pass
         </span>
         {% else %}
-        <span class="inline-flex items-center gap-1 rounded-lg bg-sky-500/20 px-2.5 py-1 text-xs font-mono font-bold text-sky-300 border border-sky-500/30">
-          🇬🇧 PECR B2B Pass
+        <span class="inline-flex items-center gap-1 rounded bg-notion-blueBg px-2 py-0.5 text-xs font-medium text-notion-blue border border-[#cce4f7]">
+          🇬🇧 PECR Pass
         </span>
         {% endif %}
       </div>
-      <dl class="mt-4 space-y-2.5 text-xs">
-        <div class="flex justify-between"><dt class="text-slate-400">Corporate Entity</dt><dd class="font-semibold text-white">Verified (Ltd/LLP/SAS/SARL)</dd></div>
-        <div class="flex justify-between"><dt class="text-slate-400">Human Gate Policy</dt><dd class="font-bold text-emerald-400">Strict Human Review Gated</dd></div>
-        <div class="flex justify-between"><dt class="text-slate-400">Field Tech Estimate</dt><dd class="font-semibold text-white">10 – 75 Technicians</dd></div>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between"><dt class="text-notion-gray">Entity</dt><dd class="font-medium">Verified</dd></div>
+        <div class="flex justify-between"><dt class="text-notion-gray">Gate Policy</dt><dd class="font-medium text-[#0f7b6c]">Human Review</dd></div>
       </dl>
-    </section>
+    </div>
 
-    <!-- Decision Maker Profile -->
-    <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-      <h2 class="font-heading text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Target Buyer Profile</h2>
-      <dl class="space-y-3 text-xs">
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Name</dt><dd class="font-bold text-white text-sm">{{ prospect.decision_maker_name or '—' }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Job Title</dt><dd class="font-semibold text-slate-200">{{ prospect.decision_maker_title or '—' }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Email Address</dt><dd class="font-mono text-cyan-400 font-semibold">{{ prospect.email or '—' }}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">Business Phone</dt><dd class="font-mono text-slate-200">{{ prospect.phone or '—' }}</dd></div>
+    <!-- Buyer Profile -->
+    <div class="card">
+      <h2 class="text-sm font-semibold text-notion-text uppercase tracking-wider mb-4 border-b border-notion-border pb-2">Target Buyer</h2>
+      <dl class="space-y-3 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Name</dt><dd class="font-medium text-notion-text text-right">{{ prospect.decision_maker_name or '—' }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Title</dt><dd class="text-notion-gray text-right">{{ prospect.decision_maker_title or '—' }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Email</dt><dd class="font-mono text-notion-text text-right">{{ prospect.email or '—' }}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">Phone</dt><dd class="font-mono text-notion-gray text-right">{{ prospect.phone or '—' }}</dd></div>
         {% if prospect.linkedin_url %}
-        <div class="flex justify-between gap-4"><dt class="text-slate-400">LinkedIn Profile</dt>
-          <dd><a href="{{ prospect.linkedin_url }}" class="text-cyan-400 font-bold hover:underline" target="_blank" rel="noopener">Open Profile &rarr;</a></dd>
+        <div class="flex justify-between gap-4"><dt class="text-notion-gray">LinkedIn</dt>
+          <dd><a href="{{ prospect.linkedin_url }}" class="text-notion-blue hover:underline" target="_blank" rel="noopener">Profile &rarr;</a></dd>
         </div>
         {% endif %}
       </dl>
-    </section>
+    </div>
   </div>
 
-  <!-- Right Column: Evidence, Waterfall & Level 300 Copy Generators -->
-  <div class="space-y-8 lg:col-span-2 min-w-0">
+  <!-- Right Column -->
+  <div class="space-y-6 lg:col-span-2 min-w-0">
     <!-- Contact Intelligence Waterfall -->
-    <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-      <div class="mb-4 flex items-center justify-between border-b border-slate-800/80 pb-4">
-        <h2 class="font-heading text-base font-bold text-white">Contact Intelligence Waterfall</h2>
-        <span class="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30">Audit-Verified</span>
+    <div class="card p-0 overflow-hidden">
+      <div class="p-4 border-b border-notion-border bg-[#f9f9f8] flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-notion-text">Contact Intelligence</h2>
       </div>
 
       {% if contact_points %}
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
-          <thead class="bg-slate-900/80 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+        <table>
+          <thead class="bg-[#f9f9f8]">
             <tr>
-              <th class="py-3 px-3">Kind</th>
-              <th class="py-3 px-3">Contact Value</th>
-              <th class="py-3 px-3">Deliverability</th>
-              <th class="py-3 px-3">Match State</th>
-              <th class="py-3 px-3 text-right">Actions</th>
+              <th>Type</th>
+              <th>Contact Value</th>
+              <th>Deliverability</th>
+              <th>Match</th>
+              <th class="text-right">Action</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/60 text-slate-300">
+          <tbody>
             {% for point in contact_points %}
-            <tr class="hover:bg-slate-800/40">
-              <td class="py-3 px-3 font-mono font-bold uppercase text-white">{{ point.kind }}</td>
-              <td class="py-3 px-3 font-mono font-semibold text-cyan-300">{{ point.value }}</td>
-              <td class="py-3 px-3">
-                <span class="rounded-lg px-2.5 py-0.5 text-[10px] font-mono font-bold {% if point.deliverability_state == 'deliverable' %}bg-emerald-500/20 text-emerald-300 border border-emerald-500/30{% elif point.deliverability_state in ('catch_all','risky') %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% else %}bg-slate-800 text-slate-400{% endif %}">
+            <tr>
+              <td class="font-medium uppercase">{{ point.kind }}</td>
+              <td class="font-mono">{{ point.value }}</td>
+              <td>
+                <span class="rounded px-2 py-0.5 text-xs font-medium {% if point.deliverability_state == 'deliverable' %}bg-[#e7f7ed] text-[#0f7b6c] border border-[#bce8cb]{% elif point.deliverability_state in ('catch_all','risky') %}bg-[#fff3e0] text-[#e65100] border border-[#ffd2b3]{% else %}bg-[#f1f1ef] text-notion-gray border border-notion-border{% endif %}">
                   {{ point.deliverability_state }}
                 </span>
               </td>
-              <td class="py-3 px-3 capitalize">{{ point.person_match_state|replace('_', ' ') }}</td>
-              <td class="py-3 px-3 text-right">
+              <td class="capitalize">{{ point.person_match_state|replace('_', ' ') }}</td>
+              <td class="text-right">
                 <form hx-post="/prospects/{{ prospect.id }}/contact-intelligence/review" hx-target="body" class="inline">
                   <input type="hidden" name="contact_point_id" value="{{ point.id }}">
                   <input type="hidden" name="decision" value="primary">
-                  <button class="text-xs font-bold text-cyan-400 hover:underline">Set Primary</button>
+                  <button class="text-xs font-medium text-notion-blue hover:underline">Set Primary</button>
                 </form>
               </td>
             </tr>
@@ -164,56 +162,52 @@
         </table>
       </div>
       {% else %}
-      <p class="py-6 text-center text-xs text-slate-500">No verified contact paths found yet. Click <strong>Discover Contacts</strong> above to trigger waterfall.</p>
+      <div class="p-8 text-center text-sm text-notion-gray">No verified contact paths found yet. Click <span class="font-medium">Discover Contacts</span> to trigger waterfall.</div>
       {% endif %}
-    </section>
+    </div>
 
-    <!-- Outreach Drafts (Level 300 Dark Obsidian Cards) -->
+    <!-- Outreach Drafts -->
     {% if message_drafts %}
-    <section class="glass-panel rounded-2xl p-6 shadow-2xl" id="message-drafts">
-      <div class="mb-5 flex items-center justify-between border-b border-slate-800/80 pb-4">
+    <div class="card" id="message-drafts">
+      <div class="mb-4 flex items-center justify-between border-b border-notion-border pb-3">
         <div>
-          <h2 class="font-heading text-base font-bold text-white">Personalized Outreach Copy Generator</h2>
-          <p class="text-xs text-slate-400">Localized `{% if prospect.siren or prospect.siret %}fr-FR{% else %}en-GB{% endif %}` buyer copy backed by operational signals</p>
-        </div>
-        <span class="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-mono font-bold text-emerald-300 border border-emerald-500/30">Human Approval Gated</span>
-      </div>
-
-      <div class="space-y-5">
-        <!-- LinkedIn Note -->
-        <div class="rounded-xl border border-slate-800/90 bg-slate-900/80 p-4">
-          <div class="mb-2.5 flex items-center justify-between">
-            <label class="text-xs font-bold text-white uppercase tracking-wider">LinkedIn connection note</label>
-            <button type="button" onclick="copyDraft('draft-linkedin-connection', this)" class="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition">
-              Copy Note
-            </button>
-          </div>
-          <textarea id="draft-linkedin-connection" class="w-full rounded-xl border border-slate-800 bg-[#0B0F17] p-3 text-xs text-slate-200 shadow-inner focus:border-cyan-500 focus:outline-none font-sans" rows="2">{{ message_drafts.linkedin_connection_note }}</textarea>
-        </div>
-
-        <!-- Email Subject -->
-        <div class="rounded-xl border border-slate-800/90 bg-slate-900/80 p-4">
-          <div class="mb-2.5 flex items-center justify-between">
-            <label class="text-xs font-bold text-white uppercase tracking-wider">Email Subject Line</label>
-            <button type="button" onclick="copyDraft('draft-email-subject', this)" class="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition">
-              Copy Subject
-            </button>
-          </div>
-          <input id="draft-email-subject" value="{{ message_drafts.email_subject }}" class="w-full rounded-xl border border-slate-800 bg-[#0B0F17] p-3 text-xs font-bold text-white shadow-inner focus:border-cyan-500 focus:outline-none" />
-        </div>
-
-        <!-- Email Body -->
-        <div class="rounded-xl border border-slate-800/90 bg-slate-900/80 p-4">
-          <div class="mb-2.5 flex items-center justify-between">
-            <label class="text-xs font-bold text-white uppercase tracking-wider">Email Copy Body</label>
-            <button type="button" onclick="copyDraft('draft-email-body', this)" class="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition">
-              Copy Body Text
-            </button>
-          </div>
-          <textarea id="draft-email-body" class="w-full rounded-xl border border-slate-800 bg-[#0B0F17] p-3.5 text-xs text-slate-200 shadow-inner focus:border-cyan-500 focus:outline-none font-sans leading-relaxed" rows="8">{{ message_drafts.email_body }}</textarea>
+          <h2 class="text-sm font-semibold text-notion-text">Drafted Outreach</h2>
+          <p class="text-xs text-notion-gray mt-1">Localized copy for review</p>
         </div>
       </div>
-    </section>
+
+      <div class="space-y-4">
+        <div class="bg-[#f9f9f8] border border-notion-border rounded-md p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <label class="text-xs font-semibold text-notion-gray uppercase tracking-wider">LinkedIn connection note</label>
+            <button type="button" onclick="copyDraft('draft-linkedin-connection', this)" class="btn-secondary py-1 px-2 text-xs bg-white">
+              Copy
+            </button>
+          </div>
+          <textarea id="draft-linkedin-connection" class="w-full bg-white border border-notion-border rounded-md p-2 text-sm focus:border-notion-blue focus:outline-none resize-none" rows="2">{{ message_drafts.linkedin_connection_note }}</textarea>
+        </div>
+
+        <div class="bg-[#f9f9f8] border border-notion-border rounded-md p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <label class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Email Subject</label>
+            <button type="button" onclick="copyDraft('draft-email-subject', this)" class="btn-secondary py-1 px-2 text-xs bg-white">
+              Copy
+            </button>
+          </div>
+          <input id="draft-email-subject" value="{{ message_drafts.email_subject }}" class="w-full bg-white border border-notion-border rounded-md p-2 text-sm font-medium focus:border-notion-blue focus:outline-none" />
+        </div>
+
+        <div class="bg-[#f9f9f8] border border-notion-border rounded-md p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <label class="text-xs font-semibold text-notion-gray uppercase tracking-wider">Email Body</label>
+            <button type="button" onclick="copyDraft('draft-email-body', this)" class="btn-secondary py-1 px-2 text-xs bg-white">
+              Copy
+            </button>
+          </div>
+          <textarea id="draft-email-body" class="w-full bg-white border border-notion-border rounded-md p-2 text-sm focus:border-notion-blue focus:outline-none leading-relaxed" rows="8">{{ message_drafts.email_body }}</textarea>
+        </div>
+      </div>
+    </div>
     {% endif %}
 
     <!-- Event Timeline -->
@@ -231,7 +225,7 @@ function openEnrichDetail() {
   const body = document.getElementById('enrich-modal-body');
   modal.classList.remove('hidden');
   modal.classList.add('flex');
-  body.innerHTML = '<p class="p-8 text-center text-xs font-mono font-bold text-cyan-400">Discovering contacts across waterfall...</p>';
+  body.innerHTML = '<p class="p-8 text-center text-sm font-medium text-notion-gray">Discovering contacts across waterfall...</p>';
   fetch('/prospects/{{ prospect.id }}/enrich', { credentials: 'same-origin' })
     .then(r => r.text())
     .then(html => { body.innerHTML = html; });
@@ -248,13 +242,11 @@ async function copyDraft(fieldId, button) {
     document.execCommand('copy');
   }
   const original = button.textContent;
-  button.textContent = '✓ Copied to Clipboard!';
-  button.classList.remove('from-cyan-500', 'to-indigo-600');
-  button.classList.add('from-emerald-500', 'to-teal-600');
+  button.textContent = 'Copied!';
+  button.classList.add('bg-[#e7f7ed]', 'text-[#0f7b6c]');
   window.setTimeout(() => {
     button.textContent = original;
-    button.classList.remove('from-emerald-500', 'to-teal-600');
-    button.classList.add('from-cyan-500', 'to-indigo-600');
+    button.classList.remove('bg-[#e7f7ed]', 'text-[#0f7b6c]');
   }, 1600);
 }
 </script>

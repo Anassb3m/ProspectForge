@@ -1,141 +1,138 @@
 {% extends "base.html" %}
-{% block title %}Daily Action Queue — Level 300 ProspectForge OS{% endblock %}
+{% block title %}Daily Action Queue — ProspectForge{% endblock %}
 {% block content %}
-<!-- Workspace Header -->
-<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+<!-- Page Icon & Title -->
+<div class="mb-8 flex items-center justify-between">
   <div>
-    <div class="flex items-center gap-3">
-      <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">Daily Action Queue</h1>
-      <span class="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30">{{ play.name }}</span>
+    <div class="text-5xl mb-4">⚡</div>
+    <div class="flex items-center gap-3 mb-2">
+      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Daily Action Queue</h1>
+      <span class="rounded bg-[#f1f1ef] px-2 py-0.5 text-xs font-medium text-notion-gray border border-notion-border">{{ play.name }}</span>
     </div>
-    <p class="mt-1.5 text-xs text-slate-400">Meeting-ready work first · strict human review & qualification before outreach touch</p>
+    <p class="text-notion-gray text-base">Meeting-ready work first · strict human review & qualification before outreach</p>
   </div>
   <div>
-    <a href="/sourcing" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
+    <a href="/sourcing" class="btn-primary">
       <span>🚀</span> Run Discovery Ingestion
     </a>
   </div>
 </div>
 
 <!-- Metrics Bar -->
-<div class="mb-8 grid gap-4 sm:grid-cols-4">
-  <div class="glass-panel rounded-2xl p-4">
-    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Queue Total</span>
-    <p class="mt-1.5 text-2xl font-bold font-heading font-mono text-white">{{ stats.total }}</p>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+  <div class="card">
+    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Queue Total</div>
+    <div class="text-2xl font-bold text-notion-text">{{ stats.total }}</div>
   </div>
-  <div class="glass-panel rounded-2xl p-4">
-    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unreviewed</span>
-    <p class="mt-1.5 text-2xl font-bold font-heading font-mono text-amber-400">{{ stats.need_review }}</p>
+  <div class="card">
+    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Unreviewed</div>
+    <div class="text-2xl font-bold text-[#d9730d]">{{ stats.need_review }}</div>
   </div>
-  <div class="glass-panel rounded-2xl p-4">
-    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contact-Ready</span>
-    <p class="mt-1.5 text-2xl font-bold font-heading font-mono text-emerald-400">{{ stats.ready }}</p>
+  <div class="card">
+    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Contact-Ready</div>
+    <div class="text-2xl font-bold text-[#0f7b6c]">{{ stats.ready }}</div>
   </div>
-  <div class="glass-panel rounded-2xl p-4">
-    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Opportunity Score &ge; 65</span>
-    <p class="mt-1.5 text-2xl font-bold font-heading font-mono text-cyan-400">{{ stats.high }}</p>
+  <div class="card">
+    <div class="text-[11px] font-semibold text-notion-gray uppercase tracking-wider mb-1">Opportunity Score &ge; 65</div>
+    <div class="text-2xl font-bold text-notion-blue">{{ stats.high }}</div>
   </div>
 </div>
 
 <!-- Filter Bar -->
-<form class="glass-panel rounded-2xl p-5 shadow-2xl mb-8 grid gap-4 sm:grid-cols-3" method="get" action="/queue">
-  <div>
-    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Readiness State</label>
-    <select name="readiness" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
-      <option value="">All Readiness States</option>
-      <option value="human_review_required" {% if filters.readiness == 'human_review_required' %}selected{% endif %}>Needs Human Review</option>
-      <option value="contact_ready" {% if filters.readiness == 'contact_ready' %}selected{% endif %}>Contact-Ready</option>
-      <option value="research_required" {% if filters.readiness == 'research_required' %}selected{% endif %}>Research Required</option>
-      <option value="contact_required" {% if filters.readiness == 'contact_required' %}selected{% endif %}>Contact Required</option>
-    </select>
-  </div>
+<div class="mb-8">
+  <form class="card bg-[#f9f9f8] grid grid-cols-1 sm:grid-cols-3 gap-4" method="get" action="/queue">
+    <div>
+      <label class="block text-xs font-semibold text-notion-text mb-1">Readiness State</label>
+      <select name="readiness" class="input-field bg-white">
+        <option value="">All Readiness States</option>
+        <option value="human_review_required" {% if filters.readiness == 'human_review_required' %}selected{% endif %}>Needs Human Review</option>
+        <option value="contact_ready" {% if filters.readiness == 'contact_ready' %}selected{% endif %}>Contact-Ready</option>
+        <option value="research_required" {% if filters.readiness == 'research_required' %}selected{% endif %}>Research Required</option>
+        <option value="contact_required" {% if filters.readiness == 'contact_required' %}selected{% endif %}>Contact Required</option>
+      </select>
+    </div>
 
-  <div>
-    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Review State</label>
-    <select name="review" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs text-slate-100 shadow-inner focus:border-cyan-500 focus:outline-none">
-      <option value="">All Review States</option>
-      <option value="unreviewed" {% if filters.review == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
-      <option value="accepted" {% if filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
-      <option value="rejected" {% if filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
-    </select>
-  </div>
+    <div>
+      <label class="block text-xs font-semibold text-notion-text mb-1">Review State</label>
+      <select name="review" class="input-field bg-white">
+        <option value="">All Review States</option>
+        <option value="unreviewed" {% if filters.review == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
+        <option value="accepted" {% if filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
+        <option value="rejected" {% if filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
+      </select>
+    </div>
 
-  <div>
-    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Min Opportunity Score</label>
-    <input type="number" name="min_score" value="{{ filters.min_score }}" class="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3.5 py-2 text-xs font-mono text-cyan-400 font-bold shadow-inner focus:border-cyan-500 focus:outline-none" min="0" max="100" />
-  </div>
+    <div>
+      <label class="block text-xs font-semibold text-notion-text mb-1">Min Opportunity Score</label>
+      <input type="number" name="min_score" value="{{ filters.min_score }}" class="input-field font-mono bg-white" min="0" max="100" />
+    </div>
 
-  <div class="sm:col-span-3 flex items-center justify-between pt-1">
-    <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white border border-slate-700 hover:bg-slate-800 transition">
-      Apply Queue Filters
-    </button>
-    <a href="/sourcing" class="text-xs font-bold text-cyan-400 hover:underline">Sourcing Cockpit &rarr;</a>
-  </div>
-</form>
+    <div class="sm:col-span-3 flex items-center justify-between pt-2 border-t border-notion-border">
+      <button type="submit" class="btn-primary">Apply Filters</button>
+      <a href="/sourcing" class="text-sm font-medium text-notion-blue hover:underline">Sourcing Cockpit &rarr;</a>
+    </div>
+  </form>
+</div>
 
 <!-- Action Queue Cards -->
 <div class="space-y-4">
   {% for p in prospects %}
-  <article class="glass-panel border-l-4 {% if p.readiness_state == 'contact_ready' %}border-l-emerald-500{% elif p.manual_review_state == 'unreviewed' %}border-l-amber-400{% else %}border-l-slate-700{% endif %} rounded-2xl p-6 shadow-2xl">
-    <div class="flex flex-wrap items-start justify-between gap-3">
+  <div class="card border-l-4 {% if p.readiness_state == 'contact_ready' %}border-l-[#0f7b6c]{% elif p.manual_review_state == 'unreviewed' %}border-l-[#d9730d]{% else %}border-l-notion-border{% endif %} hover:bg-[#f9f9f8] transition group">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
       <div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
           {% if p.siren or p.siret %}
-          <span class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs font-bold text-emerald-300 border border-emerald-500/30">🇫🇷 FR</span>
+          <span class="rounded bg-[#e7f7ed] px-1.5 py-0.5 text-[10px] font-bold text-[#0f7b6c] border border-[#bce8cb]">🇫🇷 FR</span>
           {% else %}
-          <span class="rounded bg-sky-500/20 px-1.5 py-0.5 text-xs font-bold text-sky-300 border border-sky-500/30">🇬🇧 UK</span>
+          <span class="rounded bg-notion-blueBg px-1.5 py-0.5 text-[10px] font-bold text-notion-blue border border-[#cce4f7]">🇬🇧 UK</span>
           {% endif %}
-          <a href="/prospects/{{ p.id }}" class="font-heading text-xl font-bold text-white hover:text-cyan-400 transition">{{ p.company_name }}</a>
+          <a href="/prospects/{{ p.id }}" class="text-lg font-bold text-notion-text group-hover:text-notion-blue transition">{{ p.company_name }}</a>
         </div>
-        <p class="text-xs text-slate-400 mt-1.5">
-          {{ p.sector }} · {{ p.company_size }}
-          {% if p.city %} · {{ p.city }}{% endif %}
-          {% if p.siren %}<span class="font-mono text-xs text-slate-300"> · SIREN {{ p.siren }}</span>{% endif %}
+        <p class="text-sm text-notion-gray mt-1">
+          {{ p.sector }} &middot; {{ p.company_size }}
+          {% if p.city %} &middot; {{ p.city }}{% endif %}
+          {% if p.siren %}<span class="font-mono text-xs text-notion-gray"> &middot; SIREN {{ p.siren }}</span>{% endif %}
         </p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="rounded-lg bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30">
-          Score: {{ p.opportunity_score }}
-        </span>
-        <span class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-mono font-semibold text-slate-300 border border-slate-800">
-          {{ p.readiness_state|replace('_', ' ') }}
-        </span>
+      <div class="flex items-center gap-2">
+        <span class="rounded bg-[#f9f9f8] px-2 py-1 text-xs font-mono font-medium text-notion-text border border-notion-border">Score: {{ p.opportunity_score }}</span>
+        <span class="rounded bg-[#f9f9f8] px-2 py-1 text-xs font-mono font-medium text-notion-gray border border-notion-border">{{ p.readiness_state|replace('_', ' ') }}</span>
       </div>
     </div>
 
     {% if p.decision_maker_name %}
-    <div class="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs text-slate-300">
-      <span>Target Buyer: <strong class="text-white">{{ p.decision_maker_name }}</strong> ({{ p.decision_maker_title or 'Dirigeant / MD' }})</span>
-      {% if p.email %}<span class="font-mono text-cyan-400 font-semibold">{{ p.email }}</span>{% endif %}
+    <div class="py-3 border-y border-[#f1f1ef] text-sm text-notion-gray flex items-center justify-between">
+      <span>Target Buyer: <span class="font-medium text-notion-text">{{ p.decision_maker_name }}</span> ({{ p.decision_maker_title or 'Dirigeant / MD' }})</span>
+      {% if p.email %}<span class="font-mono font-medium text-notion-text">{{ p.email }}</span>{% endif %}
     </div>
     {% endif %}
 
-    <!-- Action Forms -->
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-3">
-      <div class="flex items-center gap-2.5">
+    <div class="mt-3 flex items-center justify-between pt-1">
+      <div class="flex items-center gap-2">
         <form hx-post="/queue/review/{{ p.id }}" hx-target="this" class="inline">
           <input type="hidden" name="decision" value="accepted" />
-          <button type="submit" class="rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white shadow-lg hover:bg-emerald-500 transition">
-            ✓ Accept Target
+          <button type="submit" class="bg-[#0f7b6c] hover:bg-[#0b5c51] text-white px-3 py-1.5 rounded text-sm font-medium transition">
+            ✓ Accept
           </button>
         </form>
         <form hx-post="/queue/review/{{ p.id }}" hx-target="this" class="inline">
           <input type="hidden" name="decision" value="rejected" />
-          <button type="submit" class="rounded-xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition">
+          <button type="submit" class="bg-white border border-[#e03e3e] text-[#e03e3e] hover:bg-[#ffebe6] px-3 py-1.5 rounded text-sm font-medium transition">
             ✕ Reject
           </button>
         </form>
       </div>
-      <a href="/prospects/{{ p.id }}#message-drafts" class="text-xs font-bold text-cyan-400 hover:underline">
+      <a href="/prospects/{{ p.id }}#message-drafts" class="text-sm font-medium text-notion-blue hover:underline">
         Inspect Draft Copy &rarr;
       </a>
     </div>
-  </article>
+  </div>
   {% else %}
-  <div class="glass-panel rounded-2xl p-12 text-center text-slate-400">
-    <p class="font-bold text-white text-base">No items match your queue filters.</p>
-    <p class="text-xs text-slate-500 mt-1">Run discovery sourcing to add newly qualified field-service candidates.</p>
+  <div class="card p-12 text-center bg-[#f9f9f8] border-dashed">
+    <div class="text-3xl mb-2">🎉</div>
+    <h3 class="font-semibold text-notion-text mb-1">Queue Empty</h3>
+    <p class="text-sm text-notion-gray">No items match your queue filters. Run discovery sourcing to add newly qualified candidates.</p>
   </div>
   {% endfor %}
 </div>

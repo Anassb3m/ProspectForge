@@ -1,60 +1,60 @@
-<tr id="prospect-row-{{ prospect.id }}" class="hover:bg-slate-800/40 transition {% if prospect.opted_out %}opacity-40{% endif %}">
-  <td class="py-3.5 px-4">
-    <div class="flex items-center gap-2.5">
+<tr id="prospect-row-{{ prospect.id }}" class="hover:bg-[#f9f9f8] transition {% if prospect.opted_out %}opacity-50{% endif %}">
+  <td>
+    <div class="flex items-start gap-2">
       {% if prospect.siren or prospect.siret %}
-        <span title="France Legal Entity (CNIL B2B Pass)" class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">🇫🇷 FR</span>
+        <span title="France Legal Entity (CNIL B2B Pass)" class="rounded bg-[#e7f7ed] px-1.5 py-0.5 text-[10px] font-bold text-[#0f7b6c] border border-[#bce8cb] mt-0.5">🇫🇷 FR</span>
       {% else %}
-        <span title="UK Legal Entity (PECR B2B Pass)" class="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold text-sky-300 border border-sky-500/30">🇬🇧 UK</span>
+        <span title="UK Legal Entity (PECR B2B Pass)" class="rounded bg-notion-blueBg px-1.5 py-0.5 text-[10px] font-bold text-notion-blue border border-[#cce4f7] mt-0.5">🇬🇧 UK</span>
       {% endif %}
       <div>
-        <a href="/prospects/{{ prospect.id }}" class="font-bold text-white hover:text-cyan-400 transition">{{ prospect.company_name }}</a>
-        <p class="text-[11px] text-slate-400 mt-0.5">{{ prospect.sector }} · {{ prospect.company_size }}</p>
+        <a href="/prospects/{{ prospect.id }}" class="font-semibold text-notion-text hover:text-notion-blue transition">{{ prospect.company_name }}</a>
+        <p class="text-[11px] text-notion-gray mt-0.5">{{ prospect.sector }} · {{ prospect.company_size }}</p>
       </div>
     </div>
   </td>
 
-  <td class="py-3.5 px-3">
-    <span class="inline-flex items-center rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-mono font-medium text-slate-300 border border-slate-800">
+  <td>
+    <span class="inline-flex items-center rounded bg-[#f1f1ef] px-2 py-0.5 text-[11px] font-medium text-notion-text border border-notion-border">
       {{ prospect.signal_type }}
     </span>
   </td>
 
-  <td class="py-3.5 px-3">
-    <div class="flex items-center gap-2.5">
-      <div class="h-2 w-16 overflow-hidden rounded-full bg-slate-900 border border-slate-800">
-        <div class="h-full rounded-full {% if prospect.urgency_score >= 75 %}bg-rose-500{% elif prospect.urgency_score >= 45 %}bg-amber-400{% else %}bg-cyan-500{% endif %}"
+  <td>
+    <div class="flex items-center gap-2">
+      <div class="h-1.5 w-16 overflow-hidden rounded-full bg-[#f1f1ef]">
+        <div class="h-full rounded-full {% if prospect.urgency_score >= 75 %}bg-[#e03e3e]{% elif prospect.urgency_score >= 45 %}bg-[#d9730d]{% else %}bg-notion-blue{% endif %}"
              style="width: {{ prospect.urgency_score }}%"></div>
       </div>
-      <span class="font-mono font-bold text-xs tabular-nums text-slate-200">{{ prospect.urgency_score }}</span>
+      <span class="font-medium text-xs tabular-nums text-notion-text">{{ prospect.urgency_score }}</span>
     </div>
   </td>
 
-  <td class="py-3.5 px-3">
+  <td>
     {% if prospect.priority_level == 'High' %}
-    <span class="inline-flex items-center rounded-lg bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-mono font-bold text-rose-300 border border-rose-500/30">High</span>
+    <span class="inline-flex items-center rounded bg-[#ffebe6] px-2 py-0.5 text-[11px] font-medium text-[#c03426] border border-[#ffdbd1]">High</span>
     {% elif prospect.priority_level == 'Medium' %}
-    <span class="inline-flex items-center rounded-lg bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-mono font-bold text-amber-300 border border-amber-500/30">Medium</span>
+    <span class="inline-flex items-center rounded bg-[#fff3e0] px-2 py-0.5 text-[11px] font-medium text-[#e65100] border border-[#ffd2b3]">Medium</span>
     {% else %}
-    <span class="inline-flex items-center rounded-lg bg-slate-800 px-2.5 py-0.5 text-[11px] font-mono font-medium text-slate-400 border border-slate-700">Normal</span>
+    <span class="inline-flex items-center rounded bg-[#f1f1ef] px-2 py-0.5 text-[11px] font-medium text-notion-gray border border-notion-border">Normal</span>
     {% endif %}
   </td>
 
-  <td class="py-3.5 px-3">
-    <span class="inline-flex items-center rounded-lg bg-cyan-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-400 border border-cyan-500/30">
+  <td>
+    <span class="inline-flex items-center rounded bg-notion-blueBg px-2 py-0.5 text-[11px] font-medium text-notion-blue border border-[#cce4f7]">
       {{ prospect.current_status }}
     </span>
   </td>
 
-  <td class="py-3.5 px-4">
+  <td>
     <div class="text-xs">
-      <p class="font-semibold text-slate-200">{{ prospect.decision_maker_name or '—' }}</p>
+      <p class="font-medium text-notion-text">{{ prospect.decision_maker_name or '—' }}</p>
       {% if prospect.email_redacted %}
-      <p class="text-[11px] font-mono text-slate-400 truncate max-w-[160px]">{{ prospect.email_redacted }}</p>
+      <p class="text-[11px] font-mono text-notion-gray truncate max-w-[160px] mt-0.5">{{ prospect.email_redacted }}</p>
       {% endif %}
     </div>
   </td>
 
-  <td class="py-3.5 px-4 text-right">
+  <td class="text-right">
     {% if not prospect.opted_out %}
     <form
       hx-post="/prospects/{{ prospect.id }}/quick-event"
@@ -62,13 +62,13 @@
       hx-swap="outerHTML"
       class="inline-flex items-center gap-1.5"
     >
-      <select name="event_type" class="rounded-lg border border-slate-800 bg-[#0B0F17] px-2 py-1 text-[11px] text-slate-200 shadow-inner focus:border-cyan-500 focus:outline-none">
+      <select name="event_type" class="input-field py-1 px-2 text-[11px] bg-white">
         <option value="InitialContact">Logged Contact</option>
         <option value="RepliedPositive">Positive Reply</option>
         <option value="MeetingScheduled">Scheduled Meeting</option>
         <option value="Refused">Refused</option>
       </select>
-      <button type="submit" class="rounded-lg bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-white border border-slate-700 hover:bg-slate-700 transition">Log</button>
+      <button type="submit" class="btn-secondary py-1 px-2 text-[11px] bg-white">Log</button>
     </form>
     {% endif %}
   </td>

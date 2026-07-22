@@ -1,9 +1,11 @@
-<section class="card">
-  <h2 class="card-title">Outreach timeline</h2>
-  <p class="mb-4 text-xs text-slate-500">Append-only event log · current status = latest event</p>
+<div class="card">
+  <div class="mb-4 border-b border-notion-border pb-3">
+    <h2 class="text-sm font-semibold text-notion-text">Outreach Timeline</h2>
+    <p class="text-xs text-notion-gray mt-1">Append-only event log &middot; current status = latest event</p>
+  </div>
 
   {% if error is defined and error %}
-  <div class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">{{ error }}</div>
+  <div class="mb-4 rounded bg-[#ffebe6] p-2.5 text-[#c03426] border border-[#ffdbd1] text-sm font-medium">{{ error }}</div>
   {% endif %}
 
   {% if not prospect.opted_out %}
@@ -11,11 +13,11 @@
     hx-post="/prospects/{{ prospect.id }}/events"
     hx-target="#event-section"
     hx-swap="innerHTML"
-    class="mb-6 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-4 sm:grid-cols-2"
+    class="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-md border border-notion-border bg-[#f9f9f8] p-4"
   >
     <div>
-      <label class="label">Event type</label>
-      <select name="event_type" class="input" required>
+      <label class="block text-xs font-semibold text-notion-text mb-1">Event Type</label>
+      <select name="event_type" class="input-field bg-white" required>
         {% for e in event_types %}
           {% if e != 'New' %}
           <option value="{{ e }}">{{ e }}</option>
@@ -24,56 +26,56 @@
       </select>
     </div>
     <div>
-      <label class="label">Channel</label>
-      <select name="channel" class="input" required>
+      <label class="block text-xs font-semibold text-notion-text mb-1">Channel</label>
+      <select name="channel" class="input-field bg-white" required>
         {% for c in channels %}
         <option value="{{ c }}">{{ c }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="sm:col-span-2">
-      <label class="label">Notes</label>
-      <textarea name="notes" rows="2" class="input" placeholder="Outcome, objection, context…"></textarea>
+      <label class="block text-xs font-semibold text-notion-text mb-1">Notes</label>
+      <textarea name="notes" rows="2" class="input-field bg-white resize-none" placeholder="Outcome, objection, context…"></textarea>
     </div>
     <div>
-      <label class="label">Next action</label>
-      <input name="next_action" class="input" placeholder="e.g. Send proposal" />
+      <label class="block text-xs font-semibold text-notion-text mb-1">Next Action</label>
+      <input name="next_action" class="input-field bg-white" placeholder="e.g. Send proposal" />
     </div>
     <div>
-      <label class="label">Next action date</label>
-      <input name="next_action_date" type="datetime-local" class="input" />
+      <label class="block text-xs font-semibold text-notion-text mb-1">Next Action Date</label>
+      <input name="next_action_date" type="datetime-local" class="input-field bg-white" />
     </div>
-    <div class="sm:col-span-2">
-      <button type="submit" class="btn-primary">Log event</button>
+    <div class="sm:col-span-2 pt-2 border-t border-notion-border mt-2">
+      <button type="submit" class="btn-primary w-full justify-center">Log Event</button>
     </div>
   </form>
   {% endif %}
 
-  <ol class="relative space-y-0 border-l border-slate-200 ml-3">
+  <div class="relative border-l border-notion-border ml-3 space-y-6 pt-2 pb-2">
     {% for event in prospect.outreach_events|reverse %}
-    <li class="mb-6 ml-6">
-      <span class="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border border-white
-        {% if event.event_type in ['ClosedWon', 'MeetingBooked', 'Replied', 'PositiveConversation'] %}bg-emerald-500
-        {% elif event.event_type in ['ClosedLost', 'Refused', 'OptOut'] %}bg-red-500
-        {% elif event.event_type == 'Sent' %}bg-brand-500
-        {% else %}bg-slate-300{% endif %}"></span>
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="badge badge-blue">{{ event.event_type }}</span>
-        <span class="text-xs text-slate-500">{{ event.channel }}</span>
-        <time class="text-xs text-slate-400">
+    <div class="relative pl-6">
+      <span class="absolute -left-1.5 top-1.5 h-3 w-3 rounded-full border-2 border-white
+        {% if event.event_type in ['ClosedWon', 'MeetingBooked', 'Replied', 'PositiveConversation'] %}bg-[#0f7b6c]
+        {% elif event.event_type in ['ClosedLost', 'Refused', 'OptOut'] %}bg-[#e03e3e]
+        {% elif event.event_type == 'Sent' %}bg-notion-blue
+        {% else %}bg-notion-gray{% endif %}"></span>
+      <div class="flex flex-wrap items-center gap-2 mb-1">
+        <span class="font-semibold text-notion-text text-sm">{{ event.event_type }}</span>
+        <span class="text-xs text-notion-gray bg-[#f9f9f8] px-1.5 py-0.5 rounded border border-notion-border">{{ event.channel }}</span>
+        <time class="text-xs text-notion-gray">
           {% if event.event_date %}{{ event.event_date.strftime('%Y-%m-%d %H:%M') }}{% endif %}
         </time>
       </div>
-      {% if event.notes %}<p class="mt-1 text-sm text-slate-700">{{ event.notes }}</p>{% endif %}
+      {% if event.notes %}<p class="text-sm text-notion-text leading-relaxed bg-[#f9f9f8] p-2 rounded-md border border-[#efefef]">{{ event.notes }}</p>{% endif %}
       {% if event.next_action %}
-      <p class="mt-1 text-xs text-slate-500">
-        Next: {{ event.next_action }}
-        {% if event.next_action_date %} · {{ event.next_action_date.strftime('%Y-%m-%d') }}{% endif %}
+      <p class="mt-2 text-xs font-medium text-notion-blue flex items-center gap-1">
+        <span>↳</span> Next: {{ event.next_action }}
+        {% if event.next_action_date %} &middot; {{ event.next_action_date.strftime('%Y-%m-%d') }}{% endif %}
       </p>
       {% endif %}
-    </li>
+    </div>
     {% else %}
-    <li class="ml-6 text-sm text-slate-500">No events yet.</li>
+    <div class="pl-6 text-sm text-notion-gray">No events yet.</div>
     {% endfor %}
-  </ol>
-</section>
+  </div>
+</div>

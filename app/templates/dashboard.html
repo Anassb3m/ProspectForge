@@ -1,208 +1,167 @@
 {% extends "base.html" %}
-{% block title %}Acquisition Command Center — ProspectForge OS Level 300{% endblock %}
+{% block title %}Dashboard — ProspectForge{% endblock %}
 {% block content %}
-<!-- Workspace Header -->
-<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+<!-- Page Icon & Title -->
+<div class="mb-8">
+  <div class="text-5xl mb-4">🏠</div>
+  <h1 class="text-4xl font-bold text-notion-text tracking-tight">Acquisition Command Center</h1>
+  <p class="mt-2 text-notion-gray text-base">Overview of multi-market B2B acquisition velocity and conversion analytics.</p>
+</div>
+
+<!-- Top Actions -->
+<div class="flex items-center gap-3 mb-8 pb-4 border-b border-notion-border">
+  <a href="/sourcing" class="btn-primary">
+    <span>🚀</span> Run Acquisition Engine
+  </a>
+  <a href="/prospects/new" class="btn-secondary">
+    Add Candidate
+  </a>
+  <a href="/follow-ups" class="btn-secondary">
+    Follow-ups
+    {% if metrics.follow_ups_due_count > 0 %}
+    <span class="ml-1 rounded bg-notion-blueBg px-1.5 py-0.5 text-xs font-semibold text-notion-blue">{{ metrics.follow_ups_due_count }}</span>
+    {% endif %}
+  </a>
+</div>
+
+<!-- Core Metrics Grid -->
+<div class="mb-10">
+  <h2 class="text-xl font-semibold mb-4 text-notion-text">Pipeline Velocity</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="card">
+      <div class="text-sm font-medium text-notion-gray mb-1">Total Pipeline</div>
+      <div class="text-3xl font-bold text-notion-text">{{ metrics.total_prospects }}</div>
+      <div class="mt-2 text-xs text-notion-gray flex justify-between">
+        <span>High Priority: <span class="font-medium text-notion-text">{{ metrics.high_priority_count }}</span></span>
+        <span>Review: <span class="font-medium text-notion-text">{{ metrics.needs_review_count }}</span></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="text-sm font-medium text-notion-gray mb-1">Contacted This Week</div>
+      <div class="text-3xl font-bold text-notion-text">{{ metrics.contacted_this_week }}</div>
+      <div class="mt-2 text-xs text-notion-gray flex justify-between">
+        <span>Verified Email: <span class="font-medium text-notion-text">{{ metrics.verified_email_pct }}%</span></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="text-sm font-medium text-notion-gray mb-1">Reply Rate</div>
+      <div class="text-3xl font-bold text-notion-text">{{ metrics.reply_rate }}%</div>
+      <div class="mt-2 text-xs text-notion-gray flex justify-between">
+        <span>Benchmark: <span class="font-medium text-notion-text">&ge; 15%</span></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="text-sm font-medium text-notion-gray mb-1">Meeting Conversion</div>
+      <div class="text-3xl font-bold text-notion-text">{{ metrics.meeting_rate }}%</div>
+      <div class="mt-2 text-xs text-notion-gray flex justify-between">
+        <span>DECP Wins: <span class="font-medium text-notion-text">{{ metrics.new_decp_this_week }}</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detailed Analytics -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
   <div>
-    <div class="flex items-center gap-3">
-      <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">Acquisition Command Center</h1>
-      <span class="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-400 border border-cyan-500/30 glow-cyan">LEVEL 300 OS</span>
-    </div>
-    <p class="mt-1.5 text-xs text-slate-400">Multi-market UK & France B2B acquisition velocity, conversion analytics & automated queue</p>
-  </div>
-  <div class="flex flex-wrap items-center gap-3">
-    <a href="/sourcing" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
-      <span>🚀</span> Run Acquisition Engine
-    </a>
-    <a href="/prospects/new" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 border border-slate-800 hover:bg-slate-800 hover:text-white transition">
-      <span>+</span> Add Candidate
-    </a>
-    <a href="/follow-ups" class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 border border-slate-800 hover:bg-slate-800 hover:text-white transition">
-      <span>⏳</span> Follow-ups <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-400 border border-amber-500/30">{{ metrics.follow_ups_due_count }}</span>
-    </a>
-  </div>
-</div>
-
-<!-- Primary Metric Cards (Level 300 Glass Panels) -->
-<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-  <div class="glass-panel glass-panel-hover rounded-2xl p-5 relative overflow-hidden">
-    <div class="absolute top-0 right-0 h-1 w-full bg-gradient-to-r from-cyan-500 to-indigo-500"></div>
-    <div class="flex items-center justify-between">
-      <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Total Pipeline</span>
-      <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 text-sm font-bold border border-cyan-500/20">🏢</span>
-    </div>
-    <p class="mt-3 text-3xl font-extrabold font-heading text-white font-mono tracking-tight">{{ metrics.total_prospects }}</p>
-    <div class="mt-2 flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60">
-      <span>High Priority: <strong class="text-rose-400 font-mono font-bold">{{ metrics.high_priority_count }}</strong></span>
-      <span>Review: <strong class="text-amber-400 font-mono font-bold">{{ metrics.needs_review_count }}</strong></span>
-    </div>
-  </div>
-
-  <div class="glass-panel glass-panel-hover rounded-2xl p-5 relative overflow-hidden">
-    <div class="absolute top-0 right-0 h-1 w-full bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-    <div class="flex items-center justify-between">
-      <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Contacted This Week</span>
-      <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 text-sm font-bold border border-indigo-500/20">✉️</span>
-    </div>
-    <p class="mt-3 text-3xl font-extrabold font-heading text-white font-mono tracking-tight">{{ metrics.contacted_this_week }}</p>
-    <div class="mt-2 flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60">
-      <span>Verified Email: <strong class="text-emerald-400 font-mono font-bold">{{ metrics.verified_email_pct }}%</strong></span>
-      <span class="text-cyan-400 font-semibold">UK 🇬🇧 & FR 🇫🇷</span>
-    </div>
-  </div>
-
-  <div class="glass-panel glass-panel-hover rounded-2xl p-5 relative overflow-hidden">
-    <div class="absolute top-0 right-0 h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-500"></div>
-    <div class="flex items-center justify-between">
-      <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Outreach Reply Rate</span>
-      <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 text-sm font-bold border border-emerald-500/20">💬</span>
-    </div>
-    <p class="mt-3 text-3xl font-extrabold font-heading text-emerald-400 font-mono tracking-tight">{{ metrics.reply_rate }}%</p>
-    <div class="mt-2 flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60">
-      <span>Benchmark: <strong class="text-slate-300 font-mono">&ge; 15%</strong></span>
-      <span class="text-emerald-400 font-bold">PECR/CNIL Pass</span>
-    </div>
-  </div>
-
-  <div class="glass-panel glass-panel-hover rounded-2xl p-5 relative overflow-hidden">
-    <div class="absolute top-0 right-0 h-1 w-full bg-gradient-to-r from-cyan-500 to-emerald-500"></div>
-    <div class="flex items-center justify-between">
-      <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Meeting Conversion</span>
-      <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 text-sm font-bold border border-cyan-500/20">📅</span>
-    </div>
-    <p class="mt-3 text-3xl font-extrabold font-heading text-cyan-400 font-mono tracking-tight">{{ metrics.meeting_rate }}%</p>
-    <div class="mt-2 flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/60">
-      <span>DECP Wins: <strong class="text-cyan-400 font-mono font-bold">{{ metrics.new_decp_this_week }}</strong></span>
-      <span>Companies House: <strong class="text-cyan-400 font-bold">Active</strong></span>
-    </div>
-  </div>
-</div>
-
-<!-- Detailed Performance Analytics -->
-<div class="mt-8 grid gap-6 lg:grid-cols-2">
-  <!-- Conversion by Signal Type -->
-  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-    <div class="mb-5 flex items-center justify-between border-b border-slate-800/80 pb-4">
-      <div>
-        <h2 class="font-heading text-base font-bold text-white">Conversion by Signal Type</h2>
-        <p class="text-xs text-slate-400">Multi-source performance tracking across UK & FR channels</p>
-      </div>
-      <span class="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-mono font-semibold text-slate-300 border border-slate-700">Source Matrix</span>
-    </div>
-    {% if metrics.by_signal_type %}
-    <div class="overflow-x-auto">
-      <table class="w-full text-left text-xs">
-        <thead class="bg-slate-900/80 text-slate-400 font-semibold uppercase tracking-wider border-y border-slate-800">
+    <h2 class="text-xl font-semibold mb-4 text-notion-text flex items-center gap-2">
+      <span class="text-lg">📊</span> Source Matrix
+    </h2>
+    <div class="border border-notion-border rounded-md overflow-hidden bg-white">
+      {% if metrics.by_signal_type %}
+      <table>
+        <thead class="bg-[#f9f9f8]">
           <tr>
-            <th class="py-3 px-3">Signal Source</th>
-            <th class="py-3 px-3 text-right">Total</th>
-            <th class="py-3 px-3 text-right">Contacted</th>
-            <th class="py-3 px-3 text-right">Replied</th>
-            <th class="py-3 px-3 text-right">Reply Rate</th>
+            <th>Signal Source</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Contacted</th>
+            <th class="text-right">Reply Rate</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-800/60 text-slate-300">
+        <tbody>
           {% for row in metrics.by_signal_type %}
-          <tr class="hover:bg-slate-800/40 transition">
-            <td class="py-3 px-3 font-semibold text-white flex items-center gap-2">
-              {% if 'UK' in row.signal_type or 'COMPANIES' in row.signal_type %}
-              <span class="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] text-sky-300 border border-sky-500/30">🇬🇧 UK</span>
-              {% else %}
-              <span class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300 border border-emerald-500/30">🇫🇷 FR</span>
-              {% endif %}
-              <span>{{ row.signal_type }}</span>
+          <tr>
+            <td class="font-medium text-notion-text flex items-center gap-2">
+              {% if 'UK' in row.signal_type or 'COMPANIES' in row.signal_type %}🇬🇧{% else %}🇫🇷{% endif %}
+              {{ row.signal_type }}
             </td>
-            <td class="py-3 px-3 text-right font-mono font-medium">{{ row.total }}</td>
-            <td class="py-3 px-3 text-right font-mono font-medium">{{ row.contacted }}</td>
-            <td class="py-3 px-3 text-right font-mono font-medium">{{ row.replied }}</td>
-            <td class="py-3 px-3 text-right font-mono font-bold text-emerald-400">{{ row.reply_rate }}%</td>
+            <td class="text-right text-notion-gray">{{ row.total }}</td>
+            <td class="text-right text-notion-gray">{{ row.contacted }}</td>
+            <td class="text-right font-medium">{{ row.reply_rate }}%</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+      {% else %}
+      <div class="p-6 text-center text-sm text-notion-gray">No acquisition signals logged yet.</div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="py-10 text-center text-xs text-slate-500">No acquisition signals logged yet. Run sourcing engine to populate.</div>
-    {% endif %}
-  </section>
+  </div>
 
-  <!-- Performance by Outreach Channel -->
-  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-    <div class="mb-5 flex items-center justify-between border-b border-slate-800/80 pb-4">
-      <div>
-        <h2 class="font-heading text-base font-bold text-white">Outreach Channel Velocity</h2>
-        <p class="text-xs text-slate-400">Channel engagement & deliverability tracking</p>
-      </div>
-      <span class="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-mono font-semibold text-slate-300 border border-slate-700">Channel Matrix</span>
-    </div>
-    {% if metrics.by_channel %}
-    <div class="overflow-x-auto">
-      <table class="w-full text-left text-xs">
-        <thead class="bg-slate-900/80 text-slate-400 font-semibold uppercase tracking-wider border-y border-slate-800">
+  <div>
+    <h2 class="text-xl font-semibold mb-4 text-notion-text flex items-center gap-2">
+      <span class="text-lg">💬</span> Outreach Channel Velocity
+    </h2>
+    <div class="border border-notion-border rounded-md overflow-hidden bg-white">
+      {% if metrics.by_channel %}
+      <table>
+        <thead class="bg-[#f9f9f8]">
           <tr>
-            <th class="py-3 px-3">Channel</th>
-            <th class="py-3 px-3 text-right">Sent</th>
-            <th class="py-3 px-3 text-right">Replied</th>
-            <th class="py-3 px-3 text-right">Response Rate</th>
+            <th>Channel</th>
+            <th class="text-right">Sent</th>
+            <th class="text-right">Replied</th>
+            <th class="text-right">Response Rate</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-800/60 text-slate-300">
+        <tbody>
           {% for row in metrics.by_channel %}
-          <tr class="hover:bg-slate-800/40 transition">
-            <td class="py-3 px-3 font-semibold text-white capitalize flex items-center gap-2">
-              <span class="h-2 w-2 rounded-full bg-cyan-400"></span>
-              <span>{{ row.channel }}</span>
-            </td>
-            <td class="py-3 px-3 text-right font-mono font-medium">{{ row.sent }}</td>
-            <td class="py-3 px-3 text-right font-mono font-medium">{{ row.replied }}</td>
-            <td class="py-3 px-3 text-right font-mono font-bold text-cyan-400">{{ row.reply_rate }}%</td>
+          <tr>
+            <td class="font-medium text-notion-text capitalize">{{ row.channel }}</td>
+            <td class="text-right text-notion-gray">{{ row.sent }}</td>
+            <td class="text-right text-notion-gray">{{ row.replied }}</td>
+            <td class="text-right font-medium">{{ row.reply_rate }}%</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+      {% else %}
+      <div class="p-6 text-center text-sm text-notion-gray">No outreach touches logged yet.</div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="py-10 text-center text-xs text-slate-500">No outreach touches logged yet.</div>
-    {% endif %}
-  </section>
+  </div>
 </div>
 
-<!-- Scheduled Follow-ups Matrix -->
-<div class="mt-8">
-  <section class="glass-panel rounded-2xl p-6 shadow-2xl">
-    <div class="mb-5 flex items-center justify-between border-b border-slate-800/80 pb-4">
-      <div>
-        <h2 class="font-heading text-base font-bold text-white">Urgent Follow-ups & Outreach Queue</h2>
-        <p class="text-xs text-slate-400">Scheduled sequence touches requiring human approval</p>
+<!-- Scheduled Follow-ups -->
+<div>
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-semibold text-notion-text flex items-center gap-2">
+      <span class="text-lg">⏳</span> Urgent Follow-ups
+    </h2>
+    <a href="/follow-ups" class="text-sm text-notion-gray hover:text-notion-text underline decoration-notion-border underline-offset-2">Inspect full queue &rarr;</a>
+  </div>
+  
+  {% if follow_ups %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for item in follow_ups %}
+    <div class="card hover:bg-[#f9f9f8] transition group block">
+      <div class="flex justify-between items-start mb-2">
+        <a href="/prospects/{{ item.prospect_id }}" class="font-medium text-notion-text group-hover:text-notion-blue">{{ item.company_name }}</a>
+        {% if item.days_overdue > 0 %}
+        <span class="text-[10px] bg-[#ffebe6] text-[#c03426] px-1.5 py-0.5 rounded font-medium">{{ item.days_overdue }}d Overdue</span>
+        {% else %}
+        <span class="text-[10px] bg-[#fff3e0] text-[#e65100] px-1.5 py-0.5 rounded font-medium">Due Today</span>
+        {% endif %}
       </div>
-      <a href="/follow-ups" class="text-xs font-bold text-cyan-400 hover:text-cyan-300 transition flex items-center gap-1">
-        Inspect full queue &rarr;
-      </a>
+      <p class="text-sm text-notion-gray mb-3">{{ item.next_action or 'Action needed' }}</p>
+      <a href="/prospects/{{ item.prospect_id }}" class="text-xs text-notion-blue font-medium">Execute Touch &rarr;</a>
     </div>
-
-    {% if follow_ups %}
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {% for item in follow_ups %}
-      <div class="rounded-xl border border-slate-800/90 bg-slate-900/60 p-4 hover:border-cyan-500/40 transition">
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <a href="/prospects/{{ item.prospect_id }}" class="font-bold text-sm text-white hover:text-cyan-400 transition">{{ item.company_name }}</a>
-            <p class="text-xs text-slate-400 mt-1">{{ item.next_action or 'Action needed' }}</p>
-          </div>
-          <span class="rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold {% if item.days_overdue > 0 %}bg-rose-500/20 text-rose-300 border border-rose-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
-            {% if item.days_overdue > 0 %}{{ item.days_overdue }}d Overdue{% else %}Due Today{% endif %}
-          </span>
-        </div>
-        <div class="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/60 text-xs">
-          <span class="text-[11px] text-slate-500">Sequence Touch</span>
-          <a href="/prospects/{{ item.prospect_id }}" class="font-semibold text-cyan-400 hover:underline">Execute Touch &rarr;</a>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="py-8 text-center text-xs text-slate-500">All follow-ups up to date! Great work.</div>
-    {% endif %}
-  </section>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="border border-notion-border border-dashed rounded-lg p-8 text-center">
+    <div class="text-2xl mb-2">🎉</div>
+    <div class="text-sm font-medium text-notion-text mb-1">All caught up!</div>
+    <div class="text-xs text-notion-gray">You have no pending follow-ups for today.</div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

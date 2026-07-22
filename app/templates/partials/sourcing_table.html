@@ -1,6 +1,6 @@
-<div class="card overflow-x-auto p-0">
-  <table class="data-table">
-    <thead>
+<div class="overflow-x-auto">
+  <table>
+    <thead class="bg-[#f9f9f8]">
       <tr>
         <th>Company / ICP</th>
         <th>Decision-maker</th>
@@ -17,12 +17,12 @@
         {% include "partials/sourcing_row.html" %}
       {% else %}
       <tr>
-        <td colspan="8" class="py-10 text-center text-sm text-slate-500">
-          Queue empty. Run <strong>Full (DECP + field-service registry)</strong> above, then open Daily queue.
+        <td colspan="8" class="py-12 text-center text-sm text-notion-gray border-dashed border border-notion-border">
+          Queue empty. Run <span class="font-medium text-notion-text">Discovery Ingestion</span> above, then check Daily Action Queue.
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<p class="mt-2 text-xs text-slate-500">Showing {{ prospects|length }} · ranked by acquisition score (fit × timing × contactability × value)</p>
+<p class="p-3 text-xs text-notion-gray border-t border-notion-border bg-[#f9f9f8]">Showing {{ prospects|length }} &middot; ranked by acquisition score (fit × timing × contactability × value)</p>

@@ -1,72 +1,73 @@
 {% extends "base.html" %}
-{% block title %}Follow-up Queue — Level 300 ProspectForge OS{% endblock %}
+{% block title %}Follow-up Queue — ProspectForge{% endblock %}
 {% block content %}
-<!-- Workspace Header -->
-<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+<!-- Page Icon & Title -->
+<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-notion-border pb-6">
   <div>
+    <div class="text-5xl mb-4">⏳</div>
     <div class="flex items-center gap-3">
-      <h1 class="font-heading text-3xl font-extrabold tracking-tight text-white">Follow-up Action Queue</h1>
-      <span class="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-mono font-bold text-amber-400 border border-amber-500/30">LEVEL 300</span>
+      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Follow-up Action Queue</h1>
     </div>
-    <p class="mt-1.5 text-xs text-slate-400">Scheduled sequence touches requiring immediate human execution or approval</p>
+    <p class="mt-2 text-base text-notion-gray">Scheduled sequence touches requiring immediate human execution or approval.</p>
   </div>
   <div>
-    <a href="/prospects" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition transform hover:scale-[1.02]">
+    <a href="/prospects" class="btn-primary">
       <span>🏢</span> Prospect Database
     </a>
   </div>
 </div>
 
-<div class="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+<div class="card p-0 overflow-hidden">
   <div class="overflow-x-auto">
-    <table class="w-full text-left text-xs">
-      <thead class="bg-slate-900/90 text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-800">
+    <table>
+      <thead class="bg-[#f9f9f8]">
         <tr>
-          <th class="py-3.5 px-4">Entity Name</th>
-          <th class="py-3.5 px-3">Next Scheduled Action</th>
-          <th class="py-3.5 px-3">Due Status</th>
-          <th class="py-3.5 px-3">Pipeline Status</th>
-          <th class="py-3.5 px-3">Priority Rank</th>
-          <th class="py-3.5 px-4">Target Contact</th>
-          <th class="py-3.5 px-4 text-right">Execute</th>
+          <th>Entity Name</th>
+          <th>Next Scheduled Action</th>
+          <th>Due Status</th>
+          <th>Pipeline Status</th>
+          <th>Priority Rank</th>
+          <th>Target Contact</th>
+          <th class="text-right">Action</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-800/60 text-slate-300">
+      <tbody>
         {% for item in items %}
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-3.5 px-4 font-bold text-white">
-            <a href="/prospects/{{ item.prospect_id }}" class="hover:text-cyan-400 transition">{{ item.company_name }}</a>
+        <tr>
+          <td class="font-bold text-notion-text">
+            <a href="/prospects/{{ item.prospect_id }}" class="hover:text-notion-blue transition">{{ item.company_name }}</a>
           </td>
-          <td class="py-3.5 px-3 font-semibold text-slate-200">{{ item.next_action or 'Follow-up touch' }}</td>
-          <td class="py-3.5 px-3">
-            <span class="inline-flex items-center rounded-lg px-2.5 py-0.5 text-[10px] font-mono font-bold {% if item.days_overdue > 0 %}bg-rose-500/20 text-rose-300 border border-rose-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
+          <td class="font-medium text-notion-text">{{ item.next_action or 'Follow-up touch' }}</td>
+          <td>
+            <span class="rounded px-2 py-0.5 text-[10px] font-bold uppercase {% if item.days_overdue > 0 %}bg-[#ffebe6] text-[#c03426] border border-[#ffdbd1]{% else %}bg-[#fff3e0] text-[#e65100] border border-[#ffd2b3]{% endif %}">
               {% if item.days_overdue > 0 %}{{ item.days_overdue }}d Overdue{% else %}Due Today{% endif %}
             </span>
           </td>
-          <td class="py-3.5 px-3">
-            <span class="inline-flex items-center rounded-lg bg-cyan-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-400 border border-cyan-500/30">
+          <td>
+            <span class="rounded bg-notion-blueBg px-2 py-0.5 text-[11px] font-medium text-notion-blue border border-[#cce4f7]">
               {{ item.current_status }}
             </span>
           </td>
-          <td class="py-3.5 px-3">
-            <span class="inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-mono font-semibold {% if item.priority_level == 'High' %}bg-rose-500/20 text-rose-300 border border-rose-500/30{% elif item.priority_level == 'Medium' %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+          <td>
+            <span class="rounded px-2 py-0.5 text-[11px] font-medium {% if item.priority_level == 'High' %}bg-[#ffebe6] text-[#c03426] border border-[#ffdbd1]{% elif item.priority_level == 'Medium' %}bg-[#fff3e0] text-[#e65100] border border-[#ffd2b3]{% else %}bg-[#f1f1ef] text-notion-gray border border-notion-border{% endif %}">
               {{ item.priority_level }} ({{ item.urgency_score }})
             </span>
           </td>
-          <td class="py-3.5 px-4 font-medium text-slate-200">
-            {{ item.decision_maker_name or '—' }} {% if item.channel %}<span class="text-slate-400 font-mono">({{ item.channel }})</span>{% endif %}
+          <td class="font-medium text-notion-text">
+            {{ item.decision_maker_name or '—' }} {% if item.channel %}<span class="text-notion-gray font-normal">({{ item.channel }})</span>{% endif %}
           </td>
-          <td class="py-3.5 px-4 text-right">
-            <a href="/prospects/{{ item.prospect_id }}" class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 px-3 py-1 text-[11px] font-bold text-white shadow-lg glow-cyan hover:opacity-95 transition">
+          <td class="text-right">
+            <a href="/prospects/{{ item.prospect_id }}" class="text-sm font-medium text-notion-blue hover:underline">
               Open Record &rarr;
             </a>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" class="py-14 text-center text-xs text-slate-500">
-            <p class="font-bold text-white">All follow-ups are up to date!</p>
-            <p class="text-xs text-slate-500 mt-1">Set next action dates when logging outreach touches on prospect records.</p>
+          <td colspan="7" class="p-12 text-center text-sm text-notion-gray border-dashed">
+            <div class="text-2xl mb-2">🎉</div>
+            <p class="font-bold text-notion-text text-base mb-1">All caught up!</p>
+            <p>Set next action dates when logging outreach touches on prospect records.</p>
           </td>
         </tr>
         {% endfor %}

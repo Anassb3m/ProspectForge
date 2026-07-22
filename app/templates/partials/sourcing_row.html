@@ -1,43 +1,43 @@
-<tr id="sourcing-row-{{ prospect.id }}" class="{% if prospect.acquisition_score >= 75 %}bg-red-50/40{% elif prospect.acquisition_score >= 60 %}bg-amber-50/30{% endif %}">
+<tr id="sourcing-row-{{ prospect.id }}" class="hover:bg-[#f9f9f8] transition {% if prospect.acquisition_score >= 75 %}bg-[#ffebe6]/40{% elif prospect.acquisition_score >= 60 %}bg-[#fff3e0]/40{% endif %}">
   <td>
-    <a href="/prospects/{{ prospect.id }}" class="font-medium text-brand-700 hover:underline">{{ prospect.company_name }}</a>
-    <p class="text-xs text-slate-500">
-      {{ prospect.sector }} · {{ prospect.company_size }}
-      {% if prospect.naf_code %}<span class="font-mono">· {{ prospect.naf_code }}</span>{% endif %}
+    <a href="/prospects/{{ prospect.id }}" class="font-medium text-notion-text hover:text-notion-blue transition">{{ prospect.company_name }}</a>
+    <p class="text-[11px] text-notion-gray mt-0.5">
+      {{ prospect.sector }} &middot; {{ prospect.company_size }}
+      {% if prospect.naf_code %}<span class="font-mono"> &middot; {{ prospect.naf_code }}</span>{% endif %}
     </p>
-    <p class="text-xs text-slate-400">
+    <p class="text-[11px] text-notion-gray">
       {% if prospect.city %}{{ prospect.city }}{% endif %}
       {% if prospect.department %} ({{ prospect.department }}){% endif %}
-      {% if prospect.siret %}<span class="font-mono"> · {{ prospect.siret }}</span>
-      {% elif prospect.siren %}<span class="font-mono"> · {{ prospect.siren }}</span>{% endif %}
+      {% if prospect.siret %}<span class="font-mono"> &middot; {{ prospect.siret }}</span>
+      {% elif prospect.siren %}<span class="font-mono"> &middot; {{ prospect.siren }}</span>{% endif %}
     </p>
   </td>
-  <td class="text-sm">
+  <td>
     {% if prospect.decision_maker_name %}
-    <span class="font-medium">{{ prospect.decision_maker_name }}</span>
-    <p class="text-xs text-slate-500">{{ prospect.decision_maker_title or '—' }}</p>
+    <span class="font-medium text-notion-text text-sm">{{ prospect.decision_maker_name }}</span>
+    <p class="text-xs text-notion-gray">{{ prospect.decision_maker_title or '—' }}</p>
     {% else %}
-    <span class="text-xs text-slate-400">No dirigeant yet</span>
+    <span class="text-xs text-notion-gray">No dirigeant yet</span>
     {% endif %}
   </td>
   <td>
-    <span class="badge {% if prospect.signal_type in ['DECP_WIN', 'PUBLIC_AWARD', 'BOAMP_WIN'] %}badge-blue{% elif prospect.signal_type == 'REGISTRY_FIELD' %}badge-slate{% else %}badge-amber{% endif %}">
+    <span class="rounded px-2 py-0.5 text-[11px] font-medium border {% if prospect.signal_type in ['DECP_WIN', 'PUBLIC_AWARD', 'BOAMP_WIN'] %}bg-notion-blueBg text-notion-blue border-[#cce4f7]{% elif prospect.signal_type == 'REGISTRY_FIELD' %}bg-[#f1f1ef] text-notion-gray border-notion-border{% else %}bg-[#fff3e0] text-[#e65100] border-[#ffd2b3]{% endif %}">
       {{ prospect.signal_type }}
     </span>
     {% if prospect.award_count %}
-    <p class="mt-1 text-xs text-slate-500">{{ prospect.award_count }} award(s)
-      {% if prospect.award_total_value %}· ≈{{ '%.0f'|format(prospect.award_total_value) }}€{% endif %}
+    <p class="mt-1 text-[11px] text-notion-gray">{{ prospect.award_count }} award(s)
+      {% if prospect.award_total_value %}&middot; ≈{{ '%.0f'|format(prospect.award_total_value) }}€{% endif %}
     </p>
     {% endif %}
   </td>
   <td>
     <div class="flex flex-wrap gap-1 mb-1">
       {% for b in prospect.score_badges[:5] %}
-      <span class="badge badge-slate">{{ b }}</span>
+      <span class="rounded bg-[#f9f9f8] px-1.5 py-0.5 text-[10px] font-medium text-notion-gray border border-notion-border">{{ b }}</span>
       {% endfor %}
     </div>
     {% if prospect.why_this_lead %}
-    <ul class="text-[11px] text-slate-500 list-disc pl-3 max-w-[220px]">
+    <ul class="text-[10px] text-notion-gray list-disc pl-3 max-w-[220px]">
       {% for r in prospect.why_this_lead[:2] %}
       <li>{{ r }}</li>
       {% endfor %}
@@ -45,34 +45,34 @@
     {% endif %}
   </td>
   <td>
-    <div class="space-y-0.5 text-xs tabular-nums">
-      <div class="flex justify-between gap-2"><span class="text-slate-400">ACQ</span><span class="font-bold {% if prospect.acquisition_score >= 70 %}text-red-600{% elif prospect.acquisition_score >= 55 %}text-amber-600{% endif %}">{{ prospect.acquisition_score }}</span></div>
-      <div class="flex justify-between gap-2"><span class="text-slate-400">Fit</span><span>{{ prospect.fit_score }}</span></div>
-      <div class="flex justify-between gap-2"><span class="text-slate-400">Time</span><span>{{ prospect.timing_score }}</span></div>
-      <div class="flex justify-between gap-2"><span class="text-slate-400">Reach</span><span>{{ prospect.contactability_score }}</span></div>
+    <div class="space-y-0.5 text-xs tabular-nums w-24">
+      <div class="flex justify-between gap-2"><span class="text-notion-gray">ACQ</span><span class="font-bold {% if prospect.acquisition_score >= 70 %}text-[#e03e3e]{% elif prospect.acquisition_score >= 55 %}text-[#d9730d]{% else %}text-notion-text{% endif %}">{{ prospect.acquisition_score }}</span></div>
+      <div class="flex justify-between gap-2"><span class="text-notion-gray">Fit</span><span>{{ prospect.fit_score }}</span></div>
+      <div class="flex justify-between gap-2"><span class="text-notion-gray">Time</span><span>{{ prospect.timing_score }}</span></div>
+      <div class="flex justify-between gap-2"><span class="text-notion-gray">Reach</span><span>{{ prospect.contactability_score }}</span></div>
     </div>
   </td>
   <td>
     {% if prospect.contact_status == 'Verified email' %}
-    <span class="badge badge-blue">{{ prospect.contact_status }}</span>
+    <span class="rounded bg-notion-blueBg px-2 py-0.5 text-[11px] font-medium text-notion-blue border border-[#cce4f7]">{{ prospect.contact_status }}</span>
     {% elif 'Needs' in prospect.contact_status %}
-    <span class="badge badge-amber">{{ prospect.contact_status }}</span>
+    <span class="rounded bg-[#fff3e0] px-2 py-0.5 text-[11px] font-medium text-[#e65100] border border-[#ffd2b3]">{{ prospect.contact_status }}</span>
     {% else %}
-    <span class="badge badge-slate">{{ prospect.contact_status }}</span>
+    <span class="rounded bg-[#f1f1ef] px-2 py-0.5 text-[11px] font-medium text-notion-gray border border-notion-border">{{ prospect.contact_status }}</span>
     {% endif %}
-    {% if prospect.email_redacted %}<p class="mt-0.5 text-xs text-slate-600 break-all">{{ prospect.email_redacted }}</p>{% endif %}
+    {% if prospect.email_redacted %}<p class="mt-1 text-[11px] font-mono text-notion-text break-all">{{ prospect.email_redacted }}</p>{% endif %}
   </td>
   <td>
-    <span class="badge badge-slate">{{ prospect.acquisition_stage }}</span>
+    <span class="rounded bg-[#f9f9f8] px-2 py-0.5 text-[11px] font-medium text-notion-text border border-notion-border">{{ prospect.acquisition_stage }}</span>
   </td>
   <td>
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col items-start gap-1">
       <a
         href="{{ linkedin_people_url(prospect.company_name, prospect.decision_maker_name, prospect.decision_maker_title) }}"
         target="_blank" rel="noopener"
-        class="text-xs font-medium text-brand-600 hover:underline"
+        class="text-xs font-medium text-notion-blue hover:underline"
       >LinkedIn DM</a>
-      <button type="button" onclick="openEnrich({{ prospect.id }})" class="text-left text-xs font-medium text-slate-700 hover:underline">
+      <button type="button" onclick="openEnrich({{ prospect.id }})" class="text-left text-xs font-medium text-notion-text hover:underline">
         Emails
       </button>
       <form
@@ -80,12 +80,12 @@
         hx-target="#sourcing-row-{{ prospect.id }}"
         hx-swap="outerHTML"
       >
-        <button type="submit" class="text-xs text-slate-600 hover:underline">Deep enrich</button>
+        <button type="submit" class="text-xs text-notion-gray hover:underline">Deep enrich</button>
       </form>
-      <a href="/prospects/{{ prospect.id }}" class="text-xs text-slate-500 hover:underline">Open</a>
+      <a href="/prospects/{{ prospect.id }}" class="text-xs text-notion-gray hover:underline">Open</a>
       {% if prospect.needs_manual_review %}
       <form hx-post="/prospects/{{ prospect.id }}/mark-reviewed" hx-target="#sourcing-row-{{ prospect.id }}" hx-swap="outerHTML">
-        <button type="submit" class="text-xs text-emerald-700 hover:underline">Reviewed</button>
+        <button type="submit" class="text-xs text-[#0f7b6c] hover:underline">Reviewed</button>
       </form>
       {% endif %}
     </div>
