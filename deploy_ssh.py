@@ -2,7 +2,7 @@ import pexpect
 import sys
 
 print("Connecting to VPS to run deploy script...")
-child = pexpect.spawn("ssh -o StrictHostKeyChecking=no root@76.13.52.38 'cd /opt/prospectforge && git fetch origin && git checkout antigravity/prospectforge-level-300 && git pull origin antigravity/prospectforge-level-300 && DEPLOY_BRANCH=antigravity/prospectforge-level-300 ./scripts/vps-update.sh'", encoding='utf-8')
+child = pexpect.spawn("ssh -o StrictHostKeyChecking=no root@76.13.52.38 'cd /opt/prospectforge && git config remote.origin.fetch \"+refs/heads/*:refs/remotes/origin/*\" && git fetch --all && (git checkout antigravity/prospectforge-level-300 || git checkout -b antigravity/prospectforge-level-300 origin/antigravity/prospectforge-level-300) && git pull origin antigravity/prospectforge-level-300 && DEPLOY_BRANCH=antigravity/prospectforge-level-300 ./scripts/vps-update.sh'", encoding='utf-8')
 child.logfile = sys.stdout
 
 while True:

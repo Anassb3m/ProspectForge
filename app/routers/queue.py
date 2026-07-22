@@ -198,6 +198,7 @@ async def page_daily_queue(
     user: Annotated[User, Depends(get_current_user)],
     readiness: Optional[str] = None,
     min_score: Optional[int] = Query(50),
+    review: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(40, ge=1, le=100),
 ):
@@ -207,7 +208,7 @@ async def page_daily_queue(
     )
     play = get_play(DEFAULT_PLAY_CODE)
     stats = {
-        "total": len(items),
+        "total": total,
         "need_review": sum(1 for p in items if (p.manual_review_state or "") == "unreviewed"),
         "ready": sum(1 for p in items if p.readiness_state == "contact_ready"),
         "high": sum(1 for p in items if (p.opportunity_score or 0) >= 65),
@@ -224,6 +225,8 @@ async def page_daily_queue(
                 "readiness": readiness or "",
                 "min_score": min_score or "",
                 "review": review or "",
+                "page": page,
+                "page_size": page_size,
             },
             "linkedin_people_url": linkedin_people_url,
             "error": None,

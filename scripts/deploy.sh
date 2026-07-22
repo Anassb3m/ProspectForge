@@ -94,7 +94,7 @@ echo "==> Applying migrations before replacing the application"
 compose run --rm --no-deps app alembic upgrade head
 
 echo "==> Starting application and edge proxy"
-compose up -d --remove-orphans app caddy
+compose up -d --remove-orphans
 
 APP_PORT="${APP_PORT:-18081}"
 echo "==> Waiting for readiness on 127.0.0.1:${APP_PORT}"

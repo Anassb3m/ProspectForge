@@ -136,4 +136,21 @@
   </div>
   {% endfor %}
 </div>
+
+<!-- Pagination -->
+{% if stats.total > filters.page_size|default(40) %}
+<div class="mt-8 flex justify-between items-center bg-[#f9f9f8] p-4 rounded card">
+  <div class="text-sm text-notion-gray">
+    Showing {{ ((filters.page|default(1)) - 1) * (filters.page_size|default(40)) + 1 }} to {{ min((filters.page|default(1)) * (filters.page_size|default(40)), stats.total) }} of {{ stats.total }}
+  </div>
+  <div class="flex gap-2">
+    {% if filters.page|default(1) > 1 %}
+    <a href="/queue?readiness={{ filters.readiness }}&review={{ filters.review }}&min_score={{ filters.min_score }}&page={{ (filters.page|default(1)) - 1 }}" class="btn-primary bg-white text-notion-text border border-notion-border hover:bg-[#f1f1ef]">Previous</a>
+    {% endif %}
+    {% if (filters.page|default(1)) * (filters.page_size|default(40)) < stats.total %}
+    <a href="/queue?readiness={{ filters.readiness }}&review={{ filters.review }}&min_score={{ filters.min_score }}&page={{ (filters.page|default(1)) + 1 }}" class="btn-primary bg-white text-notion-text border border-notion-border hover:bg-[#f1f1ef]">Next</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 {% endblock %}
