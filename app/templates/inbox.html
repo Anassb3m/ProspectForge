@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Replies Inbox — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-10 flex items-center justify-between">
+  <div>
+    <div class="flex items-center gap-4 mb-3">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+        <i class="ph ph-tray text-2xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Replies Inbox</h1>
+        <p class="mt-1 text-slate-400 text-sm">Classify and respond to prospect replies</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-220px)]">
+  
+  <!-- Conversation List -->
+  <div class="bg-surface-0 border border-surface-border rounded-2xl flex flex-col overflow-hidden shadow-md">
+    <div class="p-4 border-b border-surface-border bg-surface-50 flex items-center justify-between">
+      <h3 class="font-bold text-white text-sm">Active Threads</h3>
+      <span class="bg-indigo-500/10 text-indigo-400 text-xs font-bold px-2 py-0.5 rounded border border-indigo-500/20">{{ replies|length }}</span>
+    </div>
+    <div class="flex-1 overflow-y-auto divide-y divide-surface-border">
+      {% for r in replies %}
+      <div class="p-4 hover:bg-white/5 cursor-pointer transition-colors border-l-2 {% if loop.first %}border-indigo-500 bg-white/5{% else %}border-transparent{% endif %}">
+        <div class="flex justify-between items-start mb-1">
+          <div class="font-bold text-sm text-white">{{ r.prospect.company_name if r.prospect else 'Unknown' }}</div>
+          <div class="text-[10px] text-slate-500">{{ r.occurred_at.strftime('%H:%M') }}</div>
+        </div>
+        <div class="text-xs text-slate-400 truncate">{{ r.notes or 'New reply received' }}</div>
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-slate-500">
+        <i class="ph ph-tray text-3xl mb-2"></i>
+        <p class="text-sm">Inbox is empty</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Thread Detail -->
+  <div class="lg:col-span-2 bg-surface-0 border border-surface-border rounded-2xl flex flex-col overflow-hidden shadow-md">
+    {% if replies %}
+    <div class="p-6 border-b border-surface-border">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h2 class="text-xl font-bold text-white mb-1">Re: Enterprise Architecture Discussion</h2>
+          <div class="flex items-center gap-2 text-sm text-slate-400">
+            <span>From: John Doe (CTO)</span>
+            <span>&bull;</span>
+            <a href="#" class="text-indigo-400 hover:underline">Acme Corp</a>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn-primary py-1.5 px-3 text-xs"><i class="ph ph-check"></i> Mark Resolved</button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 pt-4 border-t border-surface-border">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2 self-center">Classify:</span>
+        <button class="rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">Positive Interest</button>
+        <button class="rounded-full bg-amber-500/10 text-amber-400 text-xs font-bold px-3 py-1 border border-amber-500/20 hover:bg-amber-500/20 transition-colors">Not Now</button>
+        <button class="rounded-full bg-rose-500/10 text-rose-400 text-xs font-bold px-3 py-1 border border-rose-500/20 hover:bg-rose-500/20 transition-colors">Opt-Out</button>
+        <button class="rounded-full bg-surface-50 text-slate-300 text-xs font-bold px-3 py-1 border border-surface-border hover:bg-surface-border transition-colors">Referral</button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      <!-- Received Message -->
+      <div class="flex gap-4">
+        <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">JD</div>
+        <div class="bg-surface-50 border border-surface-border rounded-2xl rounded-tl-none p-4 max-w-[85%]">
+          <p class="text-sm text-slate-300 whitespace-pre-wrap">Hi there,
+
+Thanks for reaching out. The timing is actually pretty good as we are currently evaluating our architecture for Q4. 
+Could we set up a brief 15 min call next week?
+
+Best,
+John</p>
+        </div>
+      </div>
+      
+      <!-- Sent Message -->
+      <div class="flex gap-4 flex-row-reverse">
+        <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">Me</div>
+        <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl rounded-tr-none p-4 max-w-[85%]">
+          <p class="text-sm text-slate-300 whitespace-pre-wrap">Hi John,
+
+I noticed Acme Corp recently expanded to the UK market. Our platform can help streamline your cross-border data residency requirements. Are you open to a quick chat?</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="p-4 border-t border-surface-border bg-surface-50">
+      <div class="relative">
+        <textarea class="w-full bg-surface-0 border border-surface-border rounded-xl p-3 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none h-24" placeholder="Type your reply..."></textarea>
+        <button class="absolute bottom-3 right-3 p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors shadow-md">
+          <i class="ph ph-paper-plane-tilt"></i>
+        </button>
+      </div>
+    </div>
+    {% else %}
+    <div class="flex-1 flex flex-col items-center justify-center p-12 text-center">
+      <div class="w-20 h-20 bg-surface-50 rounded-full flex items-center justify-center mb-4 border border-surface-border">
+        <i class="ph ph-tray text-4xl text-slate-600"></i>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-2">No Thread Selected</h3>
+      <p class="text-slate-400">Select a conversation from the left to view details and reply.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -19,16 +19,15 @@ class DecpAdapter(SourceAdapter):
 
     async def discover(self, query_params: dict[str, Any]) -> list[RawSourceRecord]:
         from app.discovery.decp import load_decp, filter_relevant, aggregate_by_siret
-        import polars as pl
-        
+
         days_back = query_params.get("days_back", 120)
         max_results = query_params.get("max_results", 50)
-        
+
         try:
             raw_df = await load_decp()
             filtered_df = filter_relevant(raw_df, days_back=days_back, max_rows=max_results)
             companies = aggregate_by_siret(filtered_df)
-            
+
             records = []
             for comp in companies:
                 records.append(

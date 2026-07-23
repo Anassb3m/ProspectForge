@@ -5,13 +5,14 @@ from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -116,13 +117,19 @@ EVENT_TYPES = (
     "OptOut",
 )
 
-# Kanban columns map event types into pipeline stages
+# Kanban columns map Opportunity status into pipeline stages
 KANBAN_COLUMNS = {
-    "New": ("New",),
-    "Sent": ("Sent",),
-    "Replied": ("Replied", "PositiveConversation"),
-    "Meeting": ("MeetingBooked", "ProposalSent"),
-    "Closed": ("ClosedWon", "ClosedLost", "Refused", "OptOut"),
+    "Qualified": ("qualified",),
+    "Draft ready": ("draft_ready",),
+    "In outreach": ("in_outreach",),
+    "Positive reply": ("positive_reply",),
+    "Meeting scheduled": ("meeting_scheduled",),
+    "Diagnostic/Mapping Sprint": ("diagnostic",),
+    "Proposal": ("proposal",),
+    "Negotiation": ("negotiation",),
+    "Won": ("won",),
+    "Lost": ("lost",),
+    "Nurture": ("nurture",),
 }
 
 # Event types that count as "contacted" for metrics
@@ -933,7 +940,10 @@ class MarketPlayVersion(Base):
 
 class Opportunity(Base):
     __tablename__ = "opportunities"
-    __table_args__ = (UniqueConstraint("company_id", "play_version_id", name="uq_company_play_version"),)
+    __table_args__ = (
+        UniqueConstraint("company_id", "play_version_id", name="uq_company_play_version"),
+        Index("ix_opportunity_status_score", "status", "latest_score"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     company_id: Mapped[str] = mapped_column(
@@ -946,6 +956,7 @@ class Opportunity(Base):
     status_reason_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     priority: Mapped[str] = mapped_column(String(20), default="Medium")
     latest_score: Mapped[float] = mapped_column(Float, default=0.0)
+    outreach_ready: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -1046,8 +1057,15 @@ class ScoreSnapshot(Base):
     opportunity_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("opportunities.id", ondelete="CASCADE"), index=True
     )
+    version: Mapped[str] = mapped_column(String(20), default="4.0", server_default="4.0")
+    inputs_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    dimensions_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    weights_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    penalties_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    hard_gates_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     total_score: Mapped[float] = mapped_column(Float)
     hard_gates_passed: Mapped[bool] = mapped_column(Boolean, default=True)
+    reasons_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     breakdown_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

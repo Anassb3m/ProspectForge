@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-[#0B0F19] antialiased">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}ProspectForge{% endblock %}</title>
+  
+  <link rel="stylesheet" type="text/css" href="/static/css/phosphor-icons/regular/style.css" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/alpine.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+  
+  {% block head %}{% endblock %}
+</head>
+<body class="h-full font-sans selection:bg-brand-500/30 selection:text-white relative overflow-hidden">
+  
+  <!-- Ambient Background Orbs -->
+  <div class="absolute top-0 -left-40 w-96 h-96 bg-indigo-500 rounded-full mix-blend-screen filter blur-[128px] opacity-20 animate-blob pointer-events-none"></div>
+  <div class="absolute top-0 -right-40 w-96 h-96 bg-purple-500 rounded-full mix-blend-screen filter blur-[128px] opacity-20 animate-blob animation-delay-2000 pointer-events-none"></div>
+  <div class="absolute -bottom-40 left-20 w-96 h-96 bg-emerald-500 rounded-full mix-blend-screen filter blur-[128px] opacity-10 animate-blob animation-delay-4000 pointer-events-none"></div>
+
+  <!-- Main Content -->
+  <main class="relative z-10 w-full h-full overflow-y-auto">
+    {% block content %}
+      {% block body %}{% endblock %}
+    {% endblock %}
+  </main>
+</body>
+</html>

@@ -151,6 +151,8 @@ async def test_full_accept_unlocks_message_drafts_on_detail_page(
         headers=auth_headers,
         follow_redirects=False,
     )
+    if accepted.status_code == 422:
+        print(accepted.text)
     assert accepted.status_code == 303
 
     detail = await client.get(f"/prospects/{prospect_id}", headers=auth_headers)

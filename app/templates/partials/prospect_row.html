@@ -2,9 +2,9 @@
   <td>
     <div class="flex items-start gap-2">
       {% if prospect.siren or prospect.siret %}
-        <span title="France Legal Entity (CNIL B2B Pass)" class="rounded bg-[#e7f7ed] px-1.5 py-0.5 text-[10px] font-bold text-[#0f7b6c] border border-[#bce8cb] mt-0.5">🇫🇷 FR</span>
-      {% else %}
-        <span title="UK Legal Entity (PECR B2B Pass)" class="rounded bg-notion-blueBg px-1.5 py-0.5 text-[10px] font-bold text-notion-blue border border-[#cce4f7] mt-0.5">🇬🇧 UK</span>
+        <span title="France Legal Entity" class="rounded bg-[#e7f7ed] px-1.5 py-0.5 text-[10px] font-bold text-[#0f7b6c] border border-[#bce8cb] mt-0.5">🇫🇷 FR</span>
+      {% elif prospect.jurisdiction == 'GB' %}
+        <span title="UK Legal Entity" class="rounded bg-notion-blueBg px-1.5 py-0.5 text-[10px] font-bold text-notion-blue border border-[#cce4f7] mt-0.5">🇬🇧 UK</span>
       {% endif %}
       <div>
         <a href="/prospects/{{ prospect.id }}" class="font-semibold text-notion-text hover:text-notion-blue transition">{{ prospect.company_name }}</a>

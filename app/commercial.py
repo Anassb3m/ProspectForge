@@ -20,13 +20,16 @@ from app.models import (
     QualificationReview,
     SuppressionEntry,
 )
-from app.scoring_v3 import (
-    ALLOWED_CONTACT_CONFIDENCE,
-    ALLOWED_DISCOVERY_STATES,
-    apply_v3_score,
-    evidence_fingerprint,
-    normalize_signals,
-)
+ALLOWED_CONTACT_CONFIDENCE = frozenset({
+    "untested", "syntax_valid", "domain_valid", "deliverable", "catch_all",
+    "risky", "indeterminate", "invalid", "bounced", "confirmed_by_reply",
+    "published_personal", "published_generic", "domain_and_pattern_only",
+    "verified", "likely", "unverified", "needs_review", "none", "manual_confirmed"
+})
+
+ALLOWED_DISCOVERY_STATES = frozenset({
+    "published", "inferred", "guessed", "user_supplied", "none"
+})
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +124,12 @@ async def add_suppression(
     )
 
 
+def evidence_fingerprint(source_type: str | None, signal_type: str | None, evidence_text: str | None, evidence_url: str | None) -> str:
+    """Helper to dedupe evidence signals."""
+    parts = [str(x).strip().lower() for x in (source_type, signal_type, evidence_text, evidence_url) if x]
+    return "|".join(parts)
+
+
 async def upsert_evidence(
     db: AsyncSession,
     prospect_id: int,
@@ -175,6 +184,7 @@ async def upsert_evidence(
 
 def merge_evidence_json(existing: list | None, new_items: list[dict]) -> list[dict]:
     """Dedupe compatibility cache on prospect.evidence_json."""
+    from app.discovery.enrich import normalize_signals
     merged = normalize_signals(list(existing or []) + list(new_items or []))
     return merged[:40]
 
@@ -252,5 +262,4 @@ async def recompute_commercial_state(
         for s in signals
     ]
 
-    apply_v3_score(prospect, play)
     return prospect

@@ -2,10 +2,14 @@
   "name": "prospectforge-assets",
   "private": true,
   "scripts": {
-    "build:assets": "tailwindcss -c tailwind.config.js -i app/static/css/input.css -o app/static/css/app.css --minify && cp node_modules/htmx.org/dist/htmx.min.js app/static/js/htmx.min.js"
+    "build:assets": "tailwindcss -c tailwind.config.js -i app/static/css/input.css -o app/static/css/app.css --minify && cp node_modules/htmx.org/dist/htmx.min.js app/static/js/htmx.min.js && cp node_modules/alpinejs/dist/cdn.min.js app/static/js/alpine.min.js && mkdir -p app/static/css/phosphor-icons && cp -r node_modules/@phosphor-icons/web/src/* app/static/css/phosphor-icons/"
   },
   "devDependencies": {
     "htmx.org": "2.0.4",
     "tailwindcss": "3.4.17"
+  },
+  "dependencies": {
+    "@phosphor-icons/web": "^2.1.2",
+    "alpinejs": "^3.14.8"
   }
 }

@@ -77,9 +77,10 @@ async def discover_decp_parquet_url() -> str:
     resources = data.get("resources") or []
     parquet_resources = [
         res for res in resources
-        if (res.get("format") or "").lower() == "parquet"
+        if ((res.get("format") or "").lower() == "parquet"
         or (res.get("url") or "").endswith(".parquet")
-        or "parquet" in (res.get("title") or "").lower()
+        or "parquet" in (res.get("title") or "").lower())
+        and "statistiques" not in (res.get("url") or "").lower()
     ]
     if not parquet_resources:
         parquet_resources = [res for res in resources if "parquet" in (res.get("url") or "").lower()]

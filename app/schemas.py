@@ -185,7 +185,7 @@ class ProspectUpdate(BaseModel):
 class ProspectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: int | str
     company_name: str
     sector: str
     company_size: str
@@ -259,7 +259,7 @@ class ProspectListResponse(BaseModel):
 
 
 class BulkStatusUpdate(BaseModel):
-    prospect_ids: list[int]
+    prospect_ids: list[int | str]
     channel: str = "Email"
     event_type: str
     notes: Optional[str] = None
@@ -314,15 +314,47 @@ class ObjectionNote(BaseModel):
 
 
 class DashboardMetrics(BaseModel):
-    total_prospects: int
-    contacted_this_week: int
-    reply_rate: float
-    meeting_rate: float
-    by_signal_type: list[SignalTypeMetrics]
-    by_channel: list[ChannelMetrics]
-    common_objections: list[ObjectionNote]
-    high_priority_count: int
-    follow_ups_due_count: int
+    # Section A: Today's priorities
+    opportunities_awaiting_qualification: int = 0
+    contacts_awaiting_review: int = 0
+    drafts_awaiting_approval: int = 0
+    overdue_follow_ups: int = 0
+    failed_or_blocked_jobs: int = 0
+    replies_needing_classification: int = 0
+
+    # Section B: Funnel counts
+    funnel_universe: int = 0
+    funnel_icp_eligible: int = 0
+    funnel_domain_verified: int = 0
+    funnel_evidence_enriched: int = 0
+    funnel_human_accepted: int = 0
+    funnel_contact_ready: int = 0
+    funnel_in_outreach: int = 0
+    funnel_positive_reply: int = 0
+    funnel_meeting: int = 0
+    funnel_proposal: int = 0
+    funnel_won: int = 0
+
+    # Section C: Pipeline throughput
+    companies_imported_per_day: float = 0.0
+    opportunities_created_per_day: float = 0.0
+    qualification_acceptance_rate: float = 0.0
+    contact_ready_yield: float = 0.0
+    duplicate_rate: float = 0.0
+    domain_verification_rate: float = 0.0
+    evidence_coverage: float = 0.0
+    stale_data_count: int = 0
+
+    # Legacy fields (to keep for backward compatibility or till template fully replaced)
+    total_prospects: int = 0
+    contacted_this_week: int = 0
+    reply_rate: float = 0.0
+    meeting_rate: float = 0.0
+    by_signal_type: list[SignalTypeMetrics] = Field(default_factory=list)
+    by_channel: list[ChannelMetrics] = Field(default_factory=list)
+    common_objections: list[ObjectionNote] = Field(default_factory=list)
+    high_priority_count: int = 0
+    follow_ups_due_count: int = 0
     new_decp_this_week: int = 0
     verified_email_pct: float = 0.0
     needs_review_count: int = 0

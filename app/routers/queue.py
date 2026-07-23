@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -75,7 +76,7 @@ async def _daily_queue(
                 Prospect.acquisition_score >= min_score,
             )
         )
-    
+
     # Get total count
     count_q = select(func.count()).select_from(q.subquery())
     total_result = await db.execute(count_q)
@@ -202,7 +203,6 @@ async def page_daily_queue(
     page: int = Query(1, ge=1),
     page_size: int = Query(40, ge=1, le=100),
 ):
-    from sqlalchemy import func
     items, total = await _daily_queue(
         db, readiness=readiness, min_score=min_score, review_state=review, page=page, page_size=page_size
     )
@@ -236,7 +236,7 @@ async def page_daily_queue(
 
 @router.get("/queue/{prospect_id}/qualify", response_class=HTMLResponse)
 async def page_qualify(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -266,7 +266,7 @@ async def page_qualify(
 
 @router.post("/queue/{prospect_id}/qualify")
 async def form_qualify(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -361,14 +361,16 @@ async def form_qualify(
     )
     db.add(review)
 
-    prospect.qualification_decision = decision
-    prospect.qualification_notes = notes
-    prospect.reviewed_at = datetime.now(timezone.utc)
-    prospect.qualification_flags = flags  # type: ignore[attr-defined]
+    updates = {
+        "qualification_decision": decision,
+        "qualification_notes": notes,
+        "reviewed_at": datetime.now(timezone.utc),
+        "qualification_flags": flags,
+    }
 
     if decision == "accept":
-        prospect.manual_review_state = "accepted"
-        prospect.needs_manual_review = False
+        updates["manual_review_state"] = "accepted"
+        updates["needs_manual_review"] = False
         db.add(
             Task(
                 prospect_id=prospect.id,
@@ -380,15 +382,15 @@ async def form_qualify(
             )
         )
     elif decision == "reject":
-        prospect.manual_review_state = "rejected"
-        prospect.needs_manual_review = False
-        prospect.acquisition_stage = "parked"
+        updates["manual_review_state"] = "rejected"
+        updates["needs_manual_review"] = False
+        updates["acquisition_stage"] = "parked"
     elif decision == "park":
-        prospect.manual_review_state = "parked"
-        prospect.acquisition_stage = "parked"
+        updates["manual_review_state"] = "parked"
+        updates["acquisition_stage"] = "parked"
     else:
-        prospect.manual_review_state = "research_more"
-        prospect.needs_manual_review = True
+        updates["manual_review_state"] = "research_more"
+        updates["needs_manual_review"] = True
         db.add(
             Task(
                 prospect_id=prospect.id,
@@ -401,6 +403,7 @@ async def form_qualify(
             )
         )
 
+    await services.update_prospect(db, prospect, updates)
     await db.flush()
     # Attach review for scorer source-of-truth
     prospect.latest_qualification = review  # type: ignore[attr-defined]
@@ -417,7 +420,6 @@ async def api_queue(
     page: int = 1,
     page_size: int = 40,
 ):
-    from sqlalchemy import func
     items, total = await _daily_queue(db, min_score=min_score, page=page, page_size=page_size)
     from app.routers.prospects import _to_out
 
@@ -429,7 +431,6 @@ async def api_queue(
         "page_size": page_size,
     }
 
-from pydantic import BaseModel
 class BulkQualifyRequest(BaseModel):
     prospect_ids: list[int]
     decision: str
@@ -444,7 +445,7 @@ async def bulk_qualify(
 ):
     if request.decision not in ("accept", "reject", "park", "research_more"):
         raise HTTPException(status_code=400, detail="Invalid decision")
-        
+
     for prospect_id in request.prospect_ids:
         # Very simplified version for Phase 9 implementation
         prospect = await services.get_prospect(db, prospect_id)
@@ -460,6 +461,6 @@ async def bulk_qualify(
         db.add(review)
         prospect.qualification_decision = request.decision
         prospect.reviewed_at = datetime.now(timezone.utc)
-        
+
     await db.flush()
     return {"status": "success", "processed": len(request.prospect_ids)}

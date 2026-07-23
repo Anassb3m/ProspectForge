@@ -77,6 +77,31 @@
           </div>
         </div>
 
+        <div class="pt-5 border-t border-surface-border">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Eligible</p>
+              <p class="text-xl font-bold text-white">{{ play.get('eligible_count', 0) }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Contact Ready</p>
+              <p class="text-xl font-bold text-emerald-400">{{ play.get('contact_ready_count', 0) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-surface-border flex items-center justify-between">
+          <span class="text-xs text-slate-400">Version {{ play.get('version', 1) }} {% if not play.get('is_active') %}<span class="text-red-400 ml-2">(Inactive)</span>{% endif %}</span>
+          <form action="/sourcing/run-ingestion" method="post" class="inline">
+            <input type="hidden" name="play_code" value="{{ play.get('code') }}" />
+            <input type="hidden" name="mode" value="full" />
+            <input type="hidden" name="max_companies" value="50" />
+            <button type="submit" class="btn-primary h-8 px-3 text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/30">
+              Run Sourcing
+            </button>
+          </form>
+        </div>
+
         <div>
           <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-2">
             <svg class="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>

@@ -31,6 +31,7 @@ from app.commercial import is_suppressed, recompute_commercial_state, upsert_evi
 from app.discovery.enrich import apply_enrichment_to_prospect, deep_enrich
 from app.models import IngestionRun, OutreachEvent, Prospect
 from app.plays import DEFAULT_PLAY_CODE
+from app.services.normalized import upsert_normalized_company
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +49,6 @@ def _parse_date(val: str | None) -> datetime | None:
 
 
 async def _find_prospect(session, *, siret: str | None, siren: str | None) -> Prospect | None:
-    from app.repositories.company_repo import CompanyRepository
-    repo = CompanyRepository(session)
-    if siret:
-        p = await repo.get_by_identifier("siret", siret)
-        if p: return p
-    if siren:
-        p = await repo.get_by_identifier("siren", siren)
-        if p: return p
-    
-    # Fallback to legacy fields
     if siret:
         r = await session.execute(
             select(Prospect)
@@ -142,6 +133,20 @@ async def upsert_prospect(
             manual_review_state="unreviewed",
         )
         session.add(prospect)
+
+        # Dual-write to Normalized schema
+        await upsert_normalized_company(
+            session=session,
+            company_name=str(name)[:200],
+            siren=siren,
+            siret=siret,
+            website=enrich_data.get("website"),
+            city=enrich_data.get("city"),
+            department=enrich_data.get("department"),
+            payload=base,
+            play_code=DEFAULT_PLAY_CODE
+        )
+
         await session.flush()
         session.add(
             OutreachEvent(
@@ -165,8 +170,12 @@ async def upsert_prospect(
             existing.sort(key=lambda a: a.get("date") or "", reverse=True)
             prospect.award_history = existing[:50]
             ltd = _parse_date(base.get("last_tender_date"))
-            if ltd and (not prospect.last_tender_date or ltd > prospect.last_tender_date):
-                prospect.last_tender_date = ltd
+            if ltd:
+                old_ltd = prospect.last_tender_date
+                if old_ltd and old_ltd.tzinfo is None:
+                    old_ltd = old_ltd.replace(tzinfo=timezone.utc)
+                if not old_ltd or ltd > old_ltd:
+                    prospect.last_tender_date = ltd
             # Upgrade signal if public award is stronger
             if signal_type in ("DECP_WIN", "PUBLIC_AWARD", "BOAMP_WIN"):
                 prospect.signal_type = signal_type
@@ -197,18 +206,7 @@ async def upsert_prospect(
     )
     await recompute_commercial_state(session, prospect)
     await session.flush()
-    
-    from app.repositories.company_repo import CompanyRepository
-    repo = CompanyRepository(session)
-    await repo.upsert_company(
-        prospect_id=prospect.id,
-        name=name,
-        siren=siren,
-        siret=siret,
-        city=enrich_data.get("city") or base.get("city")
-    )
-    await session.flush()
-    
+
     return prospect, created, "created" if created else "updated"
 
 
@@ -218,6 +216,7 @@ async def ingest_decp(
     days_back: int,
     max_companies: int,
     run_contacts: bool,
+    play_code: str,
     skip_sirene_block: bool = False,
 ) -> dict[str, int]:
     stats = {"awards": 0, "companies": 0, "created": 0, "updated": 0, "skipped": 0, "errors": 0}
@@ -229,7 +228,7 @@ async def ingest_decp(
         days_back=days_back,
         min_montant=settings.decp_min_montant or None,
         max_rows=settings.decp_max_awards or None,
-        play_code=DEFAULT_PLAY_CODE,
+        play_code=play_code,
     )
     stats["awards"] = filtered.height
     companies = aggregate_by_siret(filtered)[:max_companies]
@@ -378,6 +377,7 @@ async def run_ingestion(
                     days_back=days_back,
                     max_companies=max_companies,
                     run_contacts=bool(run_contact_discovery),
+                    play_code=play_code,
                 )
                 totals["decp"] = d
                 totals["created"] += d.get("created", 0)
@@ -424,21 +424,25 @@ async def run_ingestion_safe(**kwargs) -> dict[str, Any]:
 
 
 async def rescore_all() -> int:
-    """Recompute V3 opportunity scores for all prospects."""
-    from app.scoring_v3 import apply_v3_score
+    """Recompute V4 opportunity scores for all opportunities."""
+    from app.services.scoring_v4 import calculate_opportunity_score_v4
+    from app.models import Opportunity
+    from sqlalchemy.orm import selectinload
 
     n = 0
     async with async_session_factory() as session:
         result = await session.execute(
-            select(Prospect)
-            .options(selectinload(Prospect.outreach_events))
-            .where(Prospect.anonymized.is_(False))
+            select(Opportunity)
+            .options(
+                selectinload(Opportunity.company),
+                selectinload(Opportunity.evidence_items)
+            )
         )
-        for p in result.scalars().unique().all():
-            apply_v3_score(p)
+        for opp in result.scalars().unique().all():
+            calculate_opportunity_score_v4(session, opp)
             n += 1
         await session.commit()
-    logger.info("Rescored %d prospects (V3)", n)
+    logger.info("Rescored %d opportunities (V4)", n)
     return n
 
 

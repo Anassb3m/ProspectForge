@@ -52,21 +52,6 @@ def format_dirigeant_name(d: dict) -> str:
 
 
 # Compatibility shims for older imports
-def compute_acquisition_score(prospect, **kwargs):
-    from app.scoring_v3 import score_prospect_v3
-    from types import SimpleNamespace
-
-    r = score_prospect_v3(prospect)
-    return SimpleNamespace(
-        fit=r.fit,
-        timing=r.trigger,
-        contactability=r.authority,
-        value=r.value,
-        acquisition=r.opportunity_score,
-        badges=r.badges,
-        reasons=r.reasons,
-        to_dict=r.to_dict,
-    )
 
 
 def score_naf_fit(naf_code):

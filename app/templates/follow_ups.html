@@ -1,78 +1,96 @@
 {% extends "base.html" %}
-{% block title %}Follow-up Queue — ProspectForge{% endblock %}
+{% block title %}Follow-ups — ProspectForge{% endblock %}
 {% block content %}
-<!-- Page Icon & Title -->
-<div class="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-notion-border pb-6">
+<div class="mb-10 flex items-center justify-between">
   <div>
-    <div class="text-5xl mb-4">⏳</div>
-    <div class="flex items-center gap-3">
-      <h1 class="text-4xl font-bold text-notion-text tracking-tight">Follow-up Action Queue</h1>
+    <div class="flex items-center gap-4 mb-3">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+        <i class="ph ph-clock text-2xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Follow-ups</h1>
+        <p class="mt-1 text-slate-400 text-sm">Scheduled sequence touches and manual tasks</p>
+      </div>
     </div>
-    <p class="mt-2 text-base text-notion-gray">Scheduled sequence touches requiring immediate human execution or approval.</p>
   </div>
-  <div>
-    <a href="/prospects" class="btn-primary">
-      <span>🏢</span> Prospect Database
+  <div class="flex gap-4">
+    <a href="/kanban" class="btn-secondary">
+      <i class="ph ph-kanban"></i> Pipeline
     </a>
   </div>
 </div>
 
-<div class="card p-0 overflow-hidden">
-  <div class="overflow-x-auto">
-    <table>
-      <thead class="bg-[#f9f9f8]">
-        <tr>
-          <th>Entity Name</th>
-          <th>Next Scheduled Action</th>
-          <th>Due Status</th>
-          <th>Pipeline Status</th>
-          <th>Priority Rank</th>
-          <th>Target Contact</th>
-          <th class="text-right">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in items %}
-        <tr>
-          <td class="font-bold text-notion-text">
-            <a href="/prospects/{{ item.prospect_id }}" class="hover:text-notion-blue transition">{{ item.company_name }}</a>
-          </td>
-          <td class="font-medium text-notion-text">{{ item.next_action or 'Follow-up touch' }}</td>
-          <td>
-            <span class="rounded px-2 py-0.5 text-[10px] font-bold uppercase {% if item.days_overdue > 0 %}bg-[#ffebe6] text-[#c03426] border border-[#ffdbd1]{% else %}bg-[#fff3e0] text-[#e65100] border border-[#ffd2b3]{% endif %}">
-              {% if item.days_overdue > 0 %}{{ item.days_overdue }}d Overdue{% else %}Due Today{% endif %}
-            </span>
-          </td>
-          <td>
-            <span class="rounded bg-notion-blueBg px-2 py-0.5 text-[11px] font-medium text-notion-blue border border-[#cce4f7]">
-              {{ item.current_status }}
-            </span>
-          </td>
-          <td>
-            <span class="rounded px-2 py-0.5 text-[11px] font-medium {% if item.priority_level == 'High' %}bg-[#ffebe6] text-[#c03426] border border-[#ffdbd1]{% elif item.priority_level == 'Medium' %}bg-[#fff3e0] text-[#e65100] border border-[#ffd2b3]{% else %}bg-[#f1f1ef] text-notion-gray border border-notion-border{% endif %}">
-              {{ item.priority_level }} ({{ item.urgency_score }})
-            </span>
-          </td>
-          <td class="font-medium text-notion-text">
-            {{ item.decision_maker_name or '—' }} {% if item.channel %}<span class="text-notion-gray font-normal">({{ item.channel }})</span>{% endif %}
-          </td>
-          <td class="text-right">
-            <a href="/prospects/{{ item.prospect_id }}" class="text-sm font-medium text-notion-blue hover:underline">
-              Open Record &rarr;
-            </a>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="7" class="p-12 text-center text-sm text-notion-gray border-dashed">
-            <div class="text-2xl mb-2">🎉</div>
-            <p class="font-bold text-notion-text text-base mb-1">All caught up!</p>
-            <p>Set next action dates when logging outreach touches on prospect records.</p>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% if items %}
+<div class="rounded-2xl bg-surface-0 border border-surface-border shadow-md overflow-hidden">
+  <table class="w-full text-left text-sm whitespace-nowrap">
+    <thead class="bg-surface-50 border-b border-surface-border text-slate-400 uppercase tracking-wider text-[11px] font-bold">
+      <tr>
+        <th class="px-6 py-4">Opportunity</th>
+        <th class="px-6 py-4">Task / Action</th>
+        <th class="px-6 py-4">Due</th>
+        <th class="px-6 py-4">Priority</th>
+        <th class="px-6 py-4">Contact</th>
+        <th class="px-6 py-4 text-right">Execute</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-surface-border">
+      {% for item in items %}
+      <tr class="hover:bg-white/5 transition-colors">
+        <td class="px-6 py-4 font-bold text-white">
+          <a href="/opportunities/{{ item.prospect_id }}" class="hover:text-indigo-400 transition">{{ item.company_name }}</a>
+        </td>
+        <td class="px-6 py-4 font-medium text-slate-300">{{ item.next_action or 'Follow-up touch' }}</td>
+        <td class="px-6 py-4">
+          <span class="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider {% if item.days_overdue > 0 %}bg-rose-500/10 text-rose-400 border border-rose-500/20{% else %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% endif %}">
+            {% if item.days_overdue > 0 %}{{ item.days_overdue }}d Overdue{% else %}Due Today{% endif %}
+          </span>
+        </td>
+        <td class="px-6 py-4">
+          <span class="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider {% if item.priority_level == 'High' %}bg-rose-500/10 text-rose-400 border border-rose-500/20{% elif item.priority_level == 'Medium' %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% else %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% endif %}">
+            {{ item.priority_level }} ({{ item.urgency_score }})
+          </span>
+        </td>
+        <td class="px-6 py-4 text-slate-300">
+          {{ item.decision_maker_name or '—' }} {% if item.channel %}<span class="text-slate-500">({{ item.channel }})</span>{% endif %}
+        </td>
+        <td class="px-6 py-4 text-right">
+          <a href="/opportunities/{{ item.prospect_id }}" class="btn-primary py-1.5 px-3 text-xs">Execute &rarr;</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div class="bg-surface-0 border border-surface-border rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-md">
+    <div class="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 border border-emerald-500/20">
+      <i class="ph ph-check-circle text-3xl text-emerald-400"></i>
+    </div>
+    <h3 class="text-xl font-bold text-white mb-2">Inbox Zero Achieved</h3>
+    <p class="text-slate-400 text-sm mb-6 max-w-sm">There are no immediate follow-ups scheduled for today. Your active campaigns are currently in a steady-state or waiting on replies.</p>
+    <a href="/campaigns" class="btn-primary">View Active Campaigns</a>
+  </div>
+
+  <div class="space-y-6">
+    <div class="bg-surface-0 border border-surface-border rounded-2xl p-6 shadow-md">
+      <div class="flex items-center gap-3 mb-4">
+        <i class="ph ph-tray text-indigo-400 text-xl"></i>
+        <h3 class="font-bold text-white">Pending Replies</h3>
+      </div>
+      <p class="text-sm text-slate-400 mb-4">You have threads waiting for classification.</p>
+      <a href="/inbox" class="btn-secondary w-full justify-center">Go to Inbox &rarr;</a>
+    </div>
+
+    <div class="bg-surface-0 border border-surface-border rounded-2xl p-6 shadow-md">
+      <div class="flex items-center gap-3 mb-4">
+        <i class="ph ph-kanban text-purple-400 text-xl"></i>
+        <h3 class="font-bold text-white">Pipeline Opportunities</h3>
+      </div>
+      <p class="text-sm text-slate-400 mb-4">Review your active opportunities to manually advance deals.</p>
+      <a href="/kanban" class="btn-secondary w-full justify-center">Go to Pipeline &rarr;</a>
+    </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

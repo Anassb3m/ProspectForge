@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     environment: str = "development"
 
     database_url: str = "sqlite+aiosqlite:///./prospectforge.db"
+    redis_url: str = "redis://localhost:6379/0"
 
     access_token_expire_minutes: int = 1440
     admin_email: str = "admin@prospectforge.local"
@@ -32,6 +33,10 @@ class Settings(BaseSettings):
     hunter_api_key: str = ""
 
     enable_scheduler: bool = False
+
+    # ── Phase 9: Production Activation Safeguards ─────────────────────────
+    outreach_enabled: bool = False
+    max_cohort_size: int = 10
 
     # ── Discovery / enrichment (v2.1) ─────────────────────────────────────
     companies_house_api_key: str = ""  # UK Companies House REST API

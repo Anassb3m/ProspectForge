@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Draft Approvals — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-10 flex items-center justify-between">
+  <div>
+    <div class="flex items-center gap-4 mb-3">
+      <div
+        class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+        <i class="ph ph-envelope-open text-2xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Draft Approvals</h1>
+        <p class="mt-1 text-slate-400 text-sm">Review evidence-bound outreach messages</p>
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-4">
+    <a href="/campaigns" class="btn-secondary">
+      <i class="ph ph-megaphone"></i> Campaigns
+    </a>
+  </div>
+</div>
+
+<div class="space-y-6">
+  {% for draft in drafts %}
+  <div class="bg-surface-0 border border-surface-border rounded-2xl p-6 shadow-md">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span
+            class="rounded bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
+            Step {{ draft.step_number }} - {{ draft.channel }}
+          </span>
+          <a href="/opportunities/{{ draft.opportunity_id }}"
+            class="text-sm font-bold text-white hover:text-indigo-400 transition">
+            {{ draft.opportunity.company.canonical_name if draft.opportunity and draft.opportunity.company else 'Unknown
+            Company' }}
+          </a>
+        </div>
+        <div class="text-sm text-slate-400">Campaign: <a href="/campaigns/{{ draft.campaign_id }}"
+            class="text-indigo-400 hover:underline">{{ draft.campaign.name if draft.campaign else 'Unknown' }}</a></div>
+      </div>
+      <div class="flex gap-2">
+        <form action="/drafts/{{ draft.id }}/approve" method="POST">
+          <button type="submit" class="btn-primary py-1.5 px-3 text-xs"><i class="ph ph-check"></i> Approve</button>
+        </form>
+        <button class="btn-secondary py-1.5 px-3 text-xs text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30"><i
+            class="ph ph-x"></i> Reject</button>
+      </div>
+    </div>
+
+    <div class="bg-surface-50 rounded-xl border border-surface-border p-4">
+      <div class="mb-3">
+        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2">Subject:</span>
+        <span class="text-sm font-medium text-white">{{ draft.subject or '(No Subject)' }}</span>
+      </div>
+      <div class="text-sm text-slate-300 whitespace-pre-wrap border-t border-surface-border pt-3">{{ draft.body }}</div>
+    </div>
+
+    {% if draft.evidence_citations_json %}
+    <div class="mt-4 pt-4 border-t border-surface-border">
+      <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Evidence Citations</h4>
+      <div class="flex flex-wrap gap-2">
+        {% for citation in draft.evidence_citations_json %}
+        <span
+          class="rounded bg-surface-50 px-2 py-1 text-xs font-medium text-slate-400 border border-surface-border flex items-center gap-1">
+          <i class="ph ph-link"></i> {{ citation.code }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="bg-surface-0 border border-surface-border rounded-2xl p-12 text-center">
+    <i class="ph ph-envelope-open text-4xl text-slate-600 mb-3"></i>
+    <h3 class="text-lg font-bold text-white mb-1">Queue Empty</h3>
+    <p class="text-slate-400">There are currently no drafts pending approval.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

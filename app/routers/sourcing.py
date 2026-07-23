@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import and_, or_, select
@@ -130,9 +130,8 @@ async def api_sourcing_queue(
     return {"items": [_to_out(p) for p in items], "total": len(items)}
 
 
-@router.post("/api/sourcing/ingest", response_model=IngestionResult)
+@router.post("/api/sourcing/ingest", response_model=IngestionResult, status_code=status.HTTP_202_ACCEPTED)
 async def api_run_ingestion(
-    background_tasks: BackgroundTasks,
     _: Annotated[User, Depends(get_current_user)],
     background: bool = Query(True),
     mode: str = Query("full", pattern="^(full|decp|registry)$"),
@@ -172,7 +171,7 @@ async def api_run_ingestion(
 
 @router.post("/api/prospects/{prospect_id}/deep-enrich")
 async def api_deep_enrich(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
     run_contacts: bool = True,
@@ -200,9 +199,8 @@ async def api_deep_enrich(
     return {"prospect": _to_out(prospect), "log": data.get("enrichment_log")}
 
 
-@router.post("/api/sourcing/bulk-enrich")
+@router.post("/api/sourcing/bulk-enrich", status_code=status.HTTP_202_ACCEPTED)
 async def api_bulk_enrich(
-    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
     limit: int = Query(30, ge=1, le=100),
@@ -233,14 +231,14 @@ async def api_bulk_enrich(
         extract_website_evidence.delay(company_id=str(pid), url="")
         if run_contacts:
             contact_discovery_run.delay(company_id=str(pid))
-            
+
     return {"queued": len(ids), "ids": ids}
 
 
 @router.post("/api/prospects/{prospect_id}/enrich", response_model=EnrichResult)
 async def api_enrich_prospect(
-    prospect_id: int,
-    body: EnrichRequest,
+    prospect_id: str,
+    data: EnrichRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
@@ -250,11 +248,11 @@ async def api_enrich_prospect(
     result = await enrich_prospect_contacts(
         db,
         prospect,
-        person_name=body.person_name,
-        domain=body.domain,
-        run_harvester=body.run_harvester,
-        verify=body.verify,
-        apply_best=body.apply_best,
+        person_name=data.person_name,
+        domain=data.domain,
+        run_harvester=data.run_harvester,
+        verify=data.verify,
+        apply_best=data.apply_best,
     )
     # Refresh acquisition scores after contact change
     apply_enrichment_to_prospect(prospect, {})
@@ -274,7 +272,7 @@ async def api_enrich_prospect(
 
 @router.post("/api/prospects/{prospect_id}/use-email")
 async def api_use_email(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
     email: str = Form(...),
@@ -308,7 +306,7 @@ async def api_use_email(
 
 @router.post("/api/prospects/{prospect_id}/mark-reviewed")
 async def api_mark_reviewed(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
@@ -347,21 +345,28 @@ async def page_sourcing(
         search=search,
         sort=sort,
     )
-    # Queue health stats
-    all_q = await db.execute(
-        select(Prospect).where(
-            and_(Prospect.anonymized.is_(False), Prospect.opted_out.is_(False))
-        )
-    )
-    all_p = list(all_q.scalars().all())
+    # Queue health stats (SQL aggregations)
+    from sqlalchemy import func
+
+    # Base query for stats
+    base_stat_q = select(Prospect.id).where(and_(Prospect.anonymized.is_(False), Prospect.opted_out.is_(False)))
+
+    total = await db.scalar(select(func.count()).select_from(base_stat_q.subquery()))
+    hot = await db.scalar(select(func.count()).select_from(base_stat_q.where(Prospect.acquisition_score >= 70).subquery()))
+    ready = await db.scalar(select(func.count()).select_from(base_stat_q.where(Prospect.acquisition_stage == "contact_ready").subquery()))
+    with_dm = await db.scalar(select(func.count()).select_from(base_stat_q.where(Prospect.decision_maker_name.isnot(None)).subquery()))
+    decp = await db.scalar(select(func.count()).select_from(base_stat_q.where(Prospect.signal_type == "DECP_WIN").subquery()))
+    registry = await db.scalar(select(func.count()).select_from(base_stat_q.where(Prospect.signal_type.in_(("REGISTRY_FIELD", "REGISTRY_IT"))).subquery()))
+    review = await db.scalar(select(func.count()).select_from(base_stat_q.where(Prospect.needs_manual_review.is_(True)).subquery()))
+
     stats = {
-        "total": len(all_p),
-        "hot": sum(1 for p in all_p if (p.acquisition_score or 0) >= 70),
-        "ready": sum(1 for p in all_p if p.acquisition_stage == "contact_ready"),
-        "with_dm": sum(1 for p in all_p if p.decision_maker_name),
-        "decp": sum(1 for p in all_p if p.signal_type == "DECP_WIN"),
-        "registry": sum(1 for p in all_p if p.signal_type in ("REGISTRY_FIELD", "REGISTRY_IT")),
-        "review": sum(1 for p in all_p if p.needs_manual_review),
+        "total": total or 0,
+        "hot": hot or 0,
+        "ready": ready or 0,
+        "with_dm": with_dm or 0,
+        "decp": decp or 0,
+        "registry": registry or 0,
+        "review": review or 0,
     }
     ctx = {
         "user": user,
@@ -387,9 +392,9 @@ async def page_sourcing(
 
 
 @router.get("/prospects/{prospect_id}/enrich", response_class=HTMLResponse)
-async def page_enrich_modal(
-    prospect_id: int,
+async def page_enrich_panel(
     request: Request,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ):
@@ -413,9 +418,9 @@ async def page_enrich_modal(
 
 
 @router.post("/prospects/{prospect_id}/enrich", response_class=HTMLResponse)
-async def form_enrich(
-    prospect_id: int,
+async def form_enrich_prospect(
     request: Request,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     person_name: Annotated[Optional[str], Form()] = None,
@@ -457,7 +462,7 @@ async def form_enrich(
 
 @router.post("/prospects/{prospect_id}/deep-enrich", response_class=HTMLResponse)
 async def form_deep_enrich(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -512,7 +517,7 @@ async def form_deep_enrich(
 
 @router.post("/prospects/{prospect_id}/use-email", response_class=HTMLResponse)
 async def form_use_email(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -565,7 +570,7 @@ async def form_use_email(
 
 @router.post("/prospects/{prospect_id}/mark-reviewed", response_class=HTMLResponse)
 async def form_mark_reviewed(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -586,7 +591,6 @@ async def form_mark_reviewed(
 @router.post("/sourcing/run-ingestion", response_class=HTMLResponse)
 async def form_run_ingestion(
     request: Request,
-    background_tasks: BackgroundTasks,
     user: Annotated[User, Depends(get_current_user)],
     max_companies: Annotated[int, Form()] = 60,
     mode: Annotated[str, Form()] = "full",
@@ -598,7 +602,7 @@ async def form_run_ingestion(
 
     if mode not in ("full", "decp", "registry", "companies_house"):
         mode = "full"
-    
+
     ingest_market_play.delay(
         play_code=play_code,
         mode=mode,
@@ -626,7 +630,6 @@ async def form_run_ingestion(
 @router.post("/sourcing/bulk-enrich", response_class=HTMLResponse)
 async def form_bulk_enrich(
     request: Request,
-    background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     limit: Annotated[int, Form()] = 25,
@@ -652,7 +655,7 @@ async def form_bulk_enrich(
     for pid in ids:
         extract_website_evidence.delay(company_id=str(pid), url="")
         contact_discovery_run.delay(company_id=str(pid))
-        
+
     return templates.TemplateResponse(
         request,
         "partials/ingestion_status.html",

@@ -12,14 +12,31 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app import __version__
 from app.auth import hash_password
 from app.config import get_settings
 from app.database import async_session_factory, engine, init_db
 from app.models import User
-from app.routers import auth, contact_intelligence, dashboard, events, market_plays, prospects, queue, sourcing
+from app.routers import (
+    auth, prospects, queue, events, market_plays, contact_intelligence, sourcing,
+    operations, campaigns, dashboard
+)
+from app.routers import inbox
+from app.observability.middleware import RequestIDMiddleware
 from app.security import CSRFMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SecureHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,11 +122,22 @@ app = FastAPI(
     openapi_url="/openapi.json" if _docs_url else None,
 )
 
+
+
 if settings.is_production and settings.trusted_host_list != ["*"]:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
 
 # CSRF on HTML form mutations (Bearer API exempt)
 app.add_middleware(CSRFMiddleware)
+
+# Request ID middleware
+app.add_middleware(RequestIDMiddleware)
+
+# Secure headers middleware
+app.add_middleware(SecureHeadersMiddleware)
+
+# Prometheus metrics
+Instrumentator().instrument(app).expose(app)
 
 static_dir = Path("app/static")
 static_dir.mkdir(parents=True, exist_ok=True)
@@ -123,6 +151,9 @@ app.include_router(sourcing.router)
 app.include_router(queue.router)
 app.include_router(contact_intelligence.router)
 app.include_router(market_plays.router)
+app.include_router(operations.router)
+app.include_router(campaigns.router)
+app.include_router(inbox.router)
 
 
 @app.get("/health")
@@ -162,6 +193,17 @@ async def login_page(request: Request):
 
     return templates.TemplateResponse(request, "login.html", {"error": None, "email": ""})
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.exception("Global exception handler caught: %s", exc)
+    if "text/html" in request.headers.get("accept", ""):
+        return templates.TemplateResponse(
+            request, "errors/500.html", {"request_id": request_id, "detail": "Internal Server Error"}, status_code=500
+        )
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=500, content={"error": "Internal Server Error", "request_id": request_id})
 
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):

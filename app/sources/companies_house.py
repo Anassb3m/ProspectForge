@@ -30,7 +30,6 @@ class CompaniesHouseAdapter(SourceAdapter):
         """Search Companies House by name or company number."""
         query = query_params.get("query", "")
         company_number = query_params.get("company_number", "")
-        sic_codes = query_params.get("sic_codes", [])
 
         if not self.api_key:
             raise RuntimeError("Companies House API key missing. Cannot perform discovery.")

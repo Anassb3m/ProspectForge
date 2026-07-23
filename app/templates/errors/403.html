@@ -1,0 +1,14 @@
+{% extends "blank.html" %}
+{% block title %}Forbidden (403) - ProspectForge{% endblock %}
+{% block body %}
+<div class="flex items-center justify-center min-h-screen bg-surface-0">
+    <div class="text-center">
+        <i class="ph ph-lock text-orange-500 text-6xl mb-4"></i>
+        <h1 class="text-3xl font-bold text-slate-100 mb-2">403 - Forbidden</h1>
+        <p class="text-slate-400 mb-6 max-w-md mx-auto">You do not have permission to access this resource or your session has expired.</p>
+        <div class="mt-8">
+            <a href="/" class="px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-md font-medium transition-colors">Return to Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

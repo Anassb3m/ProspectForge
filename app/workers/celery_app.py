@@ -1,5 +1,6 @@
 import os
 from celery import Celery, Task
+from celery.schedules import crontab
 import asyncio
 import traceback
 import uuid
@@ -31,7 +32,7 @@ class ProspectForgeTask(Task):
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
+
         loop.run_until_complete(_record_failure())
         super().on_failure(exc, task_id, args, kwargs, einfo)
 
@@ -60,6 +61,26 @@ celery_app.conf.update(
     },
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    beat_schedule={
+        "nightly-ingestion": {
+            "task": "app.workers.tasks.ingest_market_play",
+            "schedule": crontab(hour=1, minute=0),
+            "kwargs": {"play_code": "DEFAULT", "mode": "full"},
+        },
+        "nightly-contact-discovery": {
+            "task": "app.workers.tasks.contact_discovery_run",
+            "schedule": crontab(hour=1, minute=45),
+            "kwargs": {"company_id": "ALL"}, # We need a bulk contact discovery task
+        },
+        "recalculate-scores": {
+            "task": "app.workers.tasks.recalculate_scores",
+            "schedule": crontab(hour=2, minute=0),
+        },
+        "retention-anonymize": {
+            "task": "app.workers.tasks.retention_sweep",
+            "schedule": crontab(hour=3, minute=0, day_of_week="sunday"),
+        },
+    }
 )
 
 if __name__ == "__main__":

@@ -1,0 +1,18 @@
+{% extends "blank.html" %}
+{% block title %}Server Error (500) - ProspectForge{% endblock %}
+{% block body %}
+<div class="flex items-center justify-center min-h-screen bg-surface-0">
+    <div class="text-center">
+        <i class="ph ph-warning-circle text-red-500 text-6xl mb-4"></i>
+        <h1 class="text-3xl font-bold text-slate-100 mb-2">500 - Internal Server Error</h1>
+        <p class="text-slate-400 mb-6 max-w-md mx-auto">Something went wrong on our end. Please try again later or contact support.</p>
+        <div class="bg-surface-50 p-4 rounded-lg inline-block border border-surface-border text-left">
+            <p class="text-sm font-mono text-slate-300">Request ID: <span class="text-brand-400">{{ request_id }}</span></p>
+            {% if detail %}<p class="text-sm font-mono text-slate-400 mt-2">{{ detail }}</p>{% endif %}
+        </div>
+        <div class="mt-8">
+            <a href="/" class="px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-md font-medium transition-colors">Return to Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

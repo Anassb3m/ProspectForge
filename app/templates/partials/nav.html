@@ -1,0 +1,66 @@
+    <aside class="w-64 flex-shrink-0 flex flex-col h-full rounded-2xl bg-surface-50 backdrop-blur-xl border border-surface-border shadow-2xl overflow-y-auto">
+      <div class="p-6 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-3 text-lg font-bold text-white tracking-tight">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30">
+            <i class="ph ph-lightning text-xl"></i>
+          </div>
+          ProspectForge
+        </a>
+      </div>
+      
+      <div class="px-4 py-2">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-3">Workspaces</div>
+        <nav class="space-y-1">
+          <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+            <i class="ph ph-squares-four text-lg"></i>
+            Dashboard
+          </a>
+          <a href="/market-plays" class="nav-link {% if request.url.path.startswith('/market-plays') %}active{% endif %}">
+            <i class="ph ph-strategy text-lg"></i>
+            Market Plays
+          </a>
+          <a href="/sourcing" class="nav-link {% if request.url.path.startswith('/sourcing') %}active{% endif %}">
+            <i class="ph ph-funnel text-lg"></i>
+            Sourcing
+          </a>
+          <a href="/prospects" class="nav-link {% if '/prospects' in request.url.path %}active{% endif %}">
+            <i class="ph ph-database text-lg"></i>
+            Database
+          </a>
+          <a href="/kanban" class="nav-link {% if request.url.path == '/kanban' %}active{% endif %}">
+            <i class="ph ph-kanban text-lg"></i>
+            Pipeline
+          </a>
+          <a href="/queue" class="nav-link {% if request.url.path.startswith('/queue') %}active{% endif %}">
+            <i class="ph ph-list-checks text-lg"></i>
+            Daily Queue
+          </a>
+          <a href="/follow-ups" class="nav-link {% if request.url.path == '/follow-ups' %}active{% endif %}">
+            <i class="ph ph-clock-counter-clockwise text-lg"></i>
+            Follow-ups
+          </a>
+          <a href="/import" class="nav-link {% if request.url.path == '/import' %}active{% endif %}">
+            <i class="ph ph-upload-simple text-lg"></i>
+            Import
+          </a>
+        </nav>
+      </div>
+      
+      <div class="mt-auto p-4 border-t border-surface-border">
+        <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition cursor-pointer" x-data="{ open: false }" @click="open = !open">
+          <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-md">
+            {{ user.email[0]|upper }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">{{ user.email }}</p>
+            <p class="text-[10px] text-slate-400">Admin</p>
+          </div>
+          
+          <div x-show="open" @click.away="open = false" style="display: none;" class="absolute bottom-16 left-4 w-56 bg-surface-0 border border-surface-border rounded-xl shadow-2xl p-1 z-50 backdrop-blur-xl">
+            <form action="/auth/logout" method="post">
+              <button type="submit" class="w-full text-left px-4 py-2 text-sm text-slate-300 rounded-lg hover:bg-white/10 hover:text-white transition">Log out</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </aside>

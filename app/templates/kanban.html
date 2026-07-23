@@ -1,21 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Pipeline Kanban — ProspectForge{% endblock %}
+{% block title %}Commercial Pipeline — ProspectForge{% endblock %}
 {% block content %}
 <!-- Page Icon & Title -->
-<div class="mb-8 flex items-center justify-between">
+<div class="mb-10 flex items-center justify-between">
   <div>
-    <div class="text-5xl mb-4">📋</div>
-    <h1 class="text-4xl font-bold text-notion-text tracking-tight mb-2">Pipeline Kanban</h1>
-    <p class="text-notion-gray text-base">Drag & drop prospect cards between columns for instant stage updates</p>
+    <div class="flex items-center gap-4 mb-3">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+        <i class="ph ph-kanban text-2xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Commercial Pipeline</h1>
+        <p class="mt-1 text-slate-400 text-sm">Active opportunities across all campaigns</p>
+      </div>
+    </div>
   </div>
   <div>
-    <a href="/prospects/new" class="btn-primary">
-      <span>+</span> Add Candidate
+    <a href="/market-plays" class="btn-secondary">
+      <i class="ph ph-strategy"></i> Active Plays
     </a>
   </div>
 </div>
 
-<div id="kanban-board" class="w-full">
+<div id="kanban-board" class="w-full flex-1 overflow-x-auto overflow-y-hidden pb-4">
   {% include "partials/kanban_board.html" %}
 </div>
 {% endblock %}

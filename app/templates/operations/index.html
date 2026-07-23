@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Operations Center - ProspectForge{% endblock %}
+
+{% block content %}
+<div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+    <div class="sm:flex sm:justify-between sm:items-center mb-8">
+        <div class="mb-4 sm:mb-0">
+            <h1 class="text-2xl md:text-3xl text-slate-800 dark:text-slate-100 font-bold">Operations Center</h1>
+        </div>
+    </div>
+
+    <!-- Active Runs -->
+    <div class="bg-white dark:bg-slate-800 shadow-lg rounded-sm border border-slate-200 dark:border-slate-700 mb-8">
+        <header class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-slate-100">Recent Pipeline Runs</h2>
+        </header>
+        <div class="p-3">
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full dark:text-slate-300">
+                    <thead class="text-xs uppercase text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-700 dark:bg-opacity-50 rounded-sm">
+                        <tr>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">ID</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Play</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Status</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Started</div></th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm font-medium divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for run in pipeline_runs %}
+                        <tr>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left font-mono text-xs">{{ run.id[:8] }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.play_code }}</div></td>
+                            <td class="p-2 whitespace-nowrap">
+                                <div class="text-left">
+                                    <span class="px-2 py-1 bg-emerald-100 text-emerald-600 rounded-full text-xs">{{ run.status }}</span>
+                                </div>
+                            </td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.started_at.strftime('%Y-%m-%d %H:%M') }}</div></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="p-4 text-center text-slate-500">No active runs.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dead Letter Queue -->
+    <div class="bg-white dark:bg-slate-800 shadow-lg rounded-sm border border-slate-200 dark:border-slate-700">
+        <header class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-slate-100">Dead Letter Queue (Failed Tasks)</h2>
+        </header>
+        <div class="p-3">
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full dark:text-slate-300">
+                    <thead class="text-xs uppercase text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-700 dark:bg-opacity-50 rounded-sm">
+                        <tr>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Task</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Error</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Time</div></th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm font-medium divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for item in failed_items %}
+                        <tr>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left font-mono text-xs">{{ item.task_name }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left text-rose-500 truncate max-w-md" title="{{ item.error_message }}">{{ item.error_message }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ item.failed_at.strftime('%Y-%m-%d %H:%M') }}</div></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="p-4 text-center text-slate-500">No failed tasks. System is healthy.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -31,7 +31,7 @@ router = APIRouter(tags=["contact-intelligence"])
 
 @router.post("/prospects/{prospect_id}/contact-intelligence/run")
 async def form_run_contact_discovery(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     force: Annotated[Optional[str], Form()] = None,
@@ -50,7 +50,7 @@ async def form_run_contact_discovery(
 
 @router.post("/prospects/{prospect_id}/contact-intelligence/review")
 async def form_review_contact(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     decision: Annotated[str, Form()],
@@ -77,7 +77,7 @@ async def form_review_contact(
 
 @router.post("/prospects/{prospect_id}/contact-intelligence/add")
 async def form_add_manual_contact(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     kind: Annotated[str, Form()],

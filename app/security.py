@@ -62,16 +62,19 @@ class CSRFMiddleware:
                 # Also accept form field via query for rare cases — primary is header
                 if cookie and header and secrets.compare_digest(str(cookie), str(header)):
                     pass
-                elif not cookie:
-                    # First visit — allow once; cookie will be set on response
-                    pass
                 else:
-                    response = JSONResponse(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        content={
-                            "detail": "CSRF validation failed — refresh the page and retry"
-                        },
-                    )
+                    if "text/html" in request.headers.get("accept", ""):
+                        from app.main import templates
+                        response = templates.TemplateResponse(
+                            request, "errors/403.html", {"detail": "CSRF validation failed — refresh the page and retry"}, status_code=status.HTTP_403_FORBIDDEN
+                        )
+                    else:
+                        response = JSONResponse(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            content={
+                                "detail": "CSRF validation failed — refresh the page and retry"
+                            },
+                        )
                     await response(scope, receive, send)
                     return
 
@@ -103,8 +106,35 @@ _login_hits: dict[str, Deque[float]] = defaultdict(deque)
 _MAX_ATTEMPTS = 10
 _WINDOW_SEC = 300
 
+try:
+    import redis.asyncio as aioredis
+    _redis_pool = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+except ImportError:
+    _redis_pool = None
 
-def check_login_rate_limit(client_key: str) -> None:
+
+async def check_login_rate_limit(client_key: str) -> None:
+    if _redis_pool:
+        try:
+            now = time.time()
+            pipeline = _redis_pool.pipeline()
+            pipeline.zremrangebyscore(client_key, "-inf", now - _WINDOW_SEC)
+            pipeline.zadd(client_key, {str(now): now})
+            pipeline.zcard(client_key)
+            pipeline.expire(client_key, _WINDOW_SEC)
+            results = await pipeline.execute()
+            count = results[2]
+            if count > _MAX_ATTEMPTS:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many login attempts. Try again in a few minutes.",
+                )
+            return
+        except Exception:
+            # Fallback to local if Redis fails (e.g. during tests without Redis running)
+            pass
+
+    # Local fallback
     now = time.time()
     q = _login_hits[client_key]
     while q and now - q[0] > _WINDOW_SEC:
@@ -117,5 +147,11 @@ def check_login_rate_limit(client_key: str) -> None:
     q.append(now)
 
 
-def clear_login_rate_limit(client_key: str) -> None:
+async def clear_login_rate_limit(client_key: str) -> None:
+    if _redis_pool:
+        try:
+            await _redis_pool.delete(client_key)
+            return
+        except Exception:
+            pass
     _login_hits.pop(client_key, None)

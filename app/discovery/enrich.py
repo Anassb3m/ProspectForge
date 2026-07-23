@@ -23,7 +23,6 @@ from app.discovery.contacts import discover_contacts
 from app.discovery.emails import extract_domain
 from app.discovery.icp import format_dirigeant_name, pick_best_dirigeant
 from app.discovery.sirene import enrich_sirene
-from app.scoring_v3 import apply_v3_score
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +199,4 @@ def apply_enrichment_to_prospect(prospect, data: dict[str, Any]) -> None:
         prospect.contact_discovery_state = "guessed"
         prospect.contact_confidence = "domain_and_pattern_only"
 
-    apply_v3_score(prospect)
-    prospect.timing_score = prospect.trigger_score or 0
-    prospect.contactability_score = prospect.authority_score or 0
     prospect.last_enriched_at = datetime.now(timezone.utc)

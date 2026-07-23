@@ -250,7 +250,7 @@ async def api_bulk_status(
 
 @router.get("/api/prospects/{prospect_id}", response_model=ProspectDetail)
 async def api_get_prospect(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
@@ -266,7 +266,7 @@ async def api_get_prospect(
 
 @router.patch("/api/prospects/{prospect_id}", response_model=ProspectOut)
 async def api_update_prospect(
-    prospect_id: int,
+    prospect_id: str,
     data: ProspectUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
@@ -422,7 +422,7 @@ async def form_create_prospect(
 
 @router.get("/prospects/{prospect_id}/report.md", response_class=Response)
 async def page_download_markdown_report(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
@@ -522,7 +522,7 @@ async def page_download_markdown_report(
 
 @router.get("/prospects/{prospect_id}", response_class=HTMLResponse)
 async def page_prospect_detail(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -603,7 +603,7 @@ async def page_prospect_detail(
 
 @router.get("/prospects/{prospect_id}/edit", response_class=HTMLResponse)
 async def page_edit_prospect(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -627,7 +627,7 @@ async def page_edit_prospect(
 
 @router.post("/prospects/{prospect_id}/edit", response_class=HTMLResponse)
 async def form_edit_prospect(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Campaigns — ProspectForge{% endblock %}
+{% block content %}
+<div class="mb-10 flex items-center justify-between">
+  <div>
+    <div class="flex items-center gap-4 mb-3">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30">
+        <i class="ph ph-megaphone text-2xl text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Campaigns</h1>
+        <p class="mt-1 text-slate-400 text-sm">Manage multi-touch sequences and deliveries</p>
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-4">
+    <a href="/drafts" class="btn-secondary">
+      <i class="ph ph-envelope-open"></i> Draft Approvals
+    </a>
+    <a href="/campaigns/new" class="btn-primary">
+      <i class="ph ph-plus-circle"></i> New Campaign
+    </a>
+  </div>
+</div>
+
+<div class="rounded-2xl bg-surface-0 border border-surface-border shadow-md overflow-hidden">
+  <table class="w-full text-left text-sm whitespace-nowrap">
+    <thead class="bg-surface-50 border-b border-surface-border text-slate-400 uppercase tracking-wider text-[11px] font-bold">
+      <tr>
+        <th class="px-6 py-4">Name</th>
+        <th class="px-6 py-4">Play Version</th>
+        <th class="px-6 py-4">Status</th>
+        <th class="px-6 py-4">Daily Cap</th>
+        <th class="px-6 py-4">Created</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-surface-border">
+      {% for c in campaigns %}
+      <tr class="hover:bg-white/5 transition-colors cursor-pointer" onclick="window.location.href='/campaigns/{{ c.id }}'">
+        <td class="px-6 py-4 font-bold text-white">{{ c.name }}</td>
+        <td class="px-6 py-4 font-medium text-indigo-400">{{ c.play_version_id[:8] }}</td>
+        <td class="px-6 py-4">
+          <span class="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider {% if c.status == 'active' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% elif c.status == 'draft' %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% else %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% endif %}">
+            {{ c.status }}
+          </span>
+        </td>
+        <td class="px-6 py-4 text-slate-300">{{ c.daily_send_cap }} / day</td>
+        <td class="px-6 py-4 text-slate-400">{{ c.created_at.strftime('%b %d, %Y') }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+          <div class="flex flex-col items-center justify-center">
+            <i class="ph ph-megaphone text-4xl text-slate-600 mb-2"></i>
+            <p>No campaigns found.</p>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -9,9 +9,9 @@ from typing import Any, Sequence
 
 import pandas as pd
 from pydantic import ValidationError
+from sqlalchemy.orm import selectinload
 from sqlalchemy import Select, and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models import (
     CHANNELS,
@@ -21,7 +21,14 @@ from app.models import (
     OutreachEvent,
     Prospect,
     Task,
+    Company,
+    Opportunity,
+    CompanyIdentifier as CompanyIdentifier,
+    CompanyDomain as CompanyDomain,
+    CompanyLocation as CompanyLocation,
+    CompanyClassification as CompanyClassification
 )
+from app.services.legacy_projection import LegacyProspectProxy
 from app.schemas import (
     ChannelMetrics,
     DashboardMetrics,
@@ -35,7 +42,6 @@ from app.schemas import (
 )
 from app.commercial import add_suppression, is_suppressed, recompute_commercial_state
 from app.plays import DEFAULT_PLAY_CODE
-from app.scoring_v3 import apply_v3_score
 
 
 class ComplianceError(Exception):
@@ -61,34 +67,30 @@ def prospect_query(
     max_score: int | None = None,
     include_opted_out: bool = False,
     include_anonymized: bool = False,
-) -> Select[tuple[Prospect]]:
-    q = select(Prospect).options(selectinload(Prospect.outreach_events))
+) -> Select:
+    q = select(Company, Opportunity).join(Opportunity).options(
+        selectinload(Company.identifiers),
+        selectinload(Company.domains),
+        selectinload(Company.locations),
+        selectinload(Company.classifications),
+    )
 
-    if not include_anonymized:
-        q = q.where(Prospect.anonymized.is_(False))
-    if not include_opted_out:
-        q = q.where(Prospect.opted_out.is_(False))
-    if sector:
-        q = q.where(Prospect.sector == sector)
-    if signal_type:
-        q = q.where(Prospect.signal_type == signal_type)
     if priority_level:
-        q = q.where(Prospect.priority_level == priority_level)
-    if source:
-        q = q.where(Prospect.source == source)
+        q = q.where(Opportunity.priority == priority_level)
     if min_score is not None:
-        q = q.where(Prospect.urgency_score >= min_score)
+        q = q.where(Opportunity.latest_score >= min_score)
     if max_score is not None:
-        q = q.where(Prospect.urgency_score <= max_score)
+        q = q.where(Opportunity.latest_score <= max_score)
     if search:
         like = f"%{search}%"
         q = q.where(
             or_(
-                Prospect.company_name.ilike(like),
-                Prospect.decision_maker_name.ilike(like),
-                Prospect.email.ilike(like),
+                Company.canonical_name.ilike(like),
+                Company.legal_name.ilike(like),
             )
         )
+    if status:
+        q = q.where(Opportunity.pipeline_stage == status)
     return q
 
 
@@ -120,42 +122,69 @@ async def list_prospects(
         include_opted_out=include_opted_out,
     )
 
-    result = await db.execute(q)
-    prospects = list(result.scalars().unique().all())
+    from sqlalchemy import func
 
-    # Status is derived — filter in Python after load (fine at pilot scale)
-    if status:
-        prospects = [p for p in prospects if p.current_status == status]
+    # Calculate total count
+    count_q = select(func.count()).select_from(q.subquery())
+    total = await db.scalar(count_q) or 0
 
-    # Sort
+    # Apply sorting
     reverse = sort_dir.lower() != "asc"
     if sort_by == "company_name":
-        prospects.sort(key=lambda p: p.company_name.lower(), reverse=reverse)
+        q = q.order_by(Company.legal_name.desc() if reverse else Company.legal_name.asc())
     elif sort_by == "created_at":
-        prospects.sort(key=lambda p: p.created_at or _utcnow(), reverse=reverse)
+        q = q.order_by(Company.created_at.desc() if reverse else Company.created_at.asc())
     elif sort_by == "priority_level":
-        order = {"High": 0, "Medium": 1, "Low": 2}
-        prospects.sort(key=lambda p: order.get(p.priority_level, 9), reverse=reverse)
+        # Simplified sort by priority text
+        q = q.order_by(Opportunity.priority.desc() if reverse else Opportunity.priority.asc())
     else:
-        # V3 primary rank: opportunity_score
-        prospects.sort(
-            key=lambda p: (p.opportunity_score or p.acquisition_score or p.urgency_score or 0),
-            reverse=reverse,
-        )
+        q = q.order_by(Opportunity.latest_score.desc() if reverse else Opportunity.latest_score.asc())
 
-    total = len(prospects)
     start = max(0, (page - 1) * page_size)
-    end = start + page_size
-    return prospects[start:end], total
+    q = q.offset(start).limit(page_size)
+
+    result = await db.execute(q)
+    rows = result.all()
+    prospects = [LegacyProspectProxy.from_models(company, opp) for company, opp in rows]
+
+    return prospects, total
 
 
-async def get_prospect(db: AsyncSession, prospect_id: int) -> Prospect | None:
+async def get_prospect(db: AsyncSession, prospect_id: str) -> LegacyProspectProxy | None:
     result = await db.execute(
+        select(Company, Opportunity)
+        .join(Opportunity)
+        .options(
+            selectinload(Company.identifiers),
+            selectinload(Company.domains),
+            selectinload(Company.locations),
+            selectinload(Company.classifications),
+        )
+        .where(Opportunity.id == prospect_id)
+    )
+    row = result.first()
+    if not row:
+        return None
+    proxy = LegacyProspectProxy.from_models(row[0], row[1])
+
+    # Try to load events from the legacy prospect
+    legacy_prospect_query = await db.execute(
         select(Prospect)
         .options(selectinload(Prospect.outreach_events))
-        .where(Prospect.id == prospect_id)
+        .where(Prospect.company_name == proxy.company_name)
     )
-    return result.scalar_one_or_none()
+    legacy = legacy_prospect_query.scalars().first()
+    if legacy:
+        proxy.outreach_events = list(legacy.outreach_events or [])
+        proxy.legacy_id = legacy.id
+        proxy.current_status = legacy.current_status
+        proxy.manual_review_state = legacy.manual_review_state
+        setattr(proxy, "qualification_decision", legacy.qualification_decision)
+        setattr(proxy, "opted_out", getattr(legacy, "opted_out", False))
+        setattr(proxy, "anonymized", getattr(legacy, "anonymized", False))
+        setattr(proxy, "is_suppressed", getattr(legacy, "is_suppressed", False))
+
+    return proxy
 
 
 async def create_prospect(db: AsyncSession, data: ProspectCreate) -> Prospect:
@@ -168,7 +197,7 @@ async def create_prospect(db: AsyncSession, data: ProspectCreate) -> Prospect:
     prospect.market_play_code = DEFAULT_PLAY_CODE
     prospect.manual_review_state = "unreviewed"
     prospect.readiness_state = "research_required"
-    apply_v3_score(prospect)
+    prospect.readiness_state = "research_required"
     db.add(prospect)
     await db.flush()
 
@@ -184,12 +213,23 @@ async def create_prospect(db: AsyncSession, data: ProspectCreate) -> Prospect:
     await recompute_commercial_state(db, prospect)
     await db.flush()
 
-    pid = prospect.id
-    loaded = await get_prospect(db, pid)
+    from app.services.normalized import upsert_normalized_company
+    opp = await upsert_normalized_company(
+        session=db,
+        company_name=prospect.company_name,
+        siren=prospect.siren,
+        siret=prospect.siret,
+        website=prospect.website,
+        city=prospect.city,
+        department=prospect.department,
+        payload=payload
+    )
+    loaded = await get_prospect(db, str(opp.id))
     return loaded  # type: ignore[return-value]
 
 
-async def update_prospect(db: AsyncSession, prospect: Prospect, updates: dict[str, Any]) -> Prospect:
+async def update_prospect(db: AsyncSession, prospect: Any, updates: dict[str, Any]) -> Prospect:
+    prospect = await _resolve_prospect(db, prospect)
     for key, value in updates.items():
         if value is not None or key in updates:
             setattr(prospect, key, value)
@@ -202,13 +242,26 @@ async def update_prospect(db: AsyncSession, prospect: Prospect, updates: dict[st
 # ── Events & compliance ──────────────────────────────────────────────────────
 
 
+async def _resolve_prospect(db: AsyncSession, p: Any) -> Prospect:
+    if isinstance(p, Prospect):
+        return p
+    # Resolve from proxy
+    result = await db.execute(
+        select(Prospect).where(Prospect.company_name == p.company_name)
+    )
+    res = result.scalars().first()
+    if not res:
+        raise ComplianceError("Could not resolve legacy prospect for mutation")
+    return res
+
 async def log_event(
     db: AsyncSession,
-    prospect: Prospect,
+    prospect: Any,
     data: EventCreate,
     *,
     skip_opt_out_check: bool = False,
 ) -> OutreachEvent:
+    prospect = await _resolve_prospect(db, prospect)
     if prospect.opted_out and data.event_type != "OptOut" and not skip_opt_out_check:
         raise ComplianceError("Prospect has opted out — no further outreach events allowed")
 
@@ -254,7 +307,7 @@ async def log_event(
             await add_suppression(
                 db, kind="siren", value=prospect.siren, reason="opt_out", source="outreach"
             )
-        
+
         # P1: Cancel open tasks on opt-out
         await db.execute(
             update(Task)
@@ -479,6 +532,8 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
     )
 
     follow_ups = await get_follow_ups_due(db)
+    today = _utcnow().date()
+    overdue_follow_ups = len([f for f in follow_ups if f.next_action_date and f.next_action_date.date() < today])
 
     return DashboardMetrics(
         total_prospects=total,
@@ -493,6 +548,31 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
         new_decp_this_week=new_decp,
         verified_email_pct=rate(verified, len(with_email) if with_email else total),
         needs_review_count=needs_review,
+        opportunities_awaiting_qualification=sum(1 for p in prospects if p.needs_manual_review),
+        contacts_awaiting_review=sum(1 for p in prospects if getattr(p, "contact_discovery_state", "") == "review_required"),
+        drafts_awaiting_approval=0,
+        overdue_follow_ups=overdue_follow_ups,
+        failed_or_blocked_jobs=0,
+        replies_needing_classification=0,
+        funnel_universe=total,
+        funnel_icp_eligible=sum(1 for p in prospects if getattr(p, "fit_score", 0) > 0),
+        funnel_domain_verified=0,
+        funnel_evidence_enriched=sum(1 for p in prospects if getattr(p, "evidence_json", None)),
+        funnel_human_accepted=sum(1 for p in prospects if p.manual_review_state == "accepted"),
+        funnel_contact_ready=sum(1 for p in prospects if p.readiness_state == "contact_ready"),
+        funnel_in_outreach=sum(1 for p in prospects if p.acquisition_stage in ("in_sequence", "replied", "meeting", "proposal", "won")),
+        funnel_positive_reply=sum(1 for p in prospects if p.acquisition_stage in ("replied", "meeting", "proposal", "won")),
+        funnel_meeting=sum(1 for p in prospects if p.acquisition_stage in ("meeting", "proposal", "won")),
+        funnel_proposal=sum(1 for p in prospects if p.acquisition_stage in ("proposal", "won")),
+        funnel_won=sum(1 for p in prospects if p.acquisition_stage == "won"),
+        companies_imported_per_day=0.0,
+        opportunities_created_per_day=0.0,
+        qualification_acceptance_rate=0.0,
+        contact_ready_yield=0.0,
+        duplicate_rate=0.0,
+        domain_verification_rate=0.0,
+        evidence_coverage=0.0,
+        stale_data_count=0
     )
 
 
@@ -538,25 +618,23 @@ async def get_follow_ups_due(db: AsyncSession) -> list[FollowUpItem]:
     return items
 
 
-async def get_kanban_columns(db: AsyncSession) -> dict[str, list[Prospect]]:
-    from app.models import KANBAN_COLUMNS
+async def get_kanban_columns(db: AsyncSession) -> dict[str, list[Any]]:
+    from app.models import KANBAN_COLUMNS, Opportunity
 
-    result = await db.execute(
-        select(Prospect)
-        .options(selectinload(Prospect.outreach_events))
-        .where(and_(Prospect.opted_out.is_(False), Prospect.anonymized.is_(False)))
-    )
-    prospects = list(result.scalars().unique().all())
+    columns: dict[str, list[Opportunity]] = {name: [] for name in KANBAN_COLUMNS}
 
-    columns: dict[str, list[Prospect]] = {name: [] for name in KANBAN_COLUMNS}
-    type_to_col = {
-        et: col for col, types in KANBAN_COLUMNS.items() for et in types
-    }
+    # We query top 50 per column in the database to avoid memory exhaustion
+    for col_name, statuses in KANBAN_COLUMNS.items():
+        if not statuses:
+            continue
 
-    for p in prospects:
-        col = type_to_col.get(p.current_status, "New")
-        columns[col].append(p)
+        result = await db.execute(
+            select(Opportunity)
+            .options(selectinload(Opportunity.company))
+            .where(Opportunity.status.in_(statuses))
+            .order_by(Opportunity.latest_score.desc())
+            .limit(50)
+        )
+        columns[col_name] = list(result.scalars().unique().all())
 
-    for col in columns:
-        columns[col].sort(key=lambda p: p.urgency_score, reverse=True)
     return columns

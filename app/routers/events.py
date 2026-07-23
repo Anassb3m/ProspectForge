@@ -24,7 +24,7 @@ templates = Jinja2Templates(directory="app/templates")
     status_code=status.HTTP_201_CREATED,
 )
 async def api_log_event(
-    prospect_id: int,
+    prospect_id: str,
     data: EventCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
@@ -41,7 +41,7 @@ async def api_log_event(
 
 @router.get("/api/prospects/{prospect_id}/events", response_model=list[EventOut])
 async def api_list_events(
-    prospect_id: int,
+    prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
@@ -53,7 +53,7 @@ async def api_list_events(
 
 @router.post("/prospects/{prospect_id}/events", response_class=HTMLResponse)
 async def form_log_event(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -125,7 +125,7 @@ async def form_log_event(
 
 @router.post("/prospects/{prospect_id}/quick-event", response_class=HTMLResponse)
 async def quick_event(
-    prospect_id: int,
+    prospect_id: str,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
@@ -166,43 +166,28 @@ async def kanban_move(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
-    prospect_id: Annotated[int, Form()],
+    opportunity_id: Annotated[str, Form()],
     column: Annotated[str, Form()],
-    channel: Annotated[str, Form()] = "Email",
 ):
-    """Drag-and-drop Kanban column change → append event."""
-    from app.models import KANBAN_COLUMNS
+    """Drag-and-drop Kanban column change → update opportunity status."""
+    from app.models import KANBAN_COLUMNS, Opportunity
 
-    # Map column name to a representative event type
-    col_to_event = {
-        "New": "New",
-        "Sent": "Sent",
-        "Replied": "Replied",
-        "Meeting": "MeetingBooked",
-        "Closed": "ClosedWon",
-    }
-    event_type = col_to_event.get(column)
-    if not event_type or column not in KANBAN_COLUMNS:
+    if column not in KANBAN_COLUMNS:
         raise HTTPException(status_code=400, detail=f"Unknown column: {column}")
 
-    prospect = await services.get_prospect(db, prospect_id)
-    if not prospect:
-        raise HTTPException(status_code=404, detail="Prospect not found")
-    if prospect.opted_out:
-        raise HTTPException(status_code=400, detail="Prospect opted out")
+    target_status = KANBAN_COLUMNS[column][0]
 
-    try:
-        await services.log_event(
-            db,
-            prospect,
-            EventCreate(
-                channel=channel,
-                event_type=event_type,
-                notes=f"Moved to {column} via Kanban",
-            ),
-        )
-    except services.ComplianceError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    from sqlalchemy import select
+    result = await db.execute(select(Opportunity).where(Opportunity.id == opportunity_id))
+    opp = result.scalar_one_or_none()
+
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+
+    # Basic state machine validation could go here
+    # For now, update the status directly
+    opp.status = target_status
+    await db.commit()
 
     columns = await services.get_kanban_columns(db)
     return templates.TemplateResponse(

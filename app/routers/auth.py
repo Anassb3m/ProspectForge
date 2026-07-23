@@ -33,7 +33,7 @@ async def login_api(
     response: Response,
 ):
     client_key = f"api:{(request.client.host if request.client else 'unknown')}:{form_data.username}"
-    check_login_rate_limit(client_key)
+    await check_login_rate_limit(client_key)
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -41,7 +41,7 @@ async def login_api(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    clear_login_rate_limit(client_key)
+    await clear_login_rate_limit(client_key)
     token = create_access_token(data={"sub": user.email})
     response.set_cookie(
         key=COOKIE_NAME,
@@ -63,7 +63,7 @@ async def login_form(
 ):
     client_key = f"form:{(request.client.host if request.client else 'unknown')}:{email}"
     try:
-        check_login_rate_limit(client_key)
+        await check_login_rate_limit(client_key)
     except HTTPException as exc:
         return templates.TemplateResponse(
             request,

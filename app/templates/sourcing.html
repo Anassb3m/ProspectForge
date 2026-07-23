@@ -65,77 +65,108 @@
   </div>
 </div>
 
-<!-- Engine Acquisition & Enrichment Controls -->
+<!-- Engine Acquisition & Enrichment Controls (Wizard) -->
 <div class="mb-12">
-  <h2 class="text-lg font-bold text-white mb-5 flex items-center gap-2">
-    <svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-    Discovery Engine & Ingestion Connectors
-  </h2>
-  
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Ingestion Form -->
-    <div class="lg:col-span-2 card">
-      <form hx-post="/sourcing/run-ingestion" hx-target="#ingestion-status" hx-swap="innerHTML" class="space-y-5">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div>
-            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Target Market Play</label>
-            <select name="play_code" class="input-field appearance-none">
-              <option value="FIELD_OPERATIONS_UK_V1">🇬🇧 FIELD_OPERATIONS_UK_V1</option>
-              <option value="FIELD_OPERATIONS_FR_V2">🇫🇷 FIELD_OPERATIONS_FR_V2</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Source Adapter Connector</label>
-            <select name="mode" class="input-field appearance-none">
-              <option value="companies_house">🇬🇧 Companies House REST API</option>
-              <option value="full">🇫🇷 Full (Sirene + DECP)</option>
-              <option value="decp">🇫🇷 DECP Public Awards Only</option>
-              <option value="registry">🇫🇷 Sirene NAF Field Registry Only</option>
-            </select>
-          </div>
-        </div>
+  <div x-data="{ step: 1, play: 'FIELD_OPERATIONS_UK_V1', mode: 'companies_house', limit: 60, contacts: true }" class="card max-w-4xl mx-auto p-8">
 
-        <div class="flex flex-wrap items-center justify-between pt-5 border-t border-surface-border mt-2">
-          <div class="flex items-center gap-6">
-            <div class="flex items-center gap-3">
-              <label class="text-sm font-bold text-slate-300 uppercase tracking-wider">Max Candidates</label>
-              <input type="number" name="max_companies" value="60" min="1" max="500" class="input-field w-24 font-mono text-center" />
-            </div>
-            <label class="flex items-center gap-3 text-sm font-bold text-slate-300 cursor-pointer group">
-              <div class="relative flex items-center">
-                <input type="checkbox" name="contacts" value="1" class="peer appearance-none w-5 h-5 border-2 border-slate-500 rounded bg-transparent checked:bg-brand-500 checked:border-brand-500 transition-all cursor-pointer" />
-                <svg class="absolute w-3.5 h-3.5 text-white left-0.5 top-1 opacity-0 peer-checked:opacity-100 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
-              </div>
-              <span class="group-hover:text-white transition">Run Contact Waterfall</span>
-            </label>
-          </div>
-          <button type="submit" class="btn-primary">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Launch Ingestion
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Bulk Deep-Enrich -->
-    <div class="card flex flex-col justify-between">
-      <div class="mb-5">
-        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2">
-          <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          Bulk Deep Enrich
-        </h3>
-        <p class="text-sm text-slate-400">Enrich thin prospect records with web evidence & contact waterfall</p>
+    <!-- Wizard Header -->
+    <div class="flex items-center justify-between mb-8 pb-6 border-b border-surface-border">
+      <div>
+        <h2 class="text-xl font-bold text-white mb-1">Acquisition Wizard</h2>
+        <p class="text-sm text-slate-400">Configure your target market and ingestion limits.</p>
       </div>
-      <form hx-post="/sourcing/bulk-enrich" hx-target="#ingestion-status" hx-swap="innerHTML" class="flex items-end gap-3 mt-auto">
-        <div class="flex-1">
-          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Batch Limit</label>
-          <input type="number" name="limit" value="25" min="1" max="100" class="input-field font-mono" />
-        </div>
-        <button type="submit" class="btn-secondary">Enrich</button>
-      </form>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm" :class="step >= 1 ? 'bg-indigo-500 text-white' : 'bg-surface-border text-slate-400'">1</div>
+        <div class="w-8 h-px" :class="step >= 2 ? 'bg-indigo-500' : 'bg-surface-border'"></div>
+        <div class="flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm" :class="step >= 2 ? 'bg-indigo-500 text-white' : 'bg-surface-border text-slate-400'">2</div>
+        <div class="w-8 h-px" :class="step >= 3 ? 'bg-indigo-500' : 'bg-surface-border'"></div>
+        <div class="flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm" :class="step >= 3 ? 'bg-indigo-500 text-white' : 'bg-surface-border text-slate-400'">3</div>
+      </div>
     </div>
+
+    <!-- Wizard Form -->
+    <form hx-post="/sourcing/run-ingestion" hx-target="#ingestion-status" hx-swap="innerHTML" class="min-h-[250px] flex flex-col justify-between">
+
+      <!-- Step 1: Market Play -->
+      <div x-show="step === 1" x-transition.opacity>
+        <h3 class="text-lg font-bold text-white mb-4">Select Target Market Play</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="cursor-pointer">
+            <input type="radio" x-model="play" value="FIELD_OPERATIONS_UK_V1" name="play_code" class="hidden peer" />
+            <div class="card border-2 border-transparent peer-checked:border-indigo-500 p-5 hover:bg-white/5 transition-colors">
+              <div class="text-2xl mb-2">🇬🇧</div>
+              <div class="font-bold text-white mb-1">UK Field Operations</div>
+              <div class="text-xs text-slate-400">Targeting UK companies in specific SIC codes.</div>
+            </div>
+          </label>
+          <label class="cursor-pointer">
+            <input type="radio" x-model="play" value="FIELD_OPERATIONS_FR_V2" name="play_code" class="hidden peer" />
+            <div class="card border-2 border-transparent peer-checked:border-indigo-500 p-5 hover:bg-white/5 transition-colors">
+              <div class="text-2xl mb-2">🇫🇷</div>
+              <div class="font-bold text-white mb-1">FR Field Operations</div>
+              <div class="text-xs text-slate-400">Targeting FR companies via Sirene NAF codes.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Step 2: Adapter & Mode -->
+      <div x-show="step === 2" x-transition.opacity style="display: none;">
+        <h3 class="text-lg font-bold text-white mb-4">Select Source Adapter</h3>
+        <div class="space-y-4 max-w-md">
+          <label class="block">
+            <span class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Connector Mode</span>
+            <select name="mode" x-model="mode" class="input-field appearance-none">
+              <option value="companies_house" x-show="play === 'FIELD_OPERATIONS_UK_V1'">Companies House REST API (UK)</option>
+              <option value="full" x-show="play === 'FIELD_OPERATIONS_FR_V2'">Full (Sirene + DECP)</option>
+              <option value="decp" x-show="play === 'FIELD_OPERATIONS_FR_V2'">DECP Public Awards Only</option>
+              <option value="registry" x-show="play === 'FIELD_OPERATIONS_FR_V2'">Sirene NAF Field Registry Only</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <!-- Step 3: Limits & Enrichment -->
+      <div x-show="step === 3" x-transition.opacity style="display: none;">
+        <h3 class="text-lg font-bold text-white mb-4">Configure Job Limits</h3>
+        <div class="flex flex-col gap-6 max-w-md">
+          <div>
+            <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Max Candidates (Batch Size)</label>
+            <input type="number" name="max_companies" x-model="limit" min="1" max="500" class="input-field font-mono text-lg p-3" />
+            <p class="text-xs text-slate-400 mt-2">Maximum number of companies to pull in this run.</p>
+          </div>
+
+          <label class="flex items-center gap-3 text-sm font-bold text-slate-300 cursor-pointer group">
+            <div class="relative flex items-center">
+              <input type="checkbox" name="contacts" value="1" x-model="contacts" class="peer appearance-none w-6 h-6 border-2 border-slate-500 rounded bg-transparent checked:bg-indigo-500 checked:border-indigo-500 transition-all cursor-pointer" />
+              <svg class="absolute w-4 h-4 text-white left-1 top-1 opacity-0 peer-checked:opacity-100 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <div class="group-hover:text-white transition">
+              <div class="text-white text-base">Run Contact Waterfall Immediately</div>
+              <div class="text-xs text-slate-400 font-normal mt-0.5">Attempt to discover decision-maker emails during ingestion.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Wizard Navigation -->
+      <div class="flex justify-between items-center mt-10 pt-6 border-t border-surface-border">
+        <button type="button" @click="if(step > 1) step--" class="btn-secondary" :class="step === 1 ? 'opacity-50 cursor-not-allowed' : ''" :disabled="step === 1">
+          <i class="ph ph-arrow-left"></i> Back
+        </button>
+
+        <button type="button" @click="step++" x-show="step < 3" class="btn-primary">
+          Continue <i class="ph ph-arrow-right"></i>
+        </button>
+
+        <button type="submit" x-show="step === 3" style="display: none;" class="btn-primary" @click="$el.innerHTML = '<i class=\'ph ph-spinner animate-spin\'></i> Starting...'">
+          <i class="ph ph-rocket"></i> Launch Acquisition
+        </button>
+      </div>
+
+    </form>
   </div>
-  <div id="ingestion-status" class="mt-4"></div>
+  <div id="ingestion-status" class="mt-6 max-w-4xl mx-auto"></div>
 </div>
 
 <!-- Filter Bar -->

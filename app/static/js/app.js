@@ -8,30 +8,49 @@ document.addEventListener("htmx:configRequest", (event) => {
   if (token) event.detail.headers["X-CSRF-Token"] = token;
 });
 
-document.addEventListener("submit", (event) => {
-  const form = event.target;
-  if (!(form instanceof HTMLFormElement)) return;
-  if ((form.method || "get").toLowerCase() !== "post") return;
-  if (form.hasAttribute("hx-post") || form.hasAttribute("hx-get")) return;
+// Global form interception (DOM replacement) has been removed (A1.11).
+// Full page forms should submit normally. HTMX should be used for partial replacements.
 
-  event.preventDefault();
-  const action = form.getAttribute("action") || window.location.href;
-  fetch(action, {
-    method: "POST",
-    body: new FormData(form),
-    credentials: "same-origin",
-    headers: { "X-CSRF-Token": pfCsrf() },
-    redirect: "manual"
-  }).then((response) => {
-    const location = response.headers.get("Location");
-    if (response.status >= 300 && response.status < 400 && location) {
-      window.location.href = location;
-      return undefined;
+/**
+ * apiFetch: A helper for JSON API requests.
+ * Includes CSRF tokens, basic error parsing, and timeouts.
+ */
+async function apiFetch(url, options = {}) {
+  const token = pfCsrf();
+  const headers = { ...options.headers };
+  if (token) {
+    headers["X-CSRF-Token"] = token;
+  }
+
+  if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(options.body);
+  }
+
+  const fetchOptions = {
+    ...options,
+    headers,
+    credentials: "same-origin"
+  };
+
+  try {
+    const res = await fetch(url, fetchOptions);
+    if (!res.ok) {
+      let errText = await res.text();
+      try { errText = JSON.parse(errText).detail || errText; } catch(e) {}
+      throw new Error(errText || `Request failed with status ${res.status}`);
     }
-    return response.text().then((html) => {
-      document.open();
-      document.write(html);
-      document.close();
-    });
-  }).catch(() => form.submit());
-}, true);
+
+    // Attempt to parse JSON if the response is JSON, otherwise return text
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return await res.json();
+    }
+    return await res.text();
+  } catch (error) {
+    console.error(`apiFetch failed: ${error.message}`);
+    // A structured toast could be displayed here if implemented.
+    throw error;
+  }
+}
+window.apiFetch = apiFetch;

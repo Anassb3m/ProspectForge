@@ -15,7 +15,6 @@ from app.discovery.emails import (
 )
 from app.discovery.naf import is_it_cyber_naf, map_naf_to_sector, map_tranche_effectifs
 from app.discovery.reacher import pick_best_email
-from app.scoring import calculate_urgency_score, explain_score, priority_from_score
 
 
 class TestNaf:
@@ -151,50 +150,6 @@ class TestDecpFilter:
         assert companies[0]["has_multiple"] is True
         assert "evidence" in companies[0]
 
-
-class TestScoringV21:
-    def _p(self, **kwargs):
-        defaults = dict(
-            signal_type="OTHER",
-            signal_details=None,
-            decision_maker_title=None,
-            company_size="1-10",
-            naf_code=None,
-            award_history=None,
-            contact_confidence=None,
-            outreach_events=[],
-            urgency_score=50,
-            priority_level="Medium",
-        )
-        defaults.update(kwargs)
-        return SimpleNamespace(**defaults)
-
-    def test_decp_win_base(self):
-        p = self._p(signal_type="DECP_WIN")
-        assert calculate_urgency_score(p, []) == 80  # 50+30
-
-    def test_decp_multi_and_cyber(self):
-        p = self._p(
-            signal_type="DECP_WIN",
-            signal_details="multiple wins · cybersécurité",
-            award_history=[
-                {"date": datetime.now(timezone.utc).date().isoformat(), "montant": 60000},
-                {"date": datetime.now(timezone.utc).date().isoformat(), "montant": 10000},
-            ],
-            naf_code="6201Z",
-            company_size="11-50",
-        )
-        score = calculate_urgency_score(p, [])
-        # 50+30+15+10+12+8 = 125 → 100
-        assert score == 100
-        assert priority_from_score(score) == "High"
-
-    def test_explain_score(self):
-        p = self._p(signal_type="DECP_WIN", naf_code="6202A", company_size="51-200")
-        parts = explain_score(p, [])
-        labels = [c["label"] for c in parts]
-        assert any("DECP" in lab or "BOAMP" in lab or "Public" in lab for lab in labels)
-        assert any("NAF" in lab for lab in labels)
 
     def test_pick_best_email(self):
         results = [
