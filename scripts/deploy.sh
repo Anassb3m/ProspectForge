@@ -52,7 +52,7 @@ case "$TLS_MODE" in
     ;;
   external)
     CADDYFILE_PATH="$ROOT/deploy/Caddyfile.external"
-    CADDY_BIND="127.0.0.1"
+    CADDY_BIND="${CADDY_BIND:-127.0.0.1}"
     # Keep the bundled plain-HTTP hop away from an existing proxy on 80/443.
     HTTP_PORT="${EXTERNAL_HTTP_PORT:-18080}"
     HTTPS_PORT="${EXTERNAL_HTTPS_PORT:-18443}"
