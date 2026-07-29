@@ -1,4 +1,4 @@
-"""Nightly / manual opportunity score recalculation (V3 only)."""
+"""Nightly / manual opportunity score recalculation."""
 
 import logging
 
@@ -7,7 +7,8 @@ from sqlalchemy.orm import selectinload
 
 from app.commercial import recompute_commercial_state
 from app.database import async_session_factory
-from app.models import Prospect
+from app.models import Opportunity, Prospect
+from app.services.scoring_v4 import calculate_opportunity_score_v4
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +16,26 @@ logger = logging.getLogger(__name__)
 async def recalculate_all_scores() -> int:
     async with async_session_factory() as session:
         result = await session.execute(
-            select(Prospect)
-            .options(selectinload(Prospect.outreach_events))
-            .where(Prospect.anonymized.is_(False))
+            select(Opportunity)
+            .options(
+                selectinload(Opportunity.company),
+                selectinload(Opportunity.evidence_items)
+            )
         )
-        prospects = list(result.scalars().unique().all())
-        for p in prospects:
-            await recompute_commercial_state(session, p)
+        opportunities = list(result.scalars().unique().all())
+        for opp in opportunities:
+            # V4 Canonical Scoring
+            calculate_opportunity_score_v4(session, opp)
+            
+            # Legacy Projection Update
+            prospect = await session.scalar(
+                select(Prospect).where(Prospect.opportunity_id == opp.id)
+            )
+            if prospect and not prospect.anonymized:
+                # Update Prospect scores from Opportunity
+                prospect.opportunity_score = opp.latest_score
+                await recompute_commercial_state(session, prospect)
+                
         await session.commit()
-        logger.info("Recalculated V3 commercial state for %d prospects", len(prospects))
-        return len(prospects)
+        logger.info("Recalculated V4 scores for %d opportunities", len(opportunities))
+        return len(opportunities)

@@ -10,7 +10,7 @@ from typing import Any, Sequence
 import pandas as pd
 from pydantic import ValidationError
 from sqlalchemy.orm import selectinload
-from sqlalchemy import Select, and_, or_, select, update
+from sqlalchemy import Select, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -26,7 +26,9 @@ from app.models import (
     CompanyIdentifier as CompanyIdentifier,
     CompanyDomain as CompanyDomain,
     CompanyLocation as CompanyLocation,
-    CompanyClassification as CompanyClassification
+    CompanyClassification as CompanyClassification,
+    PipelineRun,
+    WorkItem,
 )
 from app.services.legacy_projection import LegacyProspectProxy
 from app.schemas import (
@@ -41,6 +43,7 @@ from app.schemas import (
     SignalTypeMetrics,
 )
 from app.commercial import add_suppression, is_suppressed, recompute_commercial_state
+from app.config import get_settings
 from app.plays import DEFAULT_PLAY_CODE
 
 
@@ -167,24 +170,98 @@ async def get_prospect(db: AsyncSession, prospect_id: str) -> LegacyProspectProx
         return None
     proxy = LegacyProspectProxy.from_models(row[0], row[1])
 
-    # Try to load events from the legacy prospect
+    # Compatibility fields are linked explicitly to the canonical opportunity.
+    # Company names are display values and are never identity joins.
     legacy_prospect_query = await db.execute(
         select(Prospect)
         .options(selectinload(Prospect.outreach_events))
-        .where(Prospect.company_name == proxy.company_name)
+        .where(Prospect.opportunity_id == prospect_id)
     )
     legacy = legacy_prospect_query.scalars().first()
     if legacy:
+        projected_fields = (
+            "company_name",
+            "sector",
+            "company_size",
+            "signal_type",
+            "signal_details",
+            "decision_maker_name",
+            "decision_maker_title",
+            "linkedin_url",
+            "email",
+            "phone",
+            "website",
+            "siren",
+            "siret",
+            "naf_code",
+            "award_history",
+            "last_tender_date",
+            "contact_source",
+            "contact_confidence",
+            "needs_manual_review",
+            "data_source",
+            "informed_at",
+            "opted_out",
+            "opted_out_at",
+            "urgency_score",
+            "priority_level",
+            "source",
+            "notes",
+            "created_at",
+            "updated_at",
+            "current_status",
+            "next_action",
+            "next_action_date",
+            "contact_status",
+            "award_count",
+            "award_total_value",
+            "score_badges",
+            "why_this_lead",
+            "fit_score",
+            "timing_score",
+            "contactability_score",
+            "acquisition_score",
+            "acquisition_stage",
+            "city",
+            "department",
+            "dirigeants",
+            "market_play_code",
+            "opportunity_score",
+            "pain_score",
+            "trigger_score",
+            "authority_score",
+            "readiness_state",
+            "readiness_failures",
+            "suspected_pain",
+            "why_now",
+            "recommended_buyer_role",
+            "personalization_brief",
+            "recommended_offer",
+            "contact_discovery_state",
+        )
+        for field_name in projected_fields:
+            if hasattr(legacy, field_name):
+                setattr(proxy, field_name, getattr(legacy, field_name))
         proxy.outreach_events = list(legacy.outreach_events or [])
         proxy.legacy_id = legacy.id
-        proxy.current_status = legacy.current_status
-        proxy.manual_review_state = legacy.manual_review_state
+        setattr(proxy, "manual_review_state", legacy.manual_review_state)
         setattr(proxy, "qualification_decision", legacy.qualification_decision)
         setattr(proxy, "opted_out", getattr(legacy, "opted_out", False))
         setattr(proxy, "anonymized", getattr(legacy, "anonymized", False))
         setattr(proxy, "is_suppressed", getattr(legacy, "is_suppressed", False))
 
     return proxy
+
+
+async def get_legacy_prospect(
+    db: AsyncSession, prospect_id: str
+) -> Prospect | None:
+    """Resolve the compatibility row through an explicit opportunity link."""
+    if str(prospect_id).isdigit():
+        return await db.get(Prospect, int(prospect_id))
+    return await db.scalar(
+        select(Prospect).where(Prospect.opportunity_id == str(prospect_id))
+    )
 
 
 async def create_prospect(db: AsyncSession, data: ProspectCreate) -> Prospect:
@@ -222,8 +299,12 @@ async def create_prospect(db: AsyncSession, data: ProspectCreate) -> Prospect:
         website=prospect.website,
         city=prospect.city,
         department=prospect.department,
-        payload=payload
+        payload=payload,
+        play_code=prospect.market_play_code,
     )
+    prospect.company_id = opp.company_id
+    prospect.opportunity_id = opp.id
+    await db.flush()
     loaded = await get_prospect(db, str(opp.id))
     return loaded  # type: ignore[return-value]
 
@@ -245,11 +326,20 @@ async def update_prospect(db: AsyncSession, prospect: Any, updates: dict[str, An
 async def _resolve_prospect(db: AsyncSession, p: Any) -> Prospect:
     if isinstance(p, Prospect):
         return p
-    # Resolve from proxy
-    result = await db.execute(
-        select(Prospect).where(Prospect.company_name == p.company_name)
-    )
-    res = result.scalars().first()
+    legacy_id = getattr(p, "legacy_id", None)
+    if legacy_id is not None:
+        res = await db.get(Prospect, legacy_id)
+    else:
+        opportunity_id = getattr(p, "id", None)
+        res = (
+            await db.scalar(
+                select(Prospect).where(
+                    Prospect.opportunity_id == str(opportunity_id)
+                )
+            )
+            if opportunity_id is not None
+            else None
+        )
     if not res:
         raise ComplianceError("Could not resolve legacy prospect for mutation")
     return res
@@ -534,6 +624,69 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
     follow_ups = await get_follow_ups_due(db)
     today = _utcnow().date()
     overdue_follow_ups = len([f for f in follow_ups if f.next_action_date and f.next_action_date.date() < today])
+    thirty_days_ago = _utcnow() - timedelta(days=30)
+    opportunity_count_30d = int(
+        await db.scalar(
+            select(func.count(Opportunity.id)).where(
+                Opportunity.created_at >= thirty_days_ago
+            )
+        )
+        or 0
+    )
+    run_rows = list(
+        (
+            await db.execute(
+                select(PipelineRun).where(PipelineRun.started_at >= thirty_days_ago)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    failed_runs = int(
+        await db.scalar(
+            select(func.count(PipelineRun.id)).where(
+                PipelineRun.status.in_(["failed", "blocked"])
+            )
+        )
+        or 0
+    )
+    failed_work = int(
+        await db.scalar(
+            select(func.count(WorkItem.id)).where(WorkItem.status == "failed")
+        )
+        or 0
+    )
+    discovered_30d = sum(int(run.raw_discovered or 0) for run in run_rows)
+    duplicates_30d = sum(int(run.duplicate_count or 0) for run in run_rows)
+    created_30d = sum(
+        int(run.companies_created or 0) for run in run_rows
+    )
+    reviewed = [
+        p
+        for p in prospects
+        if p.manual_review_state in {"accepted", "rejected"}
+    ]
+    accepted = [p for p in reviewed if p.manual_review_state == "accepted"]
+    contact_ready = [p for p in prospects if p.readiness_state == "contact_ready"]
+    with_evidence = [p for p in prospects if p.evidence_json]
+    verified_domains = [
+        p
+        for p in prospects
+        if p.website and getattr(p, "domain_verification_state", None) == "verified"
+    ]
+    website_count = sum(1 for p in prospects if p.website)
+    stale_before = _utcnow() - timedelta(days=get_settings().contact_refresh_days)
+    stale = [
+        p
+        for p in prospects
+        if p.last_enriched_at is None
+        or (
+            p.last_enriched_at
+            if p.last_enriched_at.tzinfo
+            else p.last_enriched_at.replace(tzinfo=timezone.utc)
+        )
+        < stale_before
+    ]
 
     return DashboardMetrics(
         total_prospects=total,
@@ -552,11 +705,11 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
         contacts_awaiting_review=sum(1 for p in prospects if getattr(p, "contact_discovery_state", "") == "review_required"),
         drafts_awaiting_approval=0,
         overdue_follow_ups=overdue_follow_ups,
-        failed_or_blocked_jobs=0,
+        failed_or_blocked_jobs=failed_runs + failed_work,
         replies_needing_classification=0,
         funnel_universe=total,
         funnel_icp_eligible=sum(1 for p in prospects if getattr(p, "fit_score", 0) > 0),
-        funnel_domain_verified=0,
+        funnel_domain_verified=len(verified_domains),
         funnel_evidence_enriched=sum(1 for p in prospects if getattr(p, "evidence_json", None)),
         funnel_human_accepted=sum(1 for p in prospects if p.manual_review_state == "accepted"),
         funnel_contact_ready=sum(1 for p in prospects if p.readiness_state == "contact_ready"),
@@ -565,14 +718,14 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
         funnel_meeting=sum(1 for p in prospects if p.acquisition_stage in ("meeting", "proposal", "won")),
         funnel_proposal=sum(1 for p in prospects if p.acquisition_stage in ("proposal", "won")),
         funnel_won=sum(1 for p in prospects if p.acquisition_stage == "won"),
-        companies_imported_per_day=0.0,
-        opportunities_created_per_day=0.0,
-        qualification_acceptance_rate=0.0,
-        contact_ready_yield=0.0,
-        duplicate_rate=0.0,
-        domain_verification_rate=0.0,
-        evidence_coverage=0.0,
-        stale_data_count=0
+        companies_imported_per_day=round(created_30d / 30, 2),
+        opportunities_created_per_day=round(opportunity_count_30d / 30, 2),
+        qualification_acceptance_rate=rate(len(accepted), len(reviewed)),
+        contact_ready_yield=rate(len(contact_ready), total),
+        duplicate_rate=rate(duplicates_30d, discovered_30d),
+        domain_verification_rate=rate(len(verified_domains), website_count),
+        evidence_coverage=rate(len(with_evidence), total),
+        stale_data_count=len(stale),
     )
 
 

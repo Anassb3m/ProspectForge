@@ -161,9 +161,22 @@ class Prospect(Base):
     __tablename__ = "prospects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    opportunity_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("opportunities.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     company_name: Mapped[str] = mapped_column(String(200), index=True)
-    sector: Mapped[str] = mapped_column(String(100))
-    company_size: Mapped[str] = mapped_column(String(20))
+    sector: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    company_size: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     signal_type: Mapped[str] = mapped_column(String(50), index=True)
     signal_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -229,7 +242,7 @@ class Prospect(Base):
     # published | inferred | guessed | user_supplied
 
     # GDPR / compliance trail
-    data_source: Mapped[str] = mapped_column(String(200))
+    data_source: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     informed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     opted_out: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     opted_out_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -1116,9 +1129,38 @@ class PipelineRun(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     play_code: Mapped[str] = mapped_column(String(80), index=True)
+    play_version: Mapped[str] = mapped_column(String(20), default="unknown")
+    connector_code: Mapped[str] = mapped_column(String(80), default="unknown", index=True)
+    partition_key: Mapped[str] = mapped_column(String(160), default="all")
+    mode: Mapped[str] = mapped_column(String(40), default="full")
     status: Mapped[str] = mapped_column(String(30), default="running", index=True)
+    request_config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    requested_by: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(64), index=True)
+    application_revision: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    checkpoint_before_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    checkpoint_after_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    raw_discovered: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    raw_persisted: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    duplicate_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    invalid_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    companies_created: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    companies_updated: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    icp_accepted: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    icp_rejected: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    enrichment_queued: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    enrichment_completed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    enrichment_failed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    contact_queued: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    contact_completed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    contact_failed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    error_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    error_categories_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     stats_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
 
@@ -1127,6 +1169,7 @@ class WorkItem(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     pipeline_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("pipeline_runs.id"), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     task_name: Mapped[str] = mapped_column(String(100), index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
@@ -1165,9 +1208,22 @@ class FailedWorkItem(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     original_work_item_id: Mapped[str] = mapped_column(String(36), index=True)
-    pipeline_run_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
-    task_name: Mapped[str] = mapped_column(String(100))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    task_name: Mapped[str] = mapped_column(String(150))
+    args: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
+    kwargs: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_type: Mapped[str] = mapped_column(String(100))
     error_message: Mapped[str] = mapped_column(Text)
-    traceback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    traceback_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class WorkerNode(Base):
+    __tablename__ = "worker_nodes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    hostname: Mapped[str] = mapped_column(String(200), index=True)
+    worker_type: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

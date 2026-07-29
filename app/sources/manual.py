@@ -6,6 +6,7 @@ from app.sources.base import (
     RawSourceRecord,
     SourceAdapter,
     SourceHealth,
+    SourceCapabilityState,
 )
 
 
@@ -45,5 +46,8 @@ class ManualResearchAdapter(SourceAdapter):
 
     async def healthcheck(self) -> SourceHealth:
         return SourceHealth(
-            code=self.code, is_healthy=True, status_message="Manual research entry ready"
+            code=self.code,
+            is_healthy=True,
+            state=SourceCapabilityState.HEALTHY,
+            status_message="Manual entry available",
         )

@@ -26,6 +26,22 @@ router = APIRouter(tags=["sourcing"])
 templates = Jinja2Templates(directory="app/templates")
 
 
+async def _mark_enqueue_failed(db: AsyncSession, run, exc: Exception) -> None:
+    now = datetime.now(timezone.utc)
+    run.status = "enqueue_failed"
+    run.heartbeat_at = now
+    run.finished_at = now
+    run.error_count = 1
+    run.error_categories_json = {"QUEUE_UNAVAILABLE": 1}
+    run.error_summary = str(exc)[:4000]
+    run.stats_json = {
+        "status": "enqueue_failed",
+        "errors": 1,
+        "error_categories": {"QUEUE_UNAVAILABLE": 1},
+    }
+    await db.commit()
+
+
 async def _load_sourcing_queue(
     db: AsyncSession,
     *,
@@ -132,32 +148,74 @@ async def api_sourcing_queue(
 
 @router.post("/api/sourcing/ingest", response_model=IngestionResult, status_code=status.HTTP_202_ACCEPTED)
 async def api_run_ingestion(
-    _: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     background: bool = Query(True),
     mode: str = Query("full", pattern="^(full|decp|registry)$"),
+    play_code: str = Query("FIELD_OPERATIONS_FR_V2"),
     days: Optional[int] = None,
-    max_companies: Optional[int] = Query(80, ge=1, le=500),
+    max_companies: int = Query(80, ge=1, le=2000),
     contacts: bool = False,
     skip_sirene: bool = False,
 ):
     from app.jobs.ingestion import run_ingestion
+    from app.plays import validate_ingestion_request
+    from app.services.pipeline_runs import create_pipeline_run
     from app.workers.tasks import ingest_market_play
 
-    if background:
-        ingest_market_play.delay(
-            play_code="DEFAULT",
-            mode=mode,
-            limit=max_companies,
+    try:
+        validate_ingestion_request(play_code, mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if contacts:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Contact discovery is a separate readiness-gated stage and "
+                "cannot be requested during source ingestion"
+            ),
         )
-        return IngestionResult(companies=0, created=0, updated=0)
+    if background:
+        queued_run = await create_pipeline_run(
+            db,
+            play_code=play_code,
+            mode=mode,
+            discovery_limit=max_companies,
+            run_contacts=contacts,
+            skip_sirene=skip_sirene,
+            requested_by=user.email,
+        )
+        await db.commit()
+        try:
+            ingest_market_play.delay(
+                play_code=play_code,
+                mode=mode,
+                discovery_limit=max_companies,
+                run_contacts=contacts,
+                skip_sirene=skip_sirene,
+                requested_by=user.email,
+                correlation_id=queued_run.correlation_id,
+                pipeline_run_id=queued_run.id,
+            )
+        except Exception as exc:
+            await _mark_enqueue_failed(db, queued_run, exc)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Ingestion queue unavailable; run {queued_run.id} was not queued",
+            ) from exc
+        return IngestionResult(run_id=queued_run.id, status="queued")
     stats = await run_ingestion(
+        play_code=play_code,
         mode=mode,  # type: ignore[arg-type]
         days_back=days,
         max_companies=max_companies,
         run_contact_discovery=contacts,
         skip_sirene=skip_sirene,
+        requested_by=user.email,
     )
     return IngestionResult(
+        run_id=stats.get("run_id"),
+        status=stats.get("status", "completed"),
         awards=stats.get("decp", {}).get("awards", 0) if isinstance(stats.get("decp"), dict) else 0,
         companies=(
             (stats.get("decp", {}) or {}).get("companies", 0)
@@ -177,7 +235,7 @@ async def api_deep_enrich(
     run_contacts: bool = True,
     verify: bool = False,
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     data = await deep_enrich(
@@ -242,7 +300,7 @@ async def api_enrich_prospect(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     result = await enrich_prospect_contacts(
@@ -279,7 +337,7 @@ async def api_use_email(
     confidence: str = Form("manual"),
     source: str = Form("manual"),
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     if confidence not in {"published_personal", "published_generic", "confirmed_by_reply"}:
@@ -310,7 +368,7 @@ async def api_mark_reviewed(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     prospect.needs_manual_review = False
@@ -428,7 +486,7 @@ async def form_enrich_prospect(
     apply_best: Annotated[Optional[str], Form()] = None,
     verify: Annotated[Optional[str], Form()] = "on",
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
 
@@ -467,7 +525,7 @@ async def form_deep_enrich(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     data = await deep_enrich(
@@ -525,7 +583,7 @@ async def form_use_email(
     confidence: Annotated[str, Form()] = "manual",
     source: Annotated[str, Form()] = "manual",
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     if confidence not in {"published_personal", "published_generic", "confirmed_by_reply"}:
@@ -575,7 +633,7 @@ async def form_mark_reviewed(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     prospect.needs_manual_review = False
@@ -592,27 +650,61 @@ async def form_mark_reviewed(
 async def form_run_ingestion(
     request: Request,
     user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     max_companies: Annotated[int, Form()] = 60,
     mode: Annotated[str, Form()] = "full",
     play_code: Annotated[str, Form()] = "FIELD_OPERATIONS_FR_V2",
     contacts: Annotated[Optional[str], Form()] = None,
     skip_sirene: Annotated[Optional[str], Form()] = None,
 ):
+    from app.plays import validate_ingestion_request
+    from app.services.pipeline_runs import create_pipeline_run
     from app.workers.tasks import ingest_market_play
 
-    if mode not in ("full", "decp", "registry", "companies_house"):
-        mode = "full"
+    try:
+        validate_ingestion_request(play_code, mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if contacts:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Contact discovery is a separate readiness-gated stage and "
+                "cannot be requested during source ingestion"
+            ),
+        )
 
-    ingest_market_play.delay(
+    queued_run = await create_pipeline_run(
+        db,
         play_code=play_code,
         mode=mode,
-        limit=max_companies,
+        discovery_limit=max_companies,
+        run_contacts=bool(contacts),
+        skip_sirene=bool(skip_sirene),
+        requested_by=user.email,
     )
+    await db.commit()
+    try:
+        ingest_market_play.delay(
+            play_code=play_code,
+            mode=mode,
+            discovery_limit=max_companies,
+            run_contacts=bool(contacts),
+            skip_sirene=bool(skip_sirene),
+            requested_by=user.email,
+            correlation_id=queued_run.correlation_id,
+            pipeline_run_id=queued_run.id,
+        )
+    except Exception as exc:
+        await _mark_enqueue_failed(db, queued_run, exc)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Ingestion queue unavailable; run {queued_run.id} was not queued",
+        ) from exc
     labels = {
         "full": "DECP awards + field-service registry",
         "decp": "DECP public awards only",
         "registry": "Field-service registry only",
-        "companies_house": "Companies House (UK)",
     }
     return templates.TemplateResponse(
         request,
@@ -620,8 +712,9 @@ async def form_run_ingestion(
         {
             "user": user,
             "message": (
-                f"Acquisition engine started ({labels.get(mode, mode)}, max {max_companies}). "
-                "Sirene + Annuaire enrich run automatically. Refresh queue in a few minutes."
+                f"Run {queued_run.id} queued ({play_code}, {labels.get(mode, mode)}, "
+                f"max {max_companies}, durable enrichment queued separately, "
+                f"skip Sirene={'on' if skip_sirene else 'off'})."
             ),
         },
     )

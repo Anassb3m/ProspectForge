@@ -8,6 +8,7 @@ from app.sources.base import (
     RawSourceRecord,
     SourceAdapter,
     SourceHealth,
+    SourceCapabilityState,
 )
 
 COMPANIES_HOUSE_BASE_URL = "https://api.company-information.service.gov.uk"
@@ -23,7 +24,7 @@ class CompaniesHouseAdapter(SourceAdapter):
         self.api_key = raw_key.strip()
 
     async def validate_config(self, config: dict[str, Any]) -> None:
-        if not self.api_key and not config.get("allow_mock", True):
+        if not self.api_key:
             raise ValueError("Companies House API key missing.")
 
     async def discover(self, query_params: dict[str, Any]) -> list[RawSourceRecord]:
@@ -96,7 +97,10 @@ class CompaniesHouseAdapter(SourceAdapter):
     async def healthcheck(self) -> SourceHealth:
         if not self.api_key:
             return SourceHealth(
-                code=self.code, is_healthy=False, status_message="Blocked: API key missing"
+                code=self.code,
+                is_healthy=False,
+                state=SourceCapabilityState.MISCONFIGURED,
+                status_message="Credential required: Companies House API key missing",
             )
         async with httpx.AsyncClient(auth=(self.api_key, ""), timeout=5.0) as client:
             try:
@@ -104,7 +108,17 @@ class CompaniesHouseAdapter(SourceAdapter):
                 return SourceHealth(
                     code=self.code,
                     is_healthy=resp.status_code in (200, 404),
+                    state=(
+                        SourceCapabilityState.HEALTHY
+                        if resp.status_code in (200, 404)
+                        else SourceCapabilityState.DEGRADED
+                    ),
                     status_message=f"HTTP {resp.status_code}",
                 )
             except Exception as exc:
-                return SourceHealth(code=self.code, is_healthy=False, status_message=str(exc))
+                return SourceHealth(
+                    code=self.code,
+                    is_healthy=False,
+                    state=SourceCapabilityState.UPSTREAM_UNAVAILABLE,
+                    status_message=str(exc),
+                )

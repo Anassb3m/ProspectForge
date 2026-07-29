@@ -1,65 +1,164 @@
-import logging
 import asyncio
-from typing import Any, Dict
+import logging
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
+from sqlalchemy import select
 
+from app.config import get_settings
 from app.workers.celery_app import celery_app
 from app.database import async_session_factory
-from app.models import Prospect
+from app.models import Prospect, WorkItem
+from app.plays import validate_ingestion_request
 
 logger = logging.getLogger(__name__)
 
 def run_async(coro):
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+    """Run one coroutine in a fresh worker-local loop."""
+    return asyncio.run(coro)
 
 # --- Ingestion Queue ---
 @celery_app.task(bind=True, max_retries=3)
-def ingest_market_play(self, play_code: str, mode: str, limit: int = 10) -> Dict[str, Any]:
+def ingest_market_play(
+    self,
+    *,
+    play_code: str,
+    mode: str,
+    discovery_limit: int,
+    run_contacts: bool = False,
+    skip_sirene: bool = False,
+    requested_by: str | None = None,
+    correlation_id: str | None = None,
+    pipeline_run_id: str | None = None,
+) -> dict[str, Any]:
     """Discover companies from configured sources (DECP, Registry, Companies House)."""
-    logger.info("Ingesting market play %s in mode %s (limit %d)", play_code, mode, limit)
+    validate_ingestion_request(play_code, mode)
+    if not 1 <= discovery_limit <= 2000:
+        raise ValueError("discovery_limit must be between 1 and 2000")
+    correlation_id = correlation_id or str(uuid.uuid4())
+    logger.info(
+        "Ingestion requested play=%s mode=%s limit=%d contacts=%s skip_sirene=%s "
+        "correlation_id=%s",
+        play_code,
+        mode,
+        discovery_limit,
+        run_contacts,
+        skip_sirene,
+        correlation_id,
+    )
     from app.jobs.ingestion import run_ingestion
-    stats = run_async(run_ingestion(mode=mode, max_companies=limit, run_contact_discovery=False, skip_sirene=False))
-    return {"status": "ok", "play_code": play_code, "stats": stats}
+    return run_async(
+        run_ingestion(
+            play_code=play_code,
+            mode=mode,
+            max_companies=discovery_limit,
+            run_contact_discovery=run_contacts,
+            skip_sirene=skip_sirene,
+            requested_by=requested_by,
+            correlation_id=correlation_id,
+            pipeline_run_id=pipeline_run_id,
+        )
+    )
 
 # --- Identity / Domain Queue ---
 @celery_app.task(bind=True, max_retries=3)
-def resolve_company_identity(self, company_id: str) -> Dict[str, Any]:
+def resolve_company_identity(self, company_id: str) -> dict[str, Any]:
     """Find the canonical web domain and merge dupes."""
     logger.info("Resolving identity for %s", company_id)
-    # Placeholder for future Phase 3 normalizations
-    return {"status": "ok"}
+    return {
+        "status": "disabled",
+        "reason": "Canonical identity stage is not activated in this release",
+    }
 
 # --- Website Evidence Queue ---
 @celery_app.task(bind=True, max_retries=3)
-def extract_website_evidence(self, company_id: str, url: str) -> Dict[str, Any]:
+def extract_website_evidence(
+    self,
+    company_id: str,
+    url: str = "",
+    *,
+    work_item_id: str | None = None,
+) -> dict[str, Any]:
     """Scrape website to find pain points, tech stack, and offerings."""
     logger.info("Extracting evidence from %s for %s", url, company_id)
 
     async def _do_enrich():
         from app.discovery.enrich import deep_enrich, apply_enrichment_to_prospect
         async with async_session_factory() as session:
-            prospect = await session.get(Prospect, company_id)
+            item = None
+            if work_item_id:
+                item = await session.scalar(
+                    select(WorkItem)
+                    .where(WorkItem.id == work_item_id)
+                    .with_for_update()
+                )
+                if item is None:
+                    return {"status": "not_found", "work_item_id": work_item_id}
+                if item.status == "completed":
+                    return {"status": "already_completed", "work_item_id": item.id}
+                item.status = "running"
+                item.lock_lease_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+                await session.commit()
+            prospect_key: int | str = int(company_id) if str(company_id).isdigit() else company_id
+            prospect = await session.get(Prospect, prospect_key)
             if not prospect:
+                if item is not None:
+                    item.status = "failed"
+                    item.lock_lease_until = None
+                    await session.commit()
                 return {"status": "not_found"}
 
-            # Use deep enrich
+            work_payload = item.payload if item is not None else {}
             data = await deep_enrich(
-                prospect.siren, prospect.siret, prospect.website, prospect.name, prospect.decision_maker_name
+                siren=prospect.siren,
+                siret=prospect.siret,
+                company_name=prospect.company_name,
+                existing={
+                    "website": prospect.website,
+                    "email": prospect.email,
+                    "decision_maker_name": prospect.decision_maker_name,
+                    "dirigeants": prospect.dirigeants,
+                },
+                run_contacts=False,
+                infer_web=True,
+                skip_sirene=bool(work_payload.get("skip_sirene")),
             )
             apply_enrichment_to_prospect(prospect, data)
+            if item is not None:
+                item.status = "completed"
+                item.lock_lease_until = None
             await session.commit()
-            return {"status": "ok", "log": data.get("enrichment_log")}
+            return {
+                "status": "ok",
+                "work_item_id": work_item_id,
+                "log": data.get("enrichment_log"),
+            }
 
-    return run_async(_do_enrich())
+    async def _record_retry(exc: Exception, final: bool) -> None:
+        if not work_item_id:
+            return
+        async with async_session_factory() as session:
+            item = await session.get(WorkItem, work_item_id)
+            if item is None:
+                return
+            item.retry_count = int(item.retry_count or 0) + 1
+            item.lock_lease_until = None
+            item.status = "failed" if final else "pending"
+            await session.commit()
+
+    try:
+        return run_async(_do_enrich())
+    except Exception as exc:
+        final = self.request.retries >= self.max_retries
+        run_async(_record_retry(exc, final))
+        if final:
+            raise
+        raise self.retry(exc=exc, countdown=min(60, 2 ** (self.request.retries + 1)))
 
 # --- Buyer / Contact Queue ---
 @celery_app.task(bind=True, max_retries=3)
-def contact_discovery_run(self, company_id: str) -> Dict[str, Any]:
+def contact_discovery_run(self, company_id: str) -> dict[str, Any]:
     """Run Apollo/Hunter/Reacher waterfall to find DMs and verify emails."""
     logger.info("Running contact discovery for %s", company_id)
     if company_id == "ALL":
@@ -82,8 +181,13 @@ def contact_discovery_run(self, company_id: str) -> Dict[str, Any]:
 
 # --- Campaigns & Notifications Queue ---
 @celery_app.task(bind=True, max_retries=3)
-def campaign_send_touch(self, prospect_id: str, touch_id: str) -> Dict[str, Any]:
+def campaign_send_touch(self, prospect_id: str, touch_id: str) -> dict[str, Any]:
     """Execute a personalized outreach touchpoint."""
+    if not get_settings().outreach_enabled:
+        return {
+            "status": "disabled",
+            "reason": "Automatic outreach is disabled by configuration",
+        }
     logger.info("Executing campaign touch %s for prospect %s", touch_id, prospect_id)
 
     async def _do_send_touch():
@@ -97,14 +201,46 @@ def campaign_send_touch(self, prospect_id: str, touch_id: str) -> Dict[str, Any]
 
 # --- Administrative & Maintenance (Beat) ---
 @celery_app.task(bind=True, max_retries=1)
-def recalculate_scores(self) -> Dict[str, Any]:
+def recalculate_scores(self) -> dict[str, Any]:
     logger.info("Running score recalculations")
     from app.jobs.recalculate_scores import recalculate_all_scores
     run_async(recalculate_all_scores())
     return {"status": "ok"}
 
+@celery_app.task(bind=True, max_retries=3)
+def recalculate_opportunity_score(self, opportunity_id: int) -> dict[str, Any]:
+    logger.info("Recalculating score for opportunity %s", opportunity_id)
+    
+    async def _do_recalc():
+        from app.database import async_session_factory
+        from app.models import Opportunity, Prospect
+        from app.services.scoring_v4 import calculate_opportunity_score_v4
+        from app.commercial import recompute_commercial_state
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        
+        async with async_session_factory() as session:
+            opp = await session.scalar(
+                select(Opportunity)
+                .options(selectinload(Opportunity.company), selectinload(Opportunity.evidence_items))
+                .where(Opportunity.id == opportunity_id)
+            )
+            if not opp:
+                return {"status": "not_found"}
+                
+            calculate_opportunity_score_v4(session, opp)
+            prospect = await session.scalar(select(Prospect).where(Prospect.opportunity_id == opp.id))
+            if prospect and not prospect.anonymized:
+                prospect.opportunity_score = opp.latest_score
+                await recompute_commercial_state(session, prospect)
+                
+            await session.commit()
+            return {"status": "ok"}
+            
+    return run_async(_do_recalc())
+
 @celery_app.task(bind=True, max_retries=1)
-def retention_sweep(self) -> Dict[str, Any]:
+def retention_sweep(self) -> dict[str, Any]:
     logger.info("Running retention anonymization sweep")
     from app.jobs.retention import anonymize_stale_prospects
     run_async(anonymize_stale_prospects())

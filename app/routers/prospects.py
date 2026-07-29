@@ -429,21 +429,22 @@ async def page_download_markdown_report(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    contact_prospect_id = prospect.legacy_id
 
     people = list((await db.execute(
         select(ContactPerson)
-        .where(ContactPerson.prospect_id == prospect.id)
+        .where(ContactPerson.prospect_id == contact_prospect_id)
         .order_by(ContactPerson.is_primary_candidate.desc(), ContactPerson.buyer_role_score.desc())
     )).scalars().all())
 
     points = list((await db.execute(
         select(ContactPoint)
-        .where(ContactPoint.prospect_id == prospect.id)
+        .where(ContactPoint.prospect_id == contact_prospect_id)
         .order_by(ContactPoint.is_primary.desc(), ContactPoint.confidence_score.desc())
     )).scalars().all())
 
     evidence = list((await db.execute(
-        select(ContactEvidence).where(ContactEvidence.prospect_id == prospect.id)
+        select(ContactEvidence).where(ContactEvidence.prospect_id == contact_prospect_id)
     )).scalars().all())
 
     lines = []
@@ -530,6 +531,7 @@ async def page_prospect_detail(
     prospect = await services.get_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
+    contact_prospect_id = prospect.legacy_id
     prospect.is_suppressed = await is_suppressed(  # type: ignore[attr-defined]
         db,
         email=prospect.email,
@@ -539,7 +541,7 @@ async def page_prospect_detail(
         (
             await db.execute(
                 select(ContactPerson)
-                .where(ContactPerson.prospect_id == prospect.id)
+                .where(ContactPerson.prospect_id == contact_prospect_id)
                 .order_by(
                     ContactPerson.is_primary_candidate.desc(),
                     ContactPerson.buyer_role_score.desc(),
@@ -551,7 +553,7 @@ async def page_prospect_detail(
         (
             await db.execute(
                 select(ContactPoint)
-                .where(ContactPoint.prospect_id == prospect.id)
+                .where(ContactPoint.prospect_id == contact_prospect_id)
                 .order_by(ContactPoint.is_primary.desc(), ContactPoint.confidence_score.desc())
             )
         ).scalars().all()
@@ -559,7 +561,9 @@ async def page_prospect_detail(
     evidence = list(
         (
             await db.execute(
-                select(ContactEvidence).where(ContactEvidence.prospect_id == prospect.id)
+                select(ContactEvidence).where(
+                    ContactEvidence.prospect_id == contact_prospect_id
+                )
             )
         ).scalars().all()
     )
@@ -579,7 +583,7 @@ async def page_prospect_detail(
         (
             await db.execute(
                 select(ContactDiscoveryRun)
-                .where(ContactDiscoveryRun.prospect_id == prospect.id)
+                .where(ContactDiscoveryRun.prospect_id == contact_prospect_id)
                 .order_by(ContactDiscoveryRun.started_at.desc())
                 .limit(5)
             )

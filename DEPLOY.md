@@ -87,6 +87,8 @@ Verify afterward:
 curl -fsS http://127.0.0.1:18081/ready
 docker compose ps
 docker compose logs --tail=100 app caddy db
+docker compose exec -T app alembic current
+docker compose exec -T app python scripts/reconcile_reliability.py --fail-on-anomaly
 ```
 
 Open `https://prospects.yourdomain.com` and sign in with the generated admin
@@ -204,12 +206,25 @@ docker compose ps
 docker compose logs -f app caddy db
 docker compose restart app
 docker compose exec app alembic current
-docker compose exec app python -m app.jobs.ingestion --mode registry --max-companies 40
+docker compose exec -T app python -m app.jobs.ingestion \
+  --play-code FIELD_OPERATIONS_FR_V2 --mode registry \
+  --max-companies 25 --skip-sirene
+./scripts/diagnose_pipeline.sh
 ./scripts/backup-host.sh
 ```
 
-The scheduler and nightly ingestion remain disabled by default. Enable them
-only after manually validating live-source quality.
+The scheduler and nightly ingestion remain disabled by default, and the
+`celery-beat` service is protected by the `scheduler` profile. Enable it only
+after backup, reconciliation, a reviewed controlled live-source run, and
+operator acceptance:
+
+```bash
+# set ENABLE_SCHEDULER=true and ENABLE_NIGHTLY_INGESTION=true in .env
+docker compose --profile scheduler up -d celery-beat
+```
+
+Keep nightly contact discovery and score reconciliation off until the scoring
+profile is certified. `OUTREACH_ENABLED=true` is rejected in production.
 
 ## Release verification
 
@@ -220,8 +235,9 @@ PYTHON_BIN=.venv/bin/python ./scripts/release-gate.sh
 ./scripts/smoke-production.sh
 ```
 
-The first command rebuilds pinned frontend assets, runs lint/tests/compile
-checks, validates shell scripts and Compose. The second performs a disposable
+The first command starts disposable PostgreSQL 16/Redis 7 services, migrates a
+unique test database, reconciles it, rebuilds pinned frontend assets, runs
+lint/tests/compile checks, and validates shell scripts and Compose. The second performs a disposable
 PostgreSQL migration and HTTPS boot test and deletes all smoke data afterward.
 
 ## Troubleshooting

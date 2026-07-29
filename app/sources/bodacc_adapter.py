@@ -4,6 +4,7 @@ from app.sources.base import (
     RawSourceRecord,
     SourceAdapter,
     SourceHealth,
+    SourceCapabilityState,
 )
 
 class BodaccAdapter(SourceAdapter):
@@ -36,5 +37,8 @@ class BodaccAdapter(SourceAdapter):
 
     async def healthcheck(self) -> SourceHealth:
         return SourceHealth(
-            code=self.code, is_healthy=True, status_message="BODACC interface ready"
+            code=self.code,
+            is_healthy=False,
+            state=SourceCapabilityState.PLANNED,
+            status_message="Planned: discovery and checkpointing are not implemented",
         )

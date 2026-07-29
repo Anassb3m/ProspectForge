@@ -2,7 +2,17 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import StrEnum
 from typing import Any, Protocol
+
+
+class SourceCapabilityState(StrEnum):
+    DISABLED = "disabled"
+    PLANNED = "planned"
+    MISCONFIGURED = "misconfigured"
+    UPSTREAM_UNAVAILABLE = "upstream_unavailable"
+    DEGRADED = "degraded"
+    HEALTHY = "healthy"
 
 
 @dataclass
@@ -10,6 +20,7 @@ class SourceHealth:
     code: str
     is_healthy: bool
     status_message: str
+    state: SourceCapabilityState = SourceCapabilityState.DEGRADED
     last_checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -48,8 +59,11 @@ class SourceAdapter(Protocol):
         ...
 
     async def discover(
-        self, query_params: dict[str, Any]
-    ) -> list[RawSourceRecord]:
+        self,
+        checkpoint: dict[str, Any] | None,
+        limit: int,
+        query_params: dict[str, Any]
+    ) -> tuple[list[RawSourceRecord], dict[str, Any] | None, bool]:
         ...
 
     def normalize(

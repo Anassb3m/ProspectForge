@@ -161,6 +161,8 @@ def _eligibility_reason(prospect: Prospect, minimum_score: int) -> str | None:
         return "below_opportunity_threshold"
     if not prospect.website and not extract_domain(None, prospect.email):
         return "no_defensible_domain"
+    if prospect.readiness_state not in ("contact_required", "contact_ready"):
+        return f"not_eligible_state_{prospect.readiness_state}"
     return None
 
 
@@ -208,6 +210,28 @@ async def _merge_people(
                 linkedin_url=fact.linkedin_url, source_count=1,
             )
             db.add(person)
+            
+            # Dual-write to canonical Person if company_id is available
+            if prospect.company_id:
+                from app.models import Person, PersonRole
+                import uuid
+                canon_person = Person(
+                    id=str(uuid.uuid4()),
+                    first_name=first,
+                    last_name=last,
+                    full_name=fact.full_name[:200],
+                    linkedin_url=fact.linkedin_url
+                )
+                db.add(canon_person)
+                db.add(PersonRole(
+                    person_id=canon_person.id,
+                    company_id=prospect.company_id,
+                    raw_title=(fact.job_title or "Unknown")[:200],
+                    normalized_role=normalized_role,
+                    seniority="executive" if role_score >= 70 else ("director" if role_score >= 50 else "manager"),
+                    confidence=fact.identity_confidence / 100.0,
+                ))
+                
             await db.flush()
             by_key[key] = person
             by_name[normalized_name] = person

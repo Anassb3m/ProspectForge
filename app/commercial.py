@@ -178,7 +178,38 @@ async def upsert_evidence(
                 manually_confirmed=bool(ev.get("manually_confirmed")),
             )
         )
+        
+        # Dual-write to canonical model if opportunity linked
+        prospect = await db.get(Prospect, prospect_id)
+        if prospect and prospect.company_id and prospect.opportunity_id:
+            from app.models import EvidenceItem
+            import uuid
+            db.add(
+                EvidenceItem(
+                    id=str(uuid.uuid4()),
+                    company_id=prospect.company_id,
+                    opportunity_id=prospect.opportunity_id,
+                    code=(ev.get("signal_type") or "UNKNOWN")[:100],
+                    category=(ev.get("category") or "structural_fit")[:50],
+                    evidence_text=(ev.get("evidence_text") or "")[:4000],
+                    source_url=ev.get("evidence_url"),
+                    confidence=float(ev.get("confidence") or 50) / 100.0,
+                    verification_state="verified" if ev.get("manually_confirmed") else "unverified"
+                )
+            )
+            
         added += 1
+        
+    if added > 0:
+        prospect = await db.get(Prospect, prospect_id)
+        if prospect and prospect.opportunity_id:
+            from app.workers.celery_app import celery_app
+            celery_app.send_task(
+                "app.workers.tasks.recalculate_opportunity_score", 
+                args=[prospect.opportunity_id],
+                countdown=5 # Allow transaction to commit
+            )
+            
     return added
 
 
@@ -261,5 +292,28 @@ async def recompute_commercial_state(
         }
         for s in signals
     ]
+
+    # Hard Gates & Readiness Evaluation
+    has_identity = bool(prospect.siren or prospect.siret)
+    has_domain = bool(prospect.website)
+    has_evidence = len(signals) > 0
+    has_contact = prospect.contact_confidence in ("verified", "manual_confirmed", "deliverable")
+    
+    if suppressed:
+        prospect.readiness_state = "suppressed"
+        prospect.acquisition_stage = "parked"
+    elif not has_identity:
+        prospect.readiness_state = "insufficient_identity"
+    elif not has_domain and not has_evidence:
+        prospect.readiness_state = "research_required"
+    elif not has_evidence:
+        prospect.readiness_state = "research_required"
+    elif not has_contact:
+        prospect.readiness_state = "contact_required"
+    elif prospect.needs_manual_review or not review or review.decision != "accept":
+        prospect.readiness_state = "human_review_required"
+    else:
+        prospect.readiness_state = "contact_ready"
+        prospect.acquisition_stage = "contacting"
 
     return prospect

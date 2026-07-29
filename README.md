@@ -6,7 +6,7 @@
 
 ProspectForge finds, qualifies, prioritizes, and helps convert **non-technical / lightly technical mid-market companies** that buy **custom operational software** — not software houses that build it themselves.
 
-**Primary market play:** `FIELD_SERVICE_OPERATIONS_FR`  
+**Primary market play:** `FIELD_OPERATIONS_FR_V2`
 (field technicians · maintenance · installation · cold chain · HVAC · electrical · facilities)
 
 > The machine produces a **small meeting-ready queue**.  
@@ -36,6 +36,8 @@ Historical product/engineering plans are preserved in
 |---|---|
 | **[GUIDE.md](./GUIDE.md)** | Daily operator rhythm (update for V3 queue) |
 | **[DEPLOY.md](./DEPLOY.md)** | VPS deploy, custom ports, backups |
+| **[CURRENT_STATE.md](./CURRENT_STATE.md)** | Verified reliability state and limitations |
+| **[docs/reliability/](./docs/reliability/)** | Architecture, migration, runbook, metrics, connectors |
 | **[docs/archive/](./docs/archive/)** | Historical specifications and decision context |
 
 ---
@@ -60,7 +62,6 @@ Historical product/engineering plans are preserved in
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-rm -f prospectforge.db   # fresh schema
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -70,14 +71,18 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 # Field-service registry discovery
 export INSEE_API_KEY=...
-python -m app.jobs.ingestion --mode registry --max-companies 30
+python -m app.jobs.ingestion --play-code FIELD_OPERATIONS_FR_V2 \
+  --mode registry --max-companies 30
 
 # Public awards (maintenance / installation filters)
-python -m app.jobs.ingestion --mode decp --max-companies 40
+python -m app.jobs.ingestion --play-code FIELD_OPERATIONS_FR_V2 \
+  --mode decp --max-companies 40
 ```
 
 ```bash
-pytest -q
+docker compose --profile test up -d test-db test-redis
+TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+TEST_REDIS_URL=redis://127.0.0.1:56380/0 pytest -q
 ```
 
 ---
@@ -98,6 +103,10 @@ Deploy validates configuration, backs up an existing database, applies
 migrations before replacing the app, verifies readiness/HTTPS, and preserves a
 rollback image. See [DEPLOY.md](./DEPLOY.md) for first install, updates,
 external-proxy mode, backups, restore, and rollback.
+
+Normal deployment does not start Celery Beat. Acquisition schedules, contact
+automation, score reconciliation, retention, and automatic outreach are off by
+default. See the reliability runbook for controlled activation.
 
 ---
 

@@ -21,7 +21,10 @@
                         <tr>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">ID</div></th>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Play</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Connector</div></th>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Status</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Created / updated / errors</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Checkpoint</div></th>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Started</div></th>
                         </tr>
                     </thead>
@@ -30,15 +33,18 @@
                         <tr>
                             <td class="p-2 whitespace-nowrap"><div class="text-left font-mono text-xs">{{ run.id[:8] }}</div></td>
                             <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.play_code }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.connector_code }}</div></td>
                             <td class="p-2 whitespace-nowrap">
                                 <div class="text-left">
                                     <span class="px-2 py-1 bg-emerald-100 text-emerald-600 rounded-full text-xs">{{ run.status }}</span>
                                 </div>
                             </td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.companies_created }} / {{ run.companies_updated }} / {{ run.error_count }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left font-mono text-xs">{{ run.checkpoint_before_json or "—" }} → {{ run.checkpoint_after_json or "—" }}</div></td>
                             <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.started_at.strftime('%Y-%m-%d %H:%M') }}</div></td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="p-4 text-center text-slate-500">No active runs.</td></tr>
+                        <tr><td colspan="7" class="p-4 text-center text-slate-500">No recorded pipeline runs.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -57,19 +63,70 @@
                     <thead class="text-xs uppercase text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-700 dark:bg-opacity-50 rounded-sm">
                         <tr>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Task</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Category</div></th>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Error</div></th>
                             <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Time</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-right">Actions</div></th>
                         </tr>
                     </thead>
                     <tbody class="text-sm font-medium divide-y divide-slate-100 dark:divide-slate-700">
                         {% for item in failed_items %}
                         <tr>
                             <td class="p-2 whitespace-nowrap"><div class="text-left font-mono text-xs">{{ item.task_name }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ item.error_type }}</div></td>
                             <td class="p-2 whitespace-nowrap"><div class="text-left text-rose-500 truncate max-w-md" title="{{ item.error_message }}">{{ item.error_message }}</div></td>
                             <td class="p-2 whitespace-nowrap"><div class="text-left">{{ item.failed_at.strftime('%Y-%m-%d %H:%M') }}</div></td>
+                            <td class="p-2 whitespace-nowrap">
+                                <div class="text-right">
+                                    <button class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded text-xs" onclick="retryItem('{{ item.id }}')">Retry</button>
+                                </div>
+                            </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="3" class="p-4 text-center text-slate-500">No failed tasks. System is healthy.</td></tr>
+                        <tr><td colspan="4" class="p-4 text-center text-slate-500">No failed work items have been recorded.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contact Discovery Runs -->
+    <div class="bg-white dark:bg-slate-800 shadow-lg rounded-sm border border-slate-200 dark:border-slate-700 mt-8 mb-8">
+        <header class="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+            <h2 class="font-semibold text-slate-800 dark:text-slate-100">Contact Discovery Runs</h2>
+        </header>
+        <div class="p-3">
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full dark:text-slate-300">
+                    <thead class="text-xs uppercase text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-700 dark:bg-opacity-50 rounded-sm">
+                        <tr>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Company ID</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Status</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">People Found</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Contacts Found</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Deliverable Emails</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Manual Review</div></th>
+                            <th class="p-2 whitespace-nowrap"><div class="font-semibold text-left">Time</div></th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm font-medium divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for run in contact_runs %}
+                        <tr>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left font-mono text-xs">{{ run.prospect_id }}</div></td>
+                            <td class="p-2 whitespace-nowrap">
+                                <div class="text-left">
+                                    <span class="px-2 py-1 {% if run.status == 'completed' %}bg-emerald-100 text-emerald-600{% elif run.status == 'failed' %}bg-rose-100 text-rose-600{% else %}bg-amber-100 text-amber-600{% endif %} rounded-full text-xs">{{ run.status }}</span>
+                                </div>
+                            </td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.people_found or 0 }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{{ run.contact_points_found or 0 }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left text-emerald-500 font-semibold">{{ run.verified_deliverable or 0 }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left {% if run.manual_review_required %}text-amber-500{% endif %}">{{ run.manual_review_required or 0 }}</div></td>
+                            <td class="p-2 whitespace-nowrap"><div class="text-left">{% if run.finished_at %}{{ run.finished_at.strftime('%Y-%m-%d %H:%M') }}{% else %}Running{% endif %}</div></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="p-4 text-center text-slate-500">No contact discovery runs recorded.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -77,4 +134,24 @@
         </div>
     </div>
 </div>
+
+<script>
+async function retryItem(itemId) {
+    try {
+        const response = await fetch(`/api/operations/failed-work/${itemId}/retry`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            const data = await response.json();
+            alert(`Retry failed: ${data.detail || 'Unknown error'}`);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to send retry request');
+    }
+}
+</script>
 {% endblock %}

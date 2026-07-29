@@ -242,10 +242,13 @@ async def page_qualify(
     user: Annotated[User, Depends(get_current_user)],
     error: Optional[str] = None,
 ):
-    prospect = await services.get_prospect(db, prospect_id)
-    if not prospect:
+    legacy = await services.get_legacy_prospect(db, prospect_id)
+    if not legacy:
         raise HTTPException(status_code=404, detail="Not found")
-    await recompute_commercial_state(db, prospect)
+    await recompute_commercial_state(db, legacy)
+    prospect = await services.get_prospect(db, prospect_id)
+    if prospect is None:
+        raise HTTPException(status_code=404, detail="Not found")
     play = get_play(prospect.market_play_code or DEFAULT_PLAY_CODE)
     return templates.TemplateResponse(
         request,
@@ -279,7 +282,7 @@ async def form_qualify(
     contact_confirmed: Annotated[Optional[str], Form()] = None,
     offer_match_confirmed: Annotated[Optional[str], Form()] = None,
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -448,7 +451,7 @@ async def bulk_qualify(
 
     for prospect_id in request.prospect_ids:
         # Very simplified version for Phase 9 implementation
-        prospect = await services.get_prospect(db, prospect_id)
+        prospect = await services.get_legacy_prospect(db, prospect_id)
         if not prospect:
             continue
         review = QualificationReview(

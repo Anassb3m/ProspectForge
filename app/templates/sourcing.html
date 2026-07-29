@@ -67,7 +67,7 @@
 
 <!-- Engine Acquisition & Enrichment Controls (Wizard) -->
 <div class="mb-12">
-  <div x-data="{ step: 1, play: 'FIELD_OPERATIONS_UK_V1', mode: 'companies_house', limit: 60, contacts: true }" class="card max-w-4xl mx-auto p-8">
+  <div x-data="{ step: 1, play: 'FIELD_OPERATIONS_FR_V2', mode: 'registry', limit: 60 }" class="card max-w-4xl mx-auto p-8">
 
     <!-- Wizard Header -->
     <div class="flex items-center justify-between mb-8 pb-6 border-b border-surface-border">
@@ -90,15 +90,7 @@
       <!-- Step 1: Market Play -->
       <div x-show="step === 1" x-transition.opacity>
         <h3 class="text-lg font-bold text-white mb-4">Select Target Market Play</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label class="cursor-pointer">
-            <input type="radio" x-model="play" value="FIELD_OPERATIONS_UK_V1" name="play_code" class="hidden peer" />
-            <div class="card border-2 border-transparent peer-checked:border-indigo-500 p-5 hover:bg-white/5 transition-colors">
-              <div class="text-2xl mb-2">🇬🇧</div>
-              <div class="font-bold text-white mb-1">UK Field Operations</div>
-              <div class="text-xs text-slate-400">Targeting UK companies in specific SIC codes.</div>
-            </div>
-          </label>
+        <div class="grid grid-cols-1 gap-4">
           <label class="cursor-pointer">
             <input type="radio" x-model="play" value="FIELD_OPERATIONS_FR_V2" name="play_code" class="hidden peer" />
             <div class="card border-2 border-transparent peer-checked:border-indigo-500 p-5 hover:bg-white/5 transition-colors">
@@ -117,10 +109,9 @@
           <label class="block">
             <span class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Connector Mode</span>
             <select name="mode" x-model="mode" class="input-field appearance-none">
-              <option value="companies_house" x-show="play === 'FIELD_OPERATIONS_UK_V1'">Companies House REST API (UK)</option>
-              <option value="full" x-show="play === 'FIELD_OPERATIONS_FR_V2'">Full (Sirene + DECP)</option>
-              <option value="decp" x-show="play === 'FIELD_OPERATIONS_FR_V2'">DECP Public Awards Only</option>
-              <option value="registry" x-show="play === 'FIELD_OPERATIONS_FR_V2'">Sirene NAF Field Registry Only</option>
+              <option value="registry">Registry discovery (progressive checkpoint)</option>
+              <option value="decp">DECP Public Awards Only</option>
+              <option value="full">DECP + registry (limit split across sources)</option>
             </select>
           </label>
         </div>
@@ -136,16 +127,10 @@
             <p class="text-xs text-slate-400 mt-2">Maximum number of companies to pull in this run.</p>
           </div>
 
-          <label class="flex items-center gap-3 text-sm font-bold text-slate-300 cursor-pointer group">
-            <div class="relative flex items-center">
-              <input type="checkbox" name="contacts" value="1" x-model="contacts" class="peer appearance-none w-6 h-6 border-2 border-slate-500 rounded bg-transparent checked:bg-indigo-500 checked:border-indigo-500 transition-all cursor-pointer" />
-              <svg class="absolute w-4 h-4 text-white left-1 top-1 opacity-0 peer-checked:opacity-100 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
-            </div>
-            <div class="group-hover:text-white transition">
-              <div class="text-white text-base">Run Contact Waterfall Immediately</div>
-              <div class="text-xs text-slate-400 font-normal mt-0.5">Attempt to discover decision-maker emails during ingestion.</div>
-            </div>
-          </label>
+          <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+            <div class="text-white text-sm font-bold">Contact discovery is not part of ingestion</div>
+            <div class="text-xs text-slate-400 mt-1">Candidates enter a durable enrichment stage first. Contact research remains separately gated by score, identity, suppression, and readiness checks.</div>
+          </div>
         </div>
       </div>
 

@@ -45,8 +45,19 @@ async def infer_website(company_name: str, siren: str | None = None) -> str | No
         f"https://www.{base}.com",
         f"https://{base}.com",
     ]
+    
+    blocked_domains = {
+        "orange.fr", "orange.com", "laposte.net", "wanadoo.fr", 
+        "free.fr", "sfr.fr", "gmail.com", "hotmail.com", "hotmail.fr",
+        "yahoo.fr", "yahoo.com", "outlook.fr", "outlook.com", "live.fr"
+    }
+    
     async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
         for url in candidates:
+            domain_part = url.split("://")[-1].replace("www.", "").split("/")[0]
+            if domain_part in blocked_domains:
+                continue
+                
             try:
                 r = await client.head(url)
                 if r.status_code < 400:
@@ -65,6 +76,7 @@ async def deep_enrich(
     run_contacts: bool = True,
     verify_email: bool = False,
     infer_web: bool = True,
+    skip_sirene: bool = False,
 ) -> dict[str, Any]:
     """
     Return a merged enrichment payload ready to apply onto a Prospect.
@@ -89,7 +101,7 @@ async def deep_enrich(
 
     # 2) Sirene compliance + official
     key = siret or out.get("siret") or siren or out.get("siren")
-    if key and settings.insee_api_key:
+    if key and settings.insee_api_key and not skip_sirene:
         try:
             sir = await enrich_sirene(str(key))
             if sir is None:
@@ -102,6 +114,8 @@ async def deep_enrich(
         except Exception as exc:
             logger.warning("Sirene enrich failed: %s", exc)
             out["enrichment_log"].append(f"sirene:err:{exc}")
+    elif key and skip_sirene:
+        out["enrichment_log"].append("sirene:skipped_by_request")
 
     if not out.get("company_name") and company_name:
         out["company_name"] = company_name

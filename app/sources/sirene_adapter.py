@@ -5,6 +5,7 @@ from app.sources.base import (
     RawSourceRecord,
     SourceAdapter,
     SourceHealth,
+    SourceCapabilityState,
 )
 
 
@@ -71,6 +72,18 @@ class SireneAdapter(SourceAdapter):
         return [obs]
 
     async def healthcheck(self) -> SourceHealth:
+        try:
+            await search_companies(q="", per_page=1)
+        except Exception as exc:
+            return SourceHealth(
+                code=self.code,
+                is_healthy=False,
+                state=SourceCapabilityState.UPSTREAM_UNAVAILABLE,
+                status_message=f"Annuaire query failed: {exc}",
+            )
         return SourceHealth(
-            code=self.code, is_healthy=True, status_message="Sirene public API reachable"
+            code=self.code,
+            is_healthy=True,
+            state=SourceCapabilityState.HEALTHY,
+            status_message="Annuaire query succeeded",
         )

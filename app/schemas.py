@@ -403,6 +403,8 @@ class EnrichResult(BaseModel):
 
 
 class IngestionResult(BaseModel):
+    run_id: str | None = None
+    status: str = "completed"
     awards: int = 0
     companies: int = 0
     created: int = 0

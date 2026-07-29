@@ -4,6 +4,7 @@ from app.sources.base import (
     RawSourceRecord,
     SourceAdapter,
     SourceHealth,
+    SourceCapabilityState,
 )
 
 class OcdsAdapter(SourceAdapter):
@@ -36,5 +37,8 @@ class OcdsAdapter(SourceAdapter):
 
     async def healthcheck(self) -> SourceHealth:
         return SourceHealth(
-            code=self.code, is_healthy=True, status_message="OCDS parser ready"
+            code=self.code,
+            is_healthy=False,
+            state=SourceCapabilityState.PLANNED,
+            status_message="Planned: no production OCDS connector is registered",
         )

@@ -7,6 +7,7 @@ from app.sources.csv_import import CsvImportAdapter
 from app.sources.decp_adapter import DecpAdapter
 from app.sources.manual import ManualResearchAdapter
 from app.sources.sirene_adapter import SireneAdapter
+from app.sources.base import SourceCapabilityState
 
 SOURCE_ADAPTERS: dict[str, type[SourceAdapter]] = {
     "companies_house": CompaniesHouseAdapter,
@@ -14,6 +15,19 @@ SOURCE_ADAPTERS: dict[str, type[SourceAdapter]] = {
     "decp": DecpAdapter,
     "csv_import": CsvImportAdapter,
     "manual": ManualResearchAdapter,
+}
+
+# Visible capability truth. Optional placeholder modules are deliberately not
+# registered as executable adapters.
+SOURCE_CAPABILITIES: dict[str, SourceCapabilityState] = {
+    "registry": SourceCapabilityState.DEGRADED,
+    "sirene": SourceCapabilityState.DEGRADED,
+    "decp": SourceCapabilityState.DEGRADED,
+    "companies_house": SourceCapabilityState.MISCONFIGURED,
+    "csv_import": SourceCapabilityState.HEALTHY,
+    "manual": SourceCapabilityState.HEALTHY,
+    "bodacc": SourceCapabilityState.PLANNED,
+    "ocds": SourceCapabilityState.PLANNED,
 }
 
 
@@ -34,4 +48,5 @@ __all__ = [
     "ManualResearchAdapter",
     "SOURCE_ADAPTERS",
     "get_source_adapter",
+    "SOURCE_CAPABILITIES",
 ]

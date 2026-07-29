@@ -120,7 +120,7 @@ check_edge() {
       ;;
     external)
       curl -fsS -H "Host: ${DOMAIN}" \
-        "http://127.0.0.1:${HTTP_PORT}/health" >/dev/null 2>&1
+        "http://${CADDY_BIND:-127.0.0.1}:${HTTP_PORT}/health" >/dev/null 2>&1
       ;;
   esac
 }

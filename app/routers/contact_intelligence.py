@@ -36,7 +36,7 @@ async def form_run_contact_discovery(
     user: Annotated[User, Depends(get_current_user)],
     force: Annotated[Optional[str], Form()] = None,
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     try:
@@ -59,7 +59,7 @@ async def form_review_contact(
     reason: Annotated[Optional[str], Form()] = None,
     evidence_url: Annotated[Optional[str], Form()] = None,
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     if bool(person_id) == bool(contact_point_id):
@@ -85,7 +85,7 @@ async def form_add_manual_contact(
     source_url: Annotated[str, Form()],
     publication_state: Annotated[str, Form()] = "unknown",
 ):
-    prospect = await services.get_prospect(db, prospect_id)
+    prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     allowed_kinds = {"email", "phone", "contact_form", "linkedin", "generic_contact_page"}

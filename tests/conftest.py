@@ -9,8 +9,16 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# Force test env before app imports
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+# Use the disposable PostgreSQL service when TEST_DATABASE_URL is supplied.
+# SQLite remains a fast fallback on supported Python versions.
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:"
+)
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+if os.environ.get("TEST_REDIS_URL"):
+    os.environ["REDIS_URL"] = os.environ["TEST_REDIS_URL"]
+    os.environ["CELERY_BROKER_URL"] = os.environ["TEST_REDIS_URL"]
+    os.environ["CELERY_RESULT_BACKEND"] = os.environ["TEST_REDIS_URL"]
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["ENVIRONMENT"] = "test"
 os.environ["ENABLE_SCHEDULER"] = "false"
@@ -18,18 +26,18 @@ os.environ["ADMIN_EMAIL"] = "admin@test.local"
 os.environ["ADMIN_PASSWORD"] = "testpass123"
 os.environ["DEBUG"] = "false"
 
-from app.auth import create_access_token, hash_password
-from app.config import get_settings
-from app.database import Base, get_db
-from app.main import app
-from app.models import User
+from app.auth import create_access_token, hash_password  # noqa: E402
+from app.config import get_settings  # noqa: E402
+from app.database import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import User  # noqa: E402
 
 get_settings.cache_clear()
 
 
 @pytest_asyncio.fixture
 async def engine():
-    test_url = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+    test_url = TEST_DATABASE_URL
     connect_args = {"check_same_thread": False} if test_url.startswith("sqlite") else {}
     eng = create_async_engine(test_url, connect_args=connect_args)
     async with eng.begin() as conn:

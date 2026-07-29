@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./prospectforge.db"
     redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
 
     access_token_expire_minutes: int = 1440
     admin_email: str = "admin@prospectforge.local"
@@ -33,6 +35,12 @@ class Settings(BaseSettings):
     hunter_api_key: str = ""
 
     enable_scheduler: bool = False
+    enable_nightly_contact_discovery: bool = False
+    enable_score_reconciliation: bool = False
+    enable_retention_sweep: bool = False
+    active_market_play: str = "FIELD_OPERATIONS_FR_V2"
+    nightly_ingestion_limit: int = 100
+    ingestion_lock_timeout_seconds: int = 6 * 60 * 60
 
     # ── Phase 9: Production Activation Safeguards ─────────────────────────
     outreach_enabled: bool = False
@@ -125,6 +133,7 @@ class Settings(BaseSettings):
         if self.tls_mode not in {"internal", "external", "acme"}:
             errors.append("TLS_MODE must be internal, external, or acme")
         bounded = {
+            "NIGHTLY_INGESTION_LIMIT": (self.nightly_ingestion_limit, 1, 2000),
             "NIGHTLY_CONTACT_BATCH_SIZE": (self.nightly_contact_batch_size, 1, 50),
             "CONTACT_CRAWL_MAX_PAGES": (self.contact_crawl_max_pages, 1, 30),
             "CONTACT_DOMAIN_CONCURRENCY": (self.contact_domain_concurrency, 1, 4),
@@ -134,6 +143,26 @@ class Settings(BaseSettings):
         for name, (value, minimum, maximum) in bounded.items():
             if not minimum <= value <= maximum:
                 errors.append(f"{name} must be between {minimum} and {maximum}")
+        if self.enable_nightly_ingestion and not self.enable_scheduler:
+            errors.append("ENABLE_NIGHTLY_INGESTION requires ENABLE_SCHEDULER")
+        if self.active_market_play != "FIELD_OPERATIONS_FR_V2":
+            errors.append(
+                "ACTIVE_MARKET_PLAY must be FIELD_OPERATIONS_FR_V2 in this release"
+            )
+        if self.ingestion_run_contacts:
+            errors.append(
+                "INGESTION_RUN_CONTACTS must be false; contact discovery is a separate stage"
+            )
+        if self.enable_nightly_contact_discovery and not self.enable_scheduler:
+            errors.append("ENABLE_NIGHTLY_CONTACT_DISCOVERY requires ENABLE_SCHEDULER")
+        if self.enable_nightly_contact_discovery and not self.enable_score_reconciliation:
+            errors.append(
+                "ENABLE_NIGHTLY_CONTACT_DISCOVERY requires ENABLE_SCORE_RECONCILIATION"
+            )
+        if self.outreach_enabled:
+            errors.append(
+                "OUTREACH_ENABLED is not supported by this release; sending must remain disabled"
+            )
         return errors
 
 

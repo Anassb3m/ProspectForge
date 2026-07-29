@@ -133,7 +133,29 @@ async def discover_companies_for_play(
     max_results: int = 80,
     pages_per_query: int = 3,
 ) -> list[dict[str, Any]]:
-    """Play-driven registry hunt — structural candidates, not contact-ready."""
+    """Compatibility wrapper for a bounded replay from the first partition."""
+    results, _, _ = await discover_companies_for_play_checkpointed(
+        play_code,
+        max_results=max_results,
+        pages_per_query=pages_per_query,
+        checkpoint={"partition": 0, "offset": 0},
+    )
+    return results
+
+
+async def discover_companies_for_play_checkpointed(
+    play_code: str | None = None,
+    *,
+    max_results: int = 80,
+    pages_per_query: int = 3,
+    checkpoint: dict[str, int] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, int], bool]:
+    """Discover from a durable page cursor.
+
+    ``checkpoint`` identifies the next deterministic partition and row offset.
+    The returned cursor may be persisted only after the caller commits every
+    record from this batch. Replays with the same cursor are idempotent.
+    """
     play = get_play(play_code or DEFAULT_PLAY_CODE)
     queries = play.get("registry_queries") or ["maintenance", "installation technique"]
     naf_codes = play.get("target_naf_codes") or []
@@ -172,16 +194,29 @@ async def discover_companies_for_play(
                 })
             by_siren[n["siren"]] = n
 
-    # 1) Target NAF codes first
+    partitions: list[tuple[str, str, int]] = []
     for naf in naf_codes:
-        if len(by_siren) >= max_results:
-            break
-        for page in range(1, pages_per_query + 1):
-            if len(by_siren) >= max_results:
-                break
-            try:
-                # API expects dotted NAF sometimes
-                naf_q = naf if "." in naf else f"{naf[:2]}.{naf[2:]}" if len(naf) >= 4 else naf
+        partitions.extend(("naf", str(naf), page) for page in range(1, pages_per_query + 1))
+    for query in queries:
+        partitions.extend(
+            ("query", str(query), page) for page in range(1, pages_per_query + 1)
+        )
+
+    checkpoint = checkpoint or {}
+    cursor = max(0, min(int(checkpoint.get("partition", 0)), len(partitions)))
+    offset = max(0, int(checkpoint.get("offset", 0)))
+    start_checkpoint = {"partition": cursor, "offset": offset}
+    while cursor < len(partitions) and len(by_siren) < max_results:
+        kind, value, page = partitions[cursor]
+        try:
+            if kind == "naf":
+                naf_q = (
+                    value
+                    if "." in value
+                    else f"{value[:2]}.{value[2:]}"
+                    if len(value) >= 4
+                    else value
+                )
                 data = await search_companies(
                     q="",
                     activite_principale=naf_q,
@@ -189,25 +224,27 @@ async def discover_companies_for_play(
                     page=page,
                     per_page=25,
                 )
-            except httpx.HTTPError as exc:
-                logger.warning("Annuaire NAF %s failed: %s", naf, exc)
-                break
-            for item in data.get("results") or []:
-                _ingest(item, force=True)
-            if page >= (data.get("total_pages") or 1):
-                break
-
-    # 2) Keyword queries (field service language)
-    for q in queries:
-        if len(by_siren) >= max_results:
-            break
-        try:
-            data = await search_companies(q=q, section_activite_principale=None, page=1, per_page=25)
+            else:
+                data = await search_companies(
+                    q=value,
+                    section_activite_principale=None,
+                    page=page,
+                    per_page=25,
+                )
         except httpx.HTTPError as exc:
-            logger.warning("Annuaire query %r failed: %s", q, exc)
-            continue
-        for item in data.get("results") or []:
-            _ingest(item)
+            logger.warning("Annuaire %s %r page=%d failed: %s", kind, value, page, exc)
+            raise
+        page_results = list(data.get("results") or [])
+        index = offset
+        while index < len(page_results) and len(by_siren) < max_results:
+            item = page_results[index]
+            _ingest(item, force=kind == "naf")
+            index += 1
+        if index < len(page_results):
+            offset = index
+            break
+        cursor += 1
+        offset = 0
 
     results = list(by_siren.values())
 
@@ -220,8 +257,16 @@ async def discover_companies_for_play(
 
     results.sort(key=rank_key)
     results = results[:max_results]
-    logger.info("Annuaire play=%s: %d companies", play.get("code"), len(results))
-    return results
+    exhausted = cursor >= len(partitions)
+    logger.info(
+        "Annuaire play=%s checkpoint=%s->%s exhausted=%s companies=%d",
+        play.get("code"),
+        start_checkpoint,
+        {"partition": cursor, "offset": offset},
+        exhausted,
+        len(results),
+    )
+    return results, {"partition": cursor, "offset": offset}, exhausted
 
 
 # Back-compat alias — redirects to field play discovery
