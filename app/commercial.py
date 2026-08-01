@@ -226,8 +226,14 @@ async def upsert_evidence(
 
 def merge_evidence_json(existing: list | None, new_items: list[dict]) -> list[dict]:
     """Dedupe compatibility cache on prospect.evidence_json."""
-    from app.discovery.enrich import normalize_signals
-    merged = normalize_signals(list(existing or []) + list(new_items or []))
+    combined = list(existing or []) + list(new_items or [])
+    seen = set()
+    merged = []
+    for item in combined:
+        key = (item.get("category"), item.get("code"), item.get("evidence_text"))
+        if key not in seen:
+            seen.add(key)
+            merged.append(item)
     return merged[:40]
 
 
