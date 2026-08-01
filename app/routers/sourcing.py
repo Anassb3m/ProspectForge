@@ -167,6 +167,11 @@ async def api_run_ingestion(
         validate_ingestion_request(play_code, mode)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not 1 <= max_companies <= 2000:
+        raise HTTPException(
+            status_code=422,
+            detail="Max candidates must be between 1 and 2000 per recoverable run",
+        )
     if contacts:
         raise HTTPException(
             status_code=422,

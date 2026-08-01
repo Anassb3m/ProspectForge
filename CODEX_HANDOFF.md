@@ -1,77 +1,119 @@
-# Codex Handoff — Reliability Hotfix
+# Codex Handoff — Reliability and Scale Rebuild
 
-Updated: 2026-07-28
+Updated: 2026-07-31
 
-## Delivered patch
+## Delivered state
 
-The deployable phase covers truthful orchestration, durable run requests,
-overlap locking, per-item failure isolation, progressive registry checkpoints,
-separate idempotent enrichment work, explicit canonical identity links,
-feature-gated schedules, operations visibility, PostgreSQL/Redis tests, and
-safe reconciliation.
+The zero-output acquisition path is repaired. Registry discovery follows the
+active V2 NAF plan and upstream pagination; DECP persists awards before
+aggregation. Both connectors use progressive committed checkpoints, immutable
+raw rows, replay-safe identity upserts, isolated item failures, durable
+downstream work, bounded retries, and queue-specific worker health.
 
-Alembic head is `pfrel01_20260728`.
+Recovery is operational: authenticated raw retries rebuild from committed
+source rows, stale leases are reclaimed under row locks, and exhausted work is
+dead-lettered. Broker acceptance is never presented as completed work.
 
-## Start here
+Canonical `Company`/`Opportunity` identity uses SIREN/SIRET only. Canonical
+`EvidenceItem` rows own evidence truth and legacy signals link as compatibility
+projections. The French field-operations scoring profile and 13 readiness gates
+are implemented with input revisions, evidence references, reason codes,
+penalties, and explicit readiness states.
 
-Read:
+Alembic has one head: `pfscale03_20260731`.
 
-1. `CURRENT_STATE.md`
-2. `NEXT_ACTIONS.md`
-3. `DECISION_LOG.md`
-4. `TEST_LOG.md`
-5. `docs/reliability/architecture.md`
-6. `docs/reliability/runbook.md`
-7. `acceptance/baseline-defect-register.md`
+## Verification state
 
-Core runtime files are `app/jobs/ingestion.py`,
-`app/services/pipeline_runs.py`, `app/services/run_lock.py`,
-`app/discovery/annuaire.py`, and `app/workers/tasks.py`.
+- Live registry source population: 7,108 across the seven active NAF segments.
+- Live connector sample: 250 records, 250 unique SIRENs, 250 raw envelopes,
+  checkpoint advanced to page 11.
+- Deterministic scale proof: two disjoint 1,000-record registry batches.
+- DECP proof: six historical awards in three batches, then two incremental
+  awards without skip; raw replay remained idempotent.
+- Canonical backfill rehearsal: one legacy signal mapped; three canonical rows
+  retained; one deliberate duplicate inactive; zero orphans, unmapped mappable
+  evidence, or duplicate active fingerprints.
+- Final release gate: clean `pfscale03_20260731` migration, zero reconciliation
+  anomalies, zero npm vulnerabilities, all static/Compose/Caddy checks, and
+  `154 passed in 85.25s`; exit code `0`.
 
-## Verification
+## Required pre-deploy commands
 
 ```bash
 PYTHON_BIN=.venv/bin/python ./scripts/release-gate.sh
-DEBUG=false ENVIRONMENT=production \
-  docker compose exec -T app python scripts/reconcile_reliability.py --fail-on-anomaly
+./scripts/backup-host.sh
+docker compose run --rm --no-deps app alembic upgrade head
+docker compose exec -T app python scripts/reconcile_reliability.py --fail-on-anomaly
 ./scripts/diagnose_pipeline.sh
 ```
 
-The final workspace test was `130 passed in 56.90s` on PostgreSQL 16. The full
-release gate passed before the final lock regression, and the focused
-reliability suite passed afterward (`11 passed in 14.73s`). Migration
-rehearsal linked 1/1 identifier-bearing prospect and backfilled 1/1 legacy run
-with no duplicates or orphans.
+Production deployment remains:
 
-## Deployment state
+```bash
+./scripts/deploy.sh
+curl -fsS http://127.0.0.1:18081/ready
+docker compose exec -T app alembic current
+docker compose exec -T app python scripts/reconcile_reliability.py --fail-on-anomaly
+```
 
-No production deployment or scheduler activation was performed. Normal
-`./scripts/deploy.sh` does not start Celery Beat because it is in the
-`scheduler` profile. All automation and outreach flags remain false.
+## Controlled manual activation
 
-## Controlled activation
-
-After backup, migration, reconciliation, and health checks:
+Start with automation still off and run one bounded source stage:
 
 ```bash
 docker compose exec -T app python -m app.jobs.ingestion \
   --play-code FIELD_OPERATIONS_FR_V2 --mode registry \
-  --max-companies 25 --skip-sirene
+  --max-companies 500 --skip-sirene
 ```
 
-Inspect `/operations`, the authenticated acquisition-health endpoint, and the
-reconciliation output. Do not enable the scheduler until live-source quality
-is accepted. Do not enable contact automation until scoring reconciliation is
-implemented and certified.
+Inspect `/operations`, acquisition health, raw outcomes, checkpoint movement,
+duplicate/error rates, and canonical reconciliation. Repeat 500–2,000 record
+runs to build thousands; do not raise the cap or reset the checkpoint.
 
-## Highest risks for the next engineer
+## Automation state
 
-- Finish removing mutable duplicated fields from the legacy `Prospect` row.
-- Add raw DECP records and a progressive DECP cursor.
-- Replace placeholder V4 scoring with evidence-bound, explainable snapshots
-  and hard readiness gates.
-- Add persistent worker heartbeats and authenticated recovery controls.
-- Certify Python 3.12 and rehearse against an anonymized production copy.
+Intentionally disabled until explicit production acceptance:
 
-Do not remove compatibility fields or constraints until reconciliation shows
-zero unresolved identifier-bearing rows and rollback has been rehearsed.
+```text
+ENABLE_SCHEDULER=false
+ENABLE_NIGHTLY_INGESTION=false
+ENABLE_NIGHTLY_CONTACT_DISCOVERY=false
+ENABLE_SCORE_RECONCILIATION=false
+ENABLE_RETENTION_SWEEP=false
+OUTREACH_ENABLED=false
+```
+
+Reacher may be enabled only as technical verification after review; it does
+not prove identity. Automatic cold outreach remains unsupported and production
+validation rejects it.
+
+## Rollback
+
+```bash
+./scripts/rollback.sh
+```
+
+This restores the preserved application image after taking another backup.
+Keep the additive database schema. If an incompatible schema rollback is truly
+required, restore the verified pre-deploy backup; never delete pipeline raw
+rows, checkpoints, or production data to force a downgrade.
+
+## Remaining risks
+
+- The legacy `Prospect` and contact tables still project mutable fields for old
+  screens. Identity, opportunity, evidence, and score ownership are canonical,
+  but final compatibility-write retirement still requires UI/contact migration.
+- The scoring profile needs calibration on reviewed production examples before
+  scheduled contact research is enabled.
+- Persisted live validation has not been run against a production-copy database.
+- Optional Companies House, BODACC, and OCDS connectors remain intentionally
+  disabled until each has real pagination, raw persistence, checkpoints, rate
+  budgets, health checks, and tests.
+- The final release gate ran on Python 3.14.5. Production targets Python 3.12
+  and still needs that runtime certification.
+
+## Start here
+
+Read `CURRENT_STATE.md`, `NEXT_ACTIONS.md`, `DECISION_LOG.md`, `TEST_LOG.md`,
+`docs/reliability/runbook.md`, `docs/reliability/data_migration.md`, and
+`acceptance/baseline-defect-register.md` before activation.

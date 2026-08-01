@@ -4,12 +4,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.workers.celery_app import celery_app
 from app.database import async_session_factory
-from app.models import Prospect, WorkItem
+from app.models import PipelineRun, Prospect, WorkItem
 from app.plays import validate_ingestion_request
 
 logger = logging.getLogger(__name__)
@@ -48,18 +48,72 @@ def ingest_market_play(
         correlation_id,
     )
     from app.jobs.ingestion import run_ingestion
-    return run_async(
-        run_ingestion(
-            play_code=play_code,
-            mode=mode,
-            max_companies=discovery_limit,
-            run_contact_discovery=run_contacts,
-            skip_sirene=skip_sirene,
-            requested_by=requested_by,
-            correlation_id=correlation_id,
-            pipeline_run_id=pipeline_run_id,
+    try:
+        return run_async(
+            run_ingestion(
+                play_code=play_code,
+                mode=mode,
+                max_companies=discovery_limit,
+                run_contact_discovery=run_contacts,
+                skip_sirene=skip_sirene,
+                requested_by=requested_by,
+                correlation_id=correlation_id,
+                pipeline_run_id=pipeline_run_id,
+            )
         )
-    )
+    except Exception as exc:
+        if self.request.retries >= self.max_retries:
+            raise
+        raise self.retry(
+            exc=exc,
+            countdown=min(120, 5 * (2 ** self.request.retries)),
+        )
+
+
+@celery_app.task(bind=True, max_retries=3)
+def ingest_failed_raw_source(self, failed_item_id: str) -> dict[str, Any]:
+    """Reconcile one operator-approved raw failure from durable source data."""
+    from app.jobs.ingestion import reconcile_failed_raw_item
+
+    try:
+        return run_async(reconcile_failed_raw_item(failed_item_id))
+    except Exception as exc:
+        if self.request.retries >= self.max_retries:
+            raise
+        raise self.retry(
+            exc=exc,
+            countdown=min(120, 5 * (2 ** self.request.retries)),
+        )
+
+
+@celery_app.task(bind=True, max_retries=3)
+def ingest_recover_stale_work(self, limit: int = 500) -> dict[str, Any]:
+    """Reclaim stale work leases, then dispatch only committed pending rows."""
+
+    async def _recover() -> dict[str, Any]:
+        from app.jobs.ingestion import _dispatch_enrichment_work
+        from app.services.recovery import recover_stale_work_items
+
+        async with async_session_factory() as session:
+            result = await recover_stale_work_items(session, limit=limit)
+            dispatch = {"pending": 0, "dispatched": 0, "dispatch_errors": 0}
+            for run_id in result["pipeline_run_ids"]:
+                run_dispatch = await _dispatch_enrichment_work(
+                    session, pipeline_run_id=run_id
+                )
+                for key in dispatch:
+                    dispatch[key] += int(run_dispatch[key])
+            return {**result, "dispatch": dispatch}
+
+    try:
+        return run_async(_recover())
+    except Exception as exc:
+        if self.request.retries >= self.max_retries:
+            raise
+        raise self.retry(
+            exc=exc,
+            countdown=min(120, 5 * (2 ** self.request.retries)),
+        )
 
 # --- Identity / Domain Queue ---
 @celery_app.task(bind=True, max_retries=3)
@@ -128,6 +182,30 @@ def extract_website_evidence(
             if item is not None:
                 item.status = "completed"
                 item.lock_lease_until = None
+                await session.flush()
+                run = await session.get(PipelineRun, item.pipeline_run_id)
+                if run is not None:
+                    run.enrichment_completed = int(
+                        await session.scalar(
+                            select(func.count(WorkItem.id)).where(
+                                WorkItem.pipeline_run_id == run.id,
+                                WorkItem.task_name == "extract_website_evidence",
+                                WorkItem.status == "completed",
+                            )
+                        )
+                        or 0
+                    )
+                    run.enrichment_failed = int(
+                        await session.scalar(
+                            select(func.count(WorkItem.id)).where(
+                                WorkItem.pipeline_run_id == run.id,
+                                WorkItem.task_name == "extract_website_evidence",
+                                WorkItem.status == "failed",
+                            )
+                        )
+                        or 0
+                    )
+                    run.heartbeat_at = datetime.now(timezone.utc)
             await session.commit()
             return {
                 "status": "ok",
@@ -145,6 +223,21 @@ def extract_website_evidence(
             item.retry_count = int(item.retry_count or 0) + 1
             item.lock_lease_until = None
             item.status = "failed" if final else "pending"
+            await session.flush()
+            run = await session.get(PipelineRun, item.pipeline_run_id)
+            if run is not None:
+                run.enrichment_failed = int(
+                    await session.scalar(
+                        select(func.count(WorkItem.id)).where(
+                            WorkItem.pipeline_run_id == run.id,
+                            WorkItem.task_name == "extract_website_evidence",
+                            WorkItem.status == "failed",
+                        )
+                    )
+                    or 0
+                )
+                run.retry_count = int(run.retry_count or 0) + 1
+                run.heartbeat_at = datetime.now(timezone.utc)
             await session.commit()
 
     try:
@@ -228,7 +321,7 @@ def recalculate_opportunity_score(self, opportunity_id: int) -> dict[str, Any]:
             if not opp:
                 return {"status": "not_found"}
                 
-            calculate_opportunity_score_v4(session, opp)
+            await calculate_opportunity_score_v4(session, opp)
             prospect = await session.scalar(select(Prospect).where(Prospect.opportunity_id == opp.id))
             if prospect and not prospect.anonymized:
                 prospect.opportunity_score = opp.latest_score

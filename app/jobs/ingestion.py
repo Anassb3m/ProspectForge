@@ -24,13 +24,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from sqlalchemy import select
+import polars as pl
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import async_session_factory, init_db
 from app.discovery.annuaire import discover_companies_for_play_checkpointed
-from app.discovery.decp import aggregate_by_siret, filter_relevant, load_decp
+from app.discovery.decp import aggregate_by_siret
 from app.commercial import is_suppressed, recompute_commercial_state, upsert_evidence
 from app.discovery.enrich import apply_enrichment_to_prospect, deep_enrich
 from app.models import (
@@ -39,12 +42,15 @@ from app.models import (
     PipelineRun,
     Prospect,
     SourceCheckpoint,
+    SourceRecord,
     WorkItem,
 )
 from app.plays import DEFAULT_PLAY_CODE, validate_ingestion_request
 from app.services.normalized import upsert_normalized_company
 from app.services.pipeline_runs import apply_committed_totals, create_pipeline_run
 from app.services.run_lock import acquisition_run_locks
+from app.sources.base import RawSourceRecord
+from app.sources.decp_adapter import DecpAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -265,17 +271,18 @@ async def _record_failed_item(
             FailedWorkItem(
                 id=failed_id,
                 original_work_item_id=failed_id,
+                pipeline_run_id=pipeline_run_id,
                 task_name=task_name,
-                error_type=category,
-                error_message=str(exc)[:4000],
-                traceback_info=traceback.format_exc()[-12000:],
-                kwargs={
-                    "pipeline_run_id": pipeline_run_id,
-                    "source_name": source_name,
+                source_name=source_name,
+                source_record_key=source_record_key,
+                payload={
                     "source_record_key": source_record_key,
                     "payload": safe_payload,
-                    "retryable": retryable
-                }
+                },
+                error_category=category,
+                retryable=retryable,
+                error_message=str(exc)[:4000],
+                traceback=traceback.format_exc()[-12000:],
             )
         )
         await session.flush()
@@ -344,21 +351,144 @@ async def _dispatch_enrichment_work(
         .all()
     )
     stats = {"pending": len(items), "dispatched": 0, "dispatch_errors": 0}
-    for item in items:
-        try:
-            extract_website_evidence.delay(
-                str(item.payload["prospect_id"]),
-                work_item_id=item.id,
+    for start in range(0, len(items), 50):
+        accepted_ids: list[str] = []
+        for item in items[start : start + 50]:
+            try:
+                extract_website_evidence.delay(
+                    str(item.payload["prospect_id"]),
+                    work_item_id=item.id,
+                )
+                accepted_ids.append(item.id)
+                stats["dispatched"] += 1
+            except Exception:
+                # Pending is recoverable and truthful. A reconciler can
+                # dispatch it later; never mark broker acceptance when enqueue
+                # failed.
+                logger.exception("Could not dispatch work_item=%s", item.id)
+                stats["dispatch_errors"] += 1
+        if accepted_ids:
+            # Lock and refresh after publishing. A fast worker may already
+            # have moved an item to running/completed; never overwrite that
+            # more advanced durable state with "enqueued".
+            refreshed = list(
+                (
+                    await session.execute(
+                        select(WorkItem)
+                        .where(WorkItem.id.in_(accepted_ids))
+                        .with_for_update()
+                        .execution_options(populate_existing=True)
+                    )
+                )
+                .scalars()
+                .all()
             )
-            item.status = "enqueued"
-            stats["dispatched"] += 1
-        except Exception:
-            # Pending is recoverable and truthful. A reconciler can dispatch it
-            # later; never mark broker acceptance when enqueue failed.
-            logger.exception("Could not dispatch work_item=%s", item.id)
-            stats["dispatch_errors"] += 1
-    await session.commit()
+            for item in refreshed:
+                if item.status == "pending":
+                    item.status = "enqueued"
+        await session.commit()
     return stats
+
+
+def _decp_raw_row(
+    *, pipeline_run_id: str, raw_record: RawSourceRecord, adapter_version: str
+) -> dict[str, Any]:
+    safe_raw = json.loads(json.dumps(raw_record.payload, default=str))
+    payload_hash = hashlib.sha256(
+        json.dumps(safe_raw, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "pipeline_run_id": pipeline_run_id,
+        "source_run_id": None,
+        "external_id": raw_record.external_id,
+        "record_type": "decp_award",
+        "payload_json": {
+            "raw": safe_raw,
+            "metadata": {
+                "connector_code": raw_record.connector_code,
+                "connector_version": adapter_version,
+                "observed_at": raw_record.observed_at.isoformat(),
+                "source_url": raw_record.source_url,
+            },
+        },
+        "payload_hash": payload_hash,
+        "processing_status": "pending",
+    }
+
+
+async def _persist_decp_raw_records(
+    session,
+    *,
+    pipeline_run_id: str,
+    raw_records: list[RawSourceRecord],
+    batch_size: int,
+    adapter_version: str,
+) -> tuple[int, int]:
+    rows = [
+        _decp_raw_row(
+            pipeline_run_id=pipeline_run_id,
+            raw_record=record,
+            adapter_version=adapter_version,
+        )
+        for record in raw_records
+    ]
+    before = int(
+        await session.scalar(
+            select(func.count(SourceRecord.id)).where(
+                SourceRecord.pipeline_run_id == pipeline_run_id,
+                SourceRecord.record_type == "decp_award",
+            )
+        )
+        or 0
+    )
+    dialect = session.bind.dialect.name
+    insert_factory = pg_insert if dialect == "postgresql" else sqlite_insert
+    for start in range(0, len(rows), batch_size):
+        batch = rows[start : start + batch_size]
+        if not batch:
+            continue
+        statement = insert_factory(SourceRecord).values(batch)
+        statement = statement.on_conflict_do_nothing(
+            index_elements=["pipeline_run_id", "external_id", "payload_hash"]
+        )
+        await session.execute(statement)
+        await session.commit()
+    persisted = int(
+        await session.scalar(
+            select(func.count(SourceRecord.id)).where(
+                SourceRecord.pipeline_run_id == pipeline_run_id,
+                SourceRecord.record_type == "decp_award",
+            )
+        )
+        or 0
+    )
+    inserted = max(0, persisted - before)
+    return persisted, max(0, len(rows) - inserted)
+
+
+def _decp_entity_key(payload: dict[str, Any]) -> str | None:
+    value = "".join(
+        character
+        for character in str(payload.get("titulaire_siret") or "")
+        if character.isdigit()
+    )
+    if len(value) >= 14:
+        return value[:14]
+    if len(value) >= 9:
+        return value[:9]
+    return None
+
+
+async def _decp_outcome_counts(session, pipeline_run_id: str) -> dict[str, int]:
+    result = await session.execute(
+        select(SourceRecord.processing_result, func.count(SourceRecord.id))
+        .where(
+            SourceRecord.pipeline_run_id == pipeline_run_id,
+            SourceRecord.record_type == "decp_award",
+        )
+        .group_by(SourceRecord.processing_result)
+    )
+    return {str(status or "pending"): int(count) for status, count in result.all()}
 
 
 async def ingest_decp(
@@ -373,6 +503,8 @@ async def ingest_decp(
     stats: dict[str, Any] = {
         "awards": 0,
         "companies": 0,
+        "raw_persisted": 0,
+        "duplicates": 0,
         "created": 0,
         "updated": 0,
         "skipped": 0,
@@ -381,20 +513,106 @@ async def ingest_decp(
         "enrichment_queued": 0,
     }
     settings = get_settings()
-    logger.info("DECP source: loading parquet…")
-    raw = await load_decp()
-    filtered = filter_relevant(
-        raw,
-        days_back=days_back,
-        min_montant=settings.decp_min_montant or None,
-        max_rows=settings.decp_max_awards or None,
-        play_code=play_code,
+    adapter = DecpAdapter()
+    checkpoint_name = f"decp:{play_code}:all"
+    checkpoint_row = await session.scalar(
+        select(SourceCheckpoint).where(SourceCheckpoint.source_name == checkpoint_name)
     )
-    stats["awards"] = filtered.height
-    companies = aggregate_by_siret(filtered)[:max_companies]
+    checkpoint_before: dict[str, Any] = {}
+    if checkpoint_row is not None:
+        try:
+            loaded = json.loads(checkpoint_row.high_water_mark)
+            if isinstance(loaded, dict):
+                checkpoint_before = loaded
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise ValueError(f"Invalid durable checkpoint for {checkpoint_name}")
+
+    logger.info("DECP source: discovering progressive award records…")
+    raw_records, checkpoint_after, exhausted = await adapter.discover(
+        checkpoint_before,
+        max_companies,
+        {
+            "days_back": days_back,
+            "play_code": play_code,
+            "min_montant": settings.decp_min_montant or None,
+            "max_rows": settings.decp_max_awards or None,
+        },
+    )
+    checkpoint_after = checkpoint_after or checkpoint_before
+    stats["awards"] = len(raw_records)
+    stats["checkpoint_before"] = checkpoint_before
+    stats["checkpoint_after"] = checkpoint_after
+    stats["source_exhausted"] = exhausted
+    stats["checkpoint_rebased"] = bool(checkpoint_before) and (
+        checkpoint_before.get("plan_fingerprint")
+        != checkpoint_after.get("plan_fingerprint")
+    )
+
+    raw_persisted, duplicates = await _persist_decp_raw_records(
+        session,
+        pipeline_run_id=pipeline_run_id,
+        raw_records=raw_records,
+        batch_size=settings.decp_raw_persist_batch_size,
+        adapter_version=adapter.version,
+    )
+    stats["raw_persisted"] = raw_persisted
+    stats["duplicates"] = duplicates
+
+    pending_records = list(
+        (
+            await session.execute(
+                select(SourceRecord)
+                .where(
+                    SourceRecord.pipeline_run_id == pipeline_run_id,
+                    SourceRecord.record_type == "decp_award",
+                    SourceRecord.processing_status == "pending",
+                )
+                .order_by(SourceRecord.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    records_by_entity: dict[str, list[SourceRecord]] = {}
+    for record in pending_records:
+        raw_payload = dict((record.payload_json or {}).get("raw") or {})
+        entity_key = _decp_entity_key(raw_payload)
+        if entity_key:
+            records_by_entity.setdefault(entity_key, []).append(record)
+        else:
+            exc = ValueError("DECP award has no valid SIREN/SIRET")
+            category = await _record_failed_item(
+                session,
+                pipeline_run_id=pipeline_run_id,
+                task_name="persist_decp_company",
+                source_name="decp",
+                source_record_key=record.external_id,
+                payload=raw_payload,
+                exc=exc,
+            )
+            record.processing_status = "failed"
+            record.processing_result = "failed_primary"
+            record.processed_at = datetime.now(timezone.utc)
+            record.error_category = category
+
+    aggregate_rows = [
+        dict((record.payload_json or {}).get("raw") or {})
+        for records in records_by_entity.values()
+        for record in records
+    ]
+    companies = (
+        aggregate_by_siret(pl.DataFrame(aggregate_rows))
+        if aggregate_rows
+        else []
+    )
     stats["companies"] = len(companies)
 
     for i, company in enumerate(companies):
+        company_key = company.get("siret") or company.get("siren")
+        source_records = records_by_entity.get(str(company_key), [])
+        if not source_records:
+            # A nine-digit raw identifier aggregates by SIREN.
+            source_records = records_by_entity.get(str(company.get("siren")), [])
         base = {
             "siret": company.get("siret"),
             "siren": company.get("siren"),
@@ -431,6 +649,11 @@ async def ingest_decp(
                         skip_sirene=skip_sirene,
                     )
                     stats["enrichment_queued"] += int(work_created)
+            for index, source_record in enumerate(source_records):
+                source_record.processing_status = "normalized"
+                source_record.processing_result = status if index == 0 else "aggregated"
+                source_record.processed_at = datetime.now(timezone.utc)
+                source_record.error_category = None
             if status == "created":
                 stats["created"] += 1
             elif status == "updated":
@@ -449,6 +672,13 @@ async def ingest_decp(
                 payload=base,
                 exc=exc,
             )
+            for index, source_record in enumerate(source_records):
+                source_record.processing_status = "failed"
+                source_record.processing_result = (
+                    "failed_primary" if index == 0 else "failed_member"
+                )
+                source_record.processed_at = datetime.now(timezone.utc)
+                source_record.error_category = category if index == 0 else None
             categories = stats["error_categories"]
             categories[category] = int(categories.get(category) or 0) + 1
             continue
@@ -460,7 +690,154 @@ async def ingest_decp(
             await asyncio.sleep(settings.sirene_delay_seconds)
 
     await session.commit()
+    outcomes = await _decp_outcome_counts(session, pipeline_run_id)
+    stats["created"] = outcomes.get("created", 0)
+    stats["updated"] = outcomes.get("updated", 0)
+    stats["skipped"] = outcomes.get("skipped", 0) + outcomes.get(
+        "skipped_compliance", 0
+    )
+    stats["errors"] = outcomes.get("failed_primary", 0)
+    stats["pending_normalization"] = outcomes.get("pending", 0)
+    error_result = await session.execute(
+        select(SourceRecord.error_category, func.count(SourceRecord.id))
+        .where(
+            SourceRecord.pipeline_run_id == pipeline_run_id,
+            SourceRecord.record_type == "decp_award",
+            SourceRecord.processing_result == "failed_primary",
+        )
+        .group_by(SourceRecord.error_category)
+    )
+    stats["error_categories"] = {
+        str(category or "UNCLASSIFIED"): int(count)
+        for category, count in error_result.all()
+    }
+
+    if checkpoint_row is None:
+        checkpoint_row = SourceCheckpoint(
+            source_name=checkpoint_name,
+            high_water_mark=json.dumps(checkpoint_after, sort_keys=True),
+        )
+        session.add(checkpoint_row)
+    else:
+        checkpoint_row.high_water_mark = json.dumps(checkpoint_after, sort_keys=True)
+        checkpoint_row.last_run_at = datetime.now(timezone.utc)
+    await session.commit()
     return stats
+
+
+def _registry_raw_row(
+    *, pipeline_run_id: str, company: dict[str, Any]
+) -> dict[str, Any]:
+    """Create an immutable, JSON-safe raw envelope and processing snapshot."""
+    normalized = {
+        key: value for key, value in company.items() if not key.startswith("_")
+    }
+    carried = company.get("_source_record") or {}
+    raw_record = carried.get("record") if isinstance(carried, dict) else None
+    if not isinstance(raw_record, dict):
+        # Compatibility for adapters/tests that have not yet supplied an exact
+        # upstream record. Production Annuaire discovery always supplies it.
+        raw_record = normalized
+    metadata = carried.get("metadata") if isinstance(carried, dict) else None
+    safe_raw = json.loads(json.dumps(raw_record, default=str))
+    envelope = {
+        "raw": safe_raw,
+        "metadata": json.loads(json.dumps(metadata or {}, default=str)),
+        "normalized": json.loads(json.dumps(normalized, default=str)),
+    }
+    payload_hash = hashlib.sha256(
+        json.dumps(safe_raw, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "pipeline_run_id": pipeline_run_id,
+        "source_run_id": None,
+        "external_id": normalized.get("siren") or normalized.get("siret"),
+        "record_type": "registry_company",
+        "payload_json": envelope,
+        "payload_hash": payload_hash,
+        "processing_status": "pending",
+    }
+
+
+async def _persist_registry_raw_records(
+    session,
+    *,
+    pipeline_run_id: str,
+    companies: list[dict[str, Any]],
+    batch_size: int,
+) -> tuple[int, int]:
+    """Commit exact source payloads before any canonical normalization.
+
+    The unique key makes a Celery retry with the same pipeline run idempotent.
+    A later run may intentionally retain another immutable observation of the
+    same entity.
+    """
+    rows = [
+        _registry_raw_row(pipeline_run_id=pipeline_run_id, company=company)
+        for company in companies
+    ]
+    before = int(
+        await session.scalar(
+            select(func.count(SourceRecord.id)).where(
+                SourceRecord.pipeline_run_id == pipeline_run_id,
+                SourceRecord.record_type == "registry_company",
+            )
+        )
+        or 0
+    )
+    dialect = session.bind.dialect.name
+    insert_factory = pg_insert if dialect == "postgresql" else sqlite_insert
+    for start in range(0, len(rows), batch_size):
+        batch = rows[start : start + batch_size]
+        if not batch:
+            continue
+        statement = insert_factory(SourceRecord).values(batch)
+        statement = statement.on_conflict_do_nothing(
+            index_elements=["pipeline_run_id", "external_id", "payload_hash"]
+        )
+        await session.execute(statement)
+        # Raw durability is an independent stage boundary. A process crash
+        # after this commit can replay pending rows without source refetch.
+        await session.commit()
+    persisted = int(
+        await session.scalar(
+            select(func.count(SourceRecord.id)).where(
+                SourceRecord.pipeline_run_id == pipeline_run_id,
+                SourceRecord.record_type == "registry_company",
+            )
+        )
+        or 0
+    )
+    inserted = max(0, persisted - before)
+    return persisted, max(0, len(rows) - inserted)
+
+
+async def _registry_outcome_counts(session, pipeline_run_id: str) -> dict[str, int]:
+    result = await session.execute(
+        select(SourceRecord.processing_result, func.count(SourceRecord.id))
+        .where(
+            SourceRecord.pipeline_run_id == pipeline_run_id,
+            SourceRecord.record_type == "registry_company",
+        )
+        .group_by(SourceRecord.processing_result)
+    )
+    return {str(status or "pending"): int(count) for status, count in result.all()}
+
+
+async def _registry_error_counts(session, pipeline_run_id: str) -> dict[str, int]:
+    result = await session.execute(
+        select(SourceRecord.error_category, func.count(SourceRecord.id))
+        .where(
+            SourceRecord.pipeline_run_id == pipeline_run_id,
+            SourceRecord.record_type == "registry_company",
+            SourceRecord.processing_status == "failed",
+        )
+        .group_by(SourceRecord.error_category)
+    )
+    return {
+        str(category or "UNCLASSIFIED"): int(count)
+        for category, count in result.all()
+    }
 
 
 async def ingest_registry(
@@ -473,6 +850,8 @@ async def ingest_registry(
 ) -> dict[str, Any]:
     stats: dict[str, Any] = {
         "companies": 0,
+        "raw_persisted": 0,
+        "duplicates": 0,
         "created": 0,
         "updated": 0,
         "skipped": 0,
@@ -491,10 +870,7 @@ async def ingest_registry(
         try:
             loaded = json.loads(checkpoint_row.high_water_mark)
             if isinstance(loaded, dict):
-                checkpoint_before = {
-                    "partition": int(loaded.get("partition", 0)),
-                    "offset": int(loaded.get("offset", 0)),
-                }
+                checkpoint_before = loaded
         except (TypeError, ValueError, json.JSONDecodeError):
             raise ValueError(f"Invalid durable checkpoint for {checkpoint_name}")
 
@@ -502,7 +878,7 @@ async def ingest_registry(
         await discover_companies_for_play_checkpointed(
             play_code,
             max_results=max_companies,
-            pages_per_query=4,
+            pages_per_query=settings.registry_max_pages_per_partition,
             checkpoint=checkpoint_before,
         )
     )
@@ -510,8 +886,39 @@ async def ingest_registry(
     stats["checkpoint_before"] = checkpoint_before
     stats["checkpoint_after"] = checkpoint_after
     stats["source_exhausted"] = exhausted
+    stats["checkpoint_rebased"] = bool(checkpoint_before) and (
+        checkpoint_before.get("plan_fingerprint")
+        != checkpoint_after.get("plan_fingerprint")
+    )
 
-    for i, company in enumerate(companies):
+    raw_persisted, duplicates = await _persist_registry_raw_records(
+        session,
+        pipeline_run_id=pipeline_run_id,
+        companies=companies,
+        batch_size=settings.registry_raw_persist_batch_size,
+    )
+    stats["raw_persisted"] = raw_persisted
+    stats["duplicates"] = duplicates
+
+    raw_records = list(
+        (
+            await session.execute(
+                select(SourceRecord)
+                .where(
+                    SourceRecord.pipeline_run_id == pipeline_run_id,
+                    SourceRecord.record_type == "registry_company",
+                    SourceRecord.processing_status == "pending",
+                )
+                .order_by(SourceRecord.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    for i, source_record in enumerate(raw_records):
+        envelope = source_record.payload_json or {}
+        company = dict(envelope.get("normalized") or {})
         base = {
             **company,
             "signal_details": (
@@ -543,6 +950,10 @@ async def ingest_registry(
                         skip_sirene=skip_sirene,
                     )
                     stats["enrichment_queued"] += int(work_created)
+            source_record.processing_status = "normalized"
+            source_record.processing_result = status
+            source_record.processed_at = datetime.now(timezone.utc)
+            source_record.error_category = None
             if status == "created":
                 stats["created"] += 1
             elif status == "updated":
@@ -561,15 +972,43 @@ async def ingest_registry(
                 payload=base,
                 exc=exc,
             )
+            source_record.processing_status = "failed"
+            source_record.processing_result = "failed"
+            source_record.processed_at = datetime.now(timezone.utc)
+            source_record.error_category = category
             categories = stats["error_categories"]
             categories[category] = int(categories.get(category) or 0) + 1
             continue
 
         if (i + 1) % 15 == 0:
             await session.commit()
-            logger.info("Registry progress %d/%d %s", i + 1, len(companies), stats)
+            logger.info("Registry progress %d/%d %s", i + 1, len(raw_records), stats)
         if settings.insee_api_key:
             await asyncio.sleep(settings.sirene_delay_seconds)
+
+    # Reconstruct final outcomes from the durable raw stage so a task replay
+    # reports all committed work, not only rows handled by this process.
+    await session.commit()
+    outcomes = await _registry_outcome_counts(session, pipeline_run_id)
+    stats["created"] = outcomes.get("created", 0)
+    stats["updated"] = outcomes.get("updated", 0)
+    stats["skipped"] = outcomes.get("skipped_compliance", 0) + outcomes.get(
+        "skipped", 0
+    )
+    stats["errors"] = outcomes.get("failed", 0)
+    stats["error_categories"] = await _registry_error_counts(
+        session, pipeline_run_id
+    )
+    stats["pending_normalization"] = outcomes.get("pending", 0)
+    stats["enrichment_queued"] = int(
+        await session.scalar(
+            select(func.count(WorkItem.id)).where(
+                WorkItem.pipeline_run_id == pipeline_run_id,
+                WorkItem.task_name == "extract_website_evidence",
+            )
+        )
+        or 0
+    )
 
     if checkpoint_row is None:
         checkpoint_row = SourceCheckpoint(
@@ -582,6 +1021,167 @@ async def ingest_registry(
         checkpoint_row.last_run_at = datetime.now(timezone.utc)
     await session.commit()
     return stats
+
+
+async def reconcile_failed_raw_item(failed_item_id: str) -> dict[str, Any]:
+    """Reprocess one operator-approved retryable raw failure without discovery."""
+    async with async_session_factory() as session:
+        failure = await session.get(FailedWorkItem, failed_item_id)
+        if failure is None:
+            return {"status": "not_found", "failed_item_id": failed_item_id}
+        if failure.resolved:
+            return {"status": "already_resolved", "failed_item_id": failed_item_id}
+        if not failure.retryable:
+            raise ValueError("Failed raw item is not classified as retryable")
+        if failure.source_name not in {"registry", "decp"}:
+            raise ValueError("Failed item is not a supported raw source record")
+        if not failure.pipeline_run_id:
+            raise ValueError("Failed raw item has no pipeline run")
+        run = await session.get(PipelineRun, failure.pipeline_run_id)
+        if run is None:
+            raise ValueError("Failed raw item's pipeline run no longer exists")
+        source_key = str(
+            failure.source_record_key
+            or (failure.payload or {}).get("source_record_key")
+            or ""
+        )
+        candidates = list(
+            (
+                await session.execute(
+                    select(SourceRecord)
+                    .where(
+                        SourceRecord.pipeline_run_id == run.id,
+                        SourceRecord.record_type
+                        == (
+                            "registry_company"
+                            if failure.source_name == "registry"
+                            else "decp_award"
+                        ),
+                        SourceRecord.processing_status == "failed",
+                    )
+                    .order_by(SourceRecord.id)
+                    .with_for_update()
+                )
+            )
+            .scalars()
+            .all()
+        )
+        matched: list[SourceRecord] = []
+        if failure.source_name == "registry":
+            for record in candidates:
+                normalized = dict((record.payload_json or {}).get("normalized") or {})
+                if source_key in {
+                    str(normalized.get("siret") or ""),
+                    str(normalized.get("siren") or ""),
+                    str(record.external_id or ""),
+                }:
+                    matched = [record]
+                    break
+        else:
+            for record in candidates:
+                raw = dict((record.payload_json or {}).get("raw") or {})
+                if source_key in {
+                    str(_decp_entity_key(raw) or ""),
+                    str(raw.get("siren") or ""),
+                    str(record.external_id or ""),
+                }:
+                    matched.append(record)
+        if not matched:
+            raise ValueError("No failed raw record matches the failed-work identity")
+
+        if failure.source_name == "registry":
+            company = dict((matched[0].payload_json or {}).get("normalized") or {})
+            base = {
+                **company,
+                "signal_details": (
+                    f"Field-service registry · NAF {company.get('naf_code')} · "
+                    f"{company.get('company_size')} · "
+                    f"{(company.get('decision_maker_title') or '')}"
+                ),
+            }
+            signal_type = "REGISTRY_FIELD"
+            source = "Annuaire"
+            data_source = DATA_SOURCE_REG
+        else:
+            rows = [
+                dict((record.payload_json or {}).get("raw") or {})
+                for record in matched
+            ]
+            companies = aggregate_by_siret(pl.DataFrame(rows))
+            if len(companies) != 1:
+                raise ValueError("DECP failed raw group did not resolve to one company")
+            company = companies[0]
+            base = {
+                "siret": company.get("siret"),
+                "siren": company.get("siren"),
+                "company_name": company.get("company_name"),
+                "award_history": company.get("award_history"),
+                "last_tender_date": company.get("last_tender_date"),
+                "signal_details": company.get("signal_details"),
+                "objets_joined": company.get("objets_joined"),
+                "evidence": company.get("evidence"),
+            }
+            signal_type = "PUBLIC_AWARD"
+            source = "DECP"
+            data_source = DATA_SOURCE_DECP
+
+        try:
+            async with session.begin_nested():
+                prospect, _, status = await upsert_prospect(
+                    session,
+                    base=base,
+                    signal_type=signal_type,
+                    source=source,
+                    data_source=data_source,
+                    play_code=run.play_code,
+                    deep=False,
+                    skip_sirene=bool(
+                        (run.request_config_json or {}).get("skip_sirene")
+                    ),
+                )
+                if prospect is not None:
+                    await _ensure_enrichment_work_item(
+                        session,
+                        pipeline_run_id=run.id,
+                        prospect_id=prospect.id,
+                        play_code=run.play_code,
+                        source_name=failure.source_name,
+                        source_payload=base,
+                        skip_sirene=bool(
+                            (run.request_config_json or {}).get("skip_sirene")
+                        ),
+                    )
+            for index, record in enumerate(matched):
+                record.processing_status = "normalized"
+                record.processing_result = status if index == 0 else "aggregated"
+                record.processed_at = datetime.now(timezone.utc)
+                record.error_category = None
+            failure.resolved = True
+            failure.resolved_at = datetime.now(timezone.utc)
+            failure.retry_count = int(failure.retry_count or 0) + 1
+            failure.resolution_note = f"Raw normalization succeeded with {status}"
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            category, retryable = _error_category(exc)
+            failed_again = await session.get(FailedWorkItem, failed_item_id)
+            if failed_again is not None:
+                failed_again.retry_count = int(failed_again.retry_count or 0) + 1
+                failed_again.error_category = category
+                failed_again.retryable = retryable
+                failed_again.error_message = str(exc)[:4000]
+                failed_again.resolution_note = "Raw normalization retry failed"
+                await session.commit()
+            raise
+
+        dispatch = await _dispatch_enrichment_work(session, pipeline_run_id=run.id)
+        return {
+            "status": "resolved",
+            "failed_item_id": failed_item_id,
+            "source_records": len(matched),
+            "normalization_result": status,
+            "enrichment_dispatch": dispatch,
+        }
 
 
 async def run_ingestion(
@@ -622,9 +1222,11 @@ async def run_ingestion(
         "decp": {},
         "registry": {},
         "raw_discovered": 0,
-        # Raw payload storage is not yet activated. This counter deliberately
-        # remains zero rather than claiming canonical prospects are raw rows.
+        # Registry payloads are committed before normalization. DECP raw
+        # persistence remains intentionally reported as zero until that
+        # connector is moved onto the same stage boundary.
         "raw_persisted": 0,
+        "duplicates": 0,
         "created": 0,
         "updated": 0,
         "enrichment_queued": 0,
@@ -642,6 +1244,8 @@ async def run_ingestion(
                 if run is None:
                     raise ValueError(f"Unknown pipeline_run_id: {pipeline_run_id}")
                 resolved_run_id = run.id
+                if run.status in {"failed", "completed_with_errors"}:
+                    run.retry_count = int(run.retry_count or 0) + 1
                 requested = run.request_config_json or {}
                 expected = {
                     "play_code": play_code,
@@ -717,11 +1321,25 @@ async def run_ingestion(
                         pipeline_run_id=run.id,
                     )
                     totals["decp"] = d
-                    totals["raw_discovered"] += d.get("companies", 0)
+                    totals["raw_discovered"] += d.get("awards", 0)
+                    totals["raw_persisted"] += d.get("raw_persisted", 0)
+                    totals["duplicates"] += d.get("duplicates", 0)
                     totals["created"] += d.get("created", 0)
                     totals["updated"] += d.get("updated", 0)
                     totals["enrichment_queued"] += d.get("enrichment_queued", 0)
                     totals["errors"] += d.get("errors", 0)
+                    if mode == "full":
+                        run.checkpoint_before_json = {
+                            **(run.checkpoint_before_json or {}),
+                            "decp": d.get("checkpoint_before"),
+                        }
+                        run.checkpoint_after_json = {
+                            **(run.checkpoint_after_json or {}),
+                            "decp": d.get("checkpoint_after"),
+                        }
+                    else:
+                        run.checkpoint_before_json = d.get("checkpoint_before")
+                        run.checkpoint_after_json = d.get("checkpoint_after")
 
                 if mode in ("full", "registry") and registry_limit:
                     r = await ingest_registry(
@@ -733,12 +1351,24 @@ async def run_ingestion(
                     )
                     totals["registry"] = r
                     totals["raw_discovered"] += r.get("companies", 0)
+                    totals["raw_persisted"] += r.get("raw_persisted", 0)
+                    totals["duplicates"] += r.get("duplicates", 0)
                     totals["created"] += r.get("created", 0)
                     totals["updated"] += r.get("updated", 0)
                     totals["enrichment_queued"] += r.get("enrichment_queued", 0)
                     totals["errors"] += r.get("errors", 0)
-                    run.checkpoint_before_json = r.get("checkpoint_before")
-                    run.checkpoint_after_json = r.get("checkpoint_after")
+                    if mode == "full":
+                        run.checkpoint_before_json = {
+                            **(run.checkpoint_before_json or {}),
+                            "registry": r.get("checkpoint_before"),
+                        }
+                        run.checkpoint_after_json = {
+                            **(run.checkpoint_after_json or {}),
+                            "registry": r.get("checkpoint_after"),
+                        }
+                    else:
+                        run.checkpoint_before_json = r.get("checkpoint_before")
+                        run.checkpoint_after_json = r.get("checkpoint_after")
 
                 for source in ("decp", "registry"):
                     categories = (totals.get(source) or {}).get(
@@ -821,7 +1451,7 @@ async def rescore_all() -> int:
             )
         )
         for opp in result.scalars().unique().all():
-            calculate_opportunity_score_v4(session, opp)
+            await calculate_opportunity_score_v4(session, opp)
             n += 1
         await session.commit()
     logger.info("Rescored %d opportunities (V4)", n)

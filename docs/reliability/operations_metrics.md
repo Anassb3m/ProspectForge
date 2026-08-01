@@ -13,8 +13,10 @@ Every `PipelineRun` exposes:
 - company create/update and downstream queued/completed/failed counts;
 - error count, categories, summary, and committed statistics.
 
-`raw_persisted` currently remains zero because immutable raw storage is not
-activated. It must not be inferred from company counts.
+`raw_persisted` is populated from pipeline-owned `SourceRecord` rows for both
+France registry companies and DECP awards. DECP aggregation outcomes are
+separate from award-level raw counts; values are never inferred from company
+counts.
 
 ## Dashboard formulas
 
@@ -35,6 +37,7 @@ No displayed metric is a hardcoded success count.
 ## Acquisition health
 
 `GET /api/operations/acquisition-health` is authenticated. It reports database,
-Redis, queues, work states, stale runs, latest committed run, source
-capabilities, and automation flags. Worker state is deliberately `unknown`
-until canonical heartbeats are implemented.
+Redis, queues, work states, stale work, stale runs, latest committed run, source
+capabilities, raw-source states, and automation flags. Worker state is
+`healthy` only when a fresh queue-labelled `source-ingestion` heartbeat exists;
+no heartbeat is `unknown`, and stale/wrong-queue heartbeats are `degraded`.

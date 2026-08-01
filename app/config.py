@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     active_market_play: str = "FIELD_OPERATIONS_FR_V2"
     nightly_ingestion_limit: int = 100
     ingestion_lock_timeout_seconds: int = 6 * 60 * 60
+    work_stale_after_seconds: int = 15 * 60
+    registry_max_pages_per_partition: int = 1000
+    registry_raw_persist_batch_size: int = 250
+    decp_raw_persist_batch_size: int = 250
 
     # ── Phase 9: Production Activation Safeguards ─────────────────────────
     outreach_enabled: bool = False
@@ -134,6 +138,26 @@ class Settings(BaseSettings):
             errors.append("TLS_MODE must be internal, external, or acme")
         bounded = {
             "NIGHTLY_INGESTION_LIMIT": (self.nightly_ingestion_limit, 1, 2000),
+            "REGISTRY_MAX_PAGES_PER_PARTITION": (
+                self.registry_max_pages_per_partition,
+                1,
+                5000,
+            ),
+            "REGISTRY_RAW_PERSIST_BATCH_SIZE": (
+                self.registry_raw_persist_batch_size,
+                25,
+                1000,
+            ),
+            "DECP_RAW_PERSIST_BATCH_SIZE": (
+                self.decp_raw_persist_batch_size,
+                25,
+                1000,
+            ),
+            "WORK_STALE_AFTER_SECONDS": (
+                self.work_stale_after_seconds,
+                60,
+                24 * 60 * 60,
+            ),
             "NIGHTLY_CONTACT_BATCH_SIZE": (self.nightly_contact_batch_size, 1, 50),
             "CONTACT_CRAWL_MAX_PAGES": (self.contact_crawl_max_pages, 1, 30),
             "CONTACT_DOMAIN_CONCURRENCY": (self.contact_domain_concurrency, 1, 4),

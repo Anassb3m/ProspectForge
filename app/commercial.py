@@ -1,13 +1,14 @@
 """
-Single commercial projection path for V3.
+Legacy commercial compatibility projection.
 
-recompute_commercial_state() loads evidence, latest qualification, suppression,
-and applies scoring_v3 — used by create/update/event/qualify/ingest.
+Canonical opportunity scoring lives only in ``services.scoring_v4``. This
+module keeps old Prospect screens synchronized while they are migrated.
 """
 
 from __future__ import annotations
 
 import logging
+import hashlib
 from typing import Any
 
 from sqlalchemy import and_, select
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     EvidenceSignal,
+    EvidenceItem,
     OfferAsset,
     Prospect,
     QualificationReview,
@@ -126,8 +128,11 @@ async def add_suppression(
 
 def evidence_fingerprint(source_type: str | None, signal_type: str | None, evidence_text: str | None, evidence_url: str | None) -> str:
     """Helper to dedupe evidence signals."""
-    parts = [str(x).strip().lower() for x in (source_type, signal_type, evidence_text, evidence_url) if x]
-    return "|".join(parts)
+    parts = [
+        str(x or "").strip().lower()
+        for x in (signal_type, source_type, evidence_text, evidence_url)
+    ]
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
 async def upsert_evidence(
@@ -135,20 +140,14 @@ async def upsert_evidence(
     prospect_id: int,
     evidence_items: list[dict[str, Any]],
 ) -> int:
-    """Insert evidence rows with fingerprint dedupe. Returns new count."""
+    """Write canonical evidence first, then its read-only legacy projection."""
     if not evidence_items:
         return 0
-    existing = await load_evidence_for_prospect(db, prospect_id)
-    existing_fp = set()
-    for e in existing:
-        existing_fp.add(
-            evidence_fingerprint(
-                source_type=e.source_type,
-                signal_type=e.signal_type,
-                evidence_text=e.evidence_text,
-                evidence_url=e.evidence_url,
-            )
-        )
+    prospect = await db.get(Prospect, prospect_id)
+    if prospect is None:
+        raise ValueError("Evidence prospect does not exist")
+    if not prospect.company_id or not prospect.opportunity_id:
+        raise ValueError("Evidence requires an explicit canonical opportunity mapping")
 
     added = 0
     for ev in evidence_items:
@@ -160,56 +159,68 @@ async def upsert_evidence(
             evidence_text=ev.get("evidence_text"),
             evidence_url=ev.get("evidence_url"),
         )
-        if fp in existing_fp:
-            continue
-        existing_fp.add(fp)
-        db.add(
-            EvidenceSignal(
-                prospect_id=prospect_id,
-                category=ev.get("category") or "structural_fit",
-                signal_type=(ev.get("signal_type") or "UNKNOWN")[:80],
-                label=(ev.get("label") or "")[:200],
-                evidence_text=(ev.get("evidence_text") or "")[:4000],
-                evidence_url=ev.get("evidence_url"),
-                source_type=ev.get("source_type"),
-                confidence=int(ev.get("confidence") or 50),
-                strength=int(ev.get("strength") or 50),
-                is_active=True,
-                manually_confirmed=bool(ev.get("manually_confirmed")),
+        canonical = await db.scalar(
+            select(EvidenceItem).where(
+                EvidenceItem.opportunity_id == prospect.opportunity_id,
+                EvidenceItem.fingerprint == fp,
             )
         )
-        
-        # Dual-write to canonical model if opportunity linked
-        prospect = await db.get(Prospect, prospect_id)
-        if prospect and prospect.company_id and prospect.opportunity_id:
-            from app.models import EvidenceItem
-            import uuid
+        if canonical is None:
+            canonical = EvidenceItem(
+                company_id=prospect.company_id,
+                opportunity_id=prospect.opportunity_id,
+                code=(ev.get("signal_type") or "UNKNOWN")[:100],
+                fingerprint=fp,
+                category=(ev.get("category") or "structural_fit")[:50],
+                evidence_text=(ev.get("evidence_text") or "")[:4000],
+                source_url=ev.get("evidence_url"),
+                source_type=ev.get("source_type"),
+                source_record_id=(
+                    str(ev.get("source_record_id"))[:200]
+                    if ev.get("source_record_id") is not None
+                    else None
+                ),
+                extractor_version=str(ev.get("extractor_version") or "legacy-v1")[:50],
+                confidence=max(0.0, min(1.0, float(ev.get("confidence") or 50) / 100.0)),
+                strength=max(0.0, min(1.0, float(ev.get("strength") or 50) / 100.0)),
+                verification_state=(
+                    "manually_confirmed"
+                    if ev.get("manually_confirmed")
+                    else "source_observed"
+                ),
+                contradiction_status=str(
+                    ev.get("contradiction_status") or "none"
+                )[:30],
+                is_active=True,
+            )
+            db.add(canonical)
+            await db.flush()
+            added += 1
+        projection = await db.scalar(
+            select(EvidenceSignal.id).where(
+                EvidenceSignal.canonical_evidence_id == canonical.id
+            )
+        )
+        if projection is None:
             db.add(
-                EvidenceItem(
-                    id=str(uuid.uuid4()),
-                    company_id=prospect.company_id,
-                    opportunity_id=prospect.opportunity_id,
-                    code=(ev.get("signal_type") or "UNKNOWN")[:100],
-                    category=(ev.get("category") or "structural_fit")[:50],
-                    evidence_text=(ev.get("evidence_text") or "")[:4000],
-                    source_url=ev.get("evidence_url"),
-                    confidence=float(ev.get("confidence") or 50) / 100.0,
-                    verification_state="verified" if ev.get("manually_confirmed") else "unverified"
+                EvidenceSignal(
+                    canonical_evidence_id=canonical.id,
+                    prospect_id=prospect_id,
+                    category=canonical.category,
+                    signal_type=canonical.code[:80],
+                    label=(ev.get("label") or "")[:200],
+                    evidence_text=canonical.evidence_text,
+                    evidence_url=canonical.source_url,
+                    source_type=canonical.source_type,
+                    confidence=round(canonical.confidence * 100),
+                    strength=round(canonical.strength * 100),
+                    is_active=canonical.is_active,
+                    manually_confirmed=(
+                        canonical.verification_state == "manually_confirmed"
+                    ),
                 )
             )
-            
-        added += 1
-        
-    if added > 0:
-        prospect = await db.get(Prospect, prospect_id)
-        if prospect and prospect.opportunity_id:
-            from app.workers.celery_app import celery_app
-            celery_app.send_task(
-                "app.workers.tasks.recalculate_opportunity_score", 
-                args=[prospect.opportunity_id],
-                countdown=5 # Allow transaction to commit
-            )
-            
+
     return added
 
 

@@ -72,7 +72,7 @@ uvicorn app.main:app --reload --port 8000
 # Field-service registry discovery
 export INSEE_API_KEY=...
 python -m app.jobs.ingestion --play-code FIELD_OPERATIONS_FR_V2 \
-  --mode registry --max-companies 30
+  --mode registry --max-companies 500 --skip-sirene
 
 # Public awards (maintenance / installation filters)
 python -m app.jobs.ingestion --play-code FIELD_OPERATIONS_FR_V2 \
@@ -108,6 +108,11 @@ Normal deployment does not start Celery Beat. Acquisition schedules, contact
 automation, score reconciliation, retention, and automatic outreach are off by
 default. See the reliability runbook for controlled activation.
 
+Registry acquisition is progressive: the active play's seven NAF segments are
+scanned page by page, raw source records commit before normalization, and each
+bounded run resumes its versioned checkpoint. Use repeated 500–2,000 record
+runs for volume; no checkpoint or production data reset is required.
+
 ---
 
 ## Architecture (V3)
@@ -137,14 +142,18 @@ Deterministic editable drafts → LinkedIn/email → careful first outreach
 Append-only events + follow-up tasks
 ```
 
-### Opportunity score
+### Opportunity score and readiness
 
 ```
-0.25×fit + 0.25×pain + 0.20×trigger + 0.15×authority + 0.10×value + 0.05×data_quality
-× confidence_multiplier − penalties
+ICP fit 0–25 + operational complexity 0–20 + trigger/timing 0–15
++ buyer/contact quality 0–15 + evidence/data quality 0–15
++ commercial relevance 0–10 − contradiction penalties
 ```
 
-**High score cannot skip gates:** fit/pain/trigger floors, contact quality, and **human accept**.
+**High score cannot skip gates:** active French identity, relevant
+classification, verified official domain, operational evidence, buyer/contact
+provenance, suppression/compliance passes, and **human accept** are independent
+hard requirements.
 
 ### Contact honesty
 
@@ -167,7 +176,7 @@ Append-only events + follow-up tasks
 ```
 app/
   plays/field_service.py   # Active market-play config
-  scoring_v3.py            # Opportunity + readiness
+  services/scoring_v4.py   # Evidence-bound opportunity ranking + hard gates
   messaging.py             # Accepted-only LinkedIn/email drafts
   discovery/               # DECP, Annuaire, Sirene, contacts (play-driven)
   routers/queue.py         # Daily queue + qualification

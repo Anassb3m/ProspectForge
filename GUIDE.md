@@ -28,12 +28,12 @@ cold outreach is disabled.
 The Sourcing wizard runs only the supported France play and rejects contact
 discovery inside ingestion.
 
-For a first production check, use a small registry slice without Sirene:
+For a first production check, use a bounded registry slice without Sirene:
 
 ```bash
 docker compose exec -T app python -m app.jobs.ingestion \
   --play-code FIELD_OPERATIONS_FR_V2 \
-  --mode registry --max-companies 25 --skip-sirene
+  --mode registry --max-companies 500 --skip-sirene
 ```
 
 Then inspect:
@@ -48,6 +48,7 @@ The run report must explain:
 - requested play, mode, limit, and partition;
 - checkpoint before and after;
 - records discovered;
+- raw records durably persisted and processing outcomes;
 - companies created and updated;
 - idempotent enrichment work dispatched;
 - failures by category.
@@ -55,12 +56,18 @@ The run report must explain:
 `completed` means source-stage completion only. It does not mean enrichment,
 scoring, contact research, qualification, or outreach completed.
 
+After reviewing the first run, repeat the same command with 500–2,000. The
+versioned checkpoint resumes at the next NAF page/row; do not reset it. An old
+pre-scale checkpoint is automatically rebased because its discovery-plan
+fingerprint is incompatible, while SIREN/SIRET and payload hashes keep replay
+idempotent.
+
 ## Source modes
 
 | Mode | Meaning |
 |---|---|
 | `registry` | Progressive NAF/keyword registry partitions |
-| `decp` | Bounded rolling-window public-award replay |
+| `decp` | Award-level raw persistence with descending history and forward incremental checkpoints |
 | `full` | Splits the requested limit across DECP and registry |
 
 Companies House, BODACC, and OCDS are not production ingestion sources in this
@@ -124,6 +131,11 @@ Do not retry blindly or reset data.
 4. Fix credentials, upstream availability, or invalid data.
 5. Preserve the failed-work row.
 6. Replay the exact bounded partition only when idempotency is verified.
+
+For a retryable registry/DECP normalization failure, use **Retry** in
+`/operations`; it replays the persisted raw record and does not rediscover the
+source. Use **Recover stale work** for expired enrichment leases. Both actions
+report queue acceptance first; verify the final durable status afterward.
 
 See [`docs/reliability/incident_diagnostics.md`](docs/reliability/incident_diagnostics.md).
 

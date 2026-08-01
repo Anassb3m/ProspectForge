@@ -18,6 +18,9 @@ from app.database import async_session_factory
 from app.models import (
     Company,
     CompanyIdentifier,
+    ContactPoint,
+    EvidenceItem,
+    EvidenceSignal,
     FailedWorkItem,
     IngestionRun,
     Opportunity,
@@ -86,6 +89,53 @@ async def reconcile() -> dict:
                 )
             ).all()
         )
+        duplicate_evidence = list(
+            (
+                await session.execute(
+                    select(
+                        EvidenceItem.opportunity_id,
+                        EvidenceItem.fingerprint,
+                        func.count(EvidenceItem.id).label("count"),
+                    )
+                    .where(
+                        EvidenceItem.is_active.is_(True),
+                        EvidenceItem.fingerprint.is_not(None),
+                    )
+                    .group_by(
+                        EvidenceItem.opportunity_id, EvidenceItem.fingerprint
+                    )
+                    .having(func.count(EvidenceItem.id) > 1)
+                )
+            ).all()
+        )
+        mapped_legacy_evidence = int(
+            await session.scalar(
+                select(func.count(EvidenceSignal.id)).where(
+                    EvidenceSignal.canonical_evidence_id.is_not(None)
+                )
+            )
+            or 0
+        )
+        mappable_unmapped_evidence = int(
+            await session.scalar(
+                select(func.count(EvidenceSignal.id))
+                .join(Prospect, EvidenceSignal.prospect_id == Prospect.id)
+                .where(
+                    Prospect.company_id.is_not(None),
+                    Prospect.opportunity_id.is_not(None),
+                    EvidenceSignal.canonical_evidence_id.is_(None),
+                )
+            )
+            or 0
+        )
+        orphan_evidence = int(
+            await session.scalar(
+                select(func.count(EvidenceItem.id))
+                .outerjoin(Company, EvidenceItem.company_id == Company.id)
+                .where(Company.id.is_(None))
+            )
+            or 0
+        )
         work_states = dict(
             (
                 await session.execute(
@@ -121,6 +171,54 @@ async def reconcile() -> dict:
                     {"scheme": row.scheme, "value": row.value_normalized, "count": row.count}
                     for row in duplicate_identifiers
                 ],
+                "identity_manual_review": int(
+                    await session.scalar(
+                        select(func.count(Company.id)).where(
+                            Company.identity_review_state != "clear"
+                        )
+                    )
+                    or 0
+                ),
+            },
+            "evidence": {
+                "legacy_signals": int(
+                    await session.scalar(scalar_count(EvidenceSignal)) or 0
+                ),
+                "legacy_signals_mapped": mapped_legacy_evidence,
+                "mappable_legacy_signals_unmapped": mappable_unmapped_evidence,
+                "canonical_items": int(
+                    await session.scalar(scalar_count(EvidenceItem)) or 0
+                ),
+                "active_canonical_items": int(
+                    await session.scalar(
+                        select(func.count(EvidenceItem.id)).where(
+                            EvidenceItem.is_active.is_(True)
+                        )
+                    )
+                    or 0
+                ),
+                "legacy_duplicates_retained_inactive": int(
+                    await session.scalar(
+                        select(func.count(EvidenceItem.id)).where(
+                            EvidenceItem.contradiction_status == "duplicate_legacy"
+                        )
+                    )
+                    or 0
+                ),
+                "orphan_items": orphan_evidence,
+                "duplicate_active_fingerprints": [
+                    {
+                        "opportunity_id": row.opportunity_id,
+                        "fingerprint": row.fingerprint,
+                        "count": row.count,
+                    }
+                    for row in duplicate_evidence
+                ],
+            },
+            "contacts": {
+                "legacy_contact_points_retained": int(
+                    await session.scalar(scalar_count(ContactPoint)) or 0
+                ),
             },
             "runs": {
                 "legacy_ingestion_runs": legacy_runs,
@@ -154,6 +252,9 @@ def main() -> None:
     anomalies = (
         bool(result["canonical"]["duplicate_identifiers"])
         or result["canonical"]["orphan_opportunities"] > 0
+        or bool(result["evidence"]["duplicate_active_fingerprints"])
+        or result["evidence"]["orphan_items"] > 0
+        or result["evidence"]["mappable_legacy_signals_unmapped"] > 0
         or result["runs"]["legacy_runs_backfilled"]
         < result["runs"]["legacy_ingestion_runs"]
     )

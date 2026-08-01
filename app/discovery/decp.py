@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import re
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,7 @@ from app.config import get_settings
 from app.plays import get_play
 
 logger = logging.getLogger(__name__)
+DECP_CHECKPOINT_VERSION = 1
 
 DECP_DATASET_SLUG = (
     "donnees-essentielles-de-la-commande-publique-consolidees-format-tabulaire"
@@ -331,6 +334,166 @@ def aggregate_by_siret(df: pl.DataFrame) -> list[dict[str, Any]]:
         results.append(entry)
     results.sort(key=lambda e: (e["award_count"], e["total_montant"]), reverse=True)
     return results
+
+
+def prepare_decp_award_records(df: pl.DataFrame) -> list[dict[str, Any]]:
+    """Return deterministic, award-level raw records in newest-first order."""
+    if df.is_empty():
+        return []
+    records: dict[str, dict[str, Any]] = {}
+    for raw in df.to_dicts():
+        event_date = _date_iso(raw.get("_date") or raw.get("dateAttribution"))
+        if not event_date:
+            continue
+        stable_fields = {
+            "source_id": raw.get("id"),
+            "event_date": event_date,
+            "siret": re.sub(r"\D", "", str(raw.get("titulaire_siret") or "")),
+            "cpv": raw.get("codeCPV"),
+            "object": raw.get("objetMarche"),
+            "amount": raw.get("montant"),
+            "buyer": raw.get("acheteur_nom"),
+        }
+        digest = hashlib.sha256(
+            json.dumps(stable_fields, default=str, sort_keys=True).encode()
+        ).hexdigest()
+        external_id = f"decp:{digest}"
+        record = dict(raw)
+        record["_source_external_id"] = external_id
+        record["_source_event_date"] = event_date
+        records[external_id] = record
+    return sorted(
+        records.values(),
+        key=lambda row: (
+            row["_source_event_date"],
+            row["_source_external_id"],
+        ),
+        reverse=True,
+    )
+
+
+def decp_plan_fingerprint(
+    *,
+    play_code: str,
+    days_back: int,
+    min_montant: float | None,
+    max_rows: int | None,
+    adapter_version: str,
+) -> str:
+    play = get_play(play_code)
+    payload = {
+        "checkpoint_version": DECP_CHECKPOINT_VERSION,
+        "adapter_version": adapter_version,
+        "play_code": play_code,
+        "play_version": play.get("version"),
+        "days_back": days_back,
+        "min_montant": min_montant,
+        "max_rows": max_rows,
+        "cpv_prefixes": play.get("cpv_prefixes") or [],
+        "positive_keywords": play.get("positive_keywords") or [],
+        "negative_keywords": play.get("negative_keywords") or [],
+    }
+    return hashlib.sha256(
+        json.dumps(payload, default=str, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:16]
+
+
+def slice_decp_awards_checkpointed(
+    records: list[dict[str, Any]],
+    *,
+    checkpoint: dict[str, Any] | None,
+    limit: int,
+    plan_fingerprint: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any], bool]:
+    """Select unseen incremental awards and progressive historical backfill.
+
+    Incremental rows are consumed oldest-first above the committed high-water
+    mark so a bounded run cannot skip an unseen row. Historical rows are
+    consumed newest-first below the backfill cursor.
+    """
+    if limit < 1:
+        raise ValueError("DECP discovery limit must be positive")
+    checkpoint = checkpoint or {}
+    compatible = (
+        int(checkpoint.get("version") or 0) == DECP_CHECKPOINT_VERSION
+        and checkpoint.get("plan_fingerprint") == plan_fingerprint
+    )
+    state = checkpoint if compatible else {}
+
+    def key(row: dict[str, Any]) -> tuple[str, str]:
+        return row["_source_event_date"], row["_source_external_id"]
+
+    if not records:
+        next_checkpoint = {
+            "version": DECP_CHECKPOINT_VERSION,
+            "plan_fingerprint": plan_fingerprint,
+            "high_water": state.get("high_water"),
+            "backfill_cursor": state.get("backfill_cursor"),
+            "backfill_exhausted": True,
+        }
+        return [], next_checkpoint, True
+
+    high_water = state.get("high_water")
+    backfill_cursor = state.get("backfill_cursor")
+    backfill_exhausted = bool(state.get("backfill_exhausted", False))
+    if not high_water:
+        selected = records[:limit]
+        newest = key(records[0])
+        oldest_selected = key(selected[-1]) if selected else newest
+        exhausted = len(selected) >= len(records)
+        next_checkpoint = {
+            "version": DECP_CHECKPOINT_VERSION,
+            "plan_fingerprint": plan_fingerprint,
+            "high_water": {"event_date": newest[0], "external_id": newest[1]},
+            "backfill_cursor": {
+                "event_date": oldest_selected[0],
+                "external_id": oldest_selected[1],
+            },
+            "backfill_exhausted": exhausted,
+        }
+        return selected, next_checkpoint, exhausted
+
+    high_key = (str(high_water["event_date"]), str(high_water["external_id"]))
+    incremental = sorted(
+        (row for row in records if key(row) > high_key), key=key
+    )
+    selected = incremental[:limit]
+    if selected:
+        newest_committed = key(selected[-1])
+        high_water = {
+            "event_date": newest_committed[0],
+            "external_id": newest_committed[1],
+        }
+
+    remaining = limit - len(selected)
+    incremental_remaining = len(incremental) > len(selected)
+    if remaining and not incremental_remaining and not backfill_exhausted:
+        cursor_key = (
+            (str(backfill_cursor["event_date"]), str(backfill_cursor["external_id"]))
+            if backfill_cursor
+            else high_key
+        )
+        historical = [row for row in records if key(row) < cursor_key]
+        historical_page = historical[:remaining]
+        selected.extend(historical_page)
+        if historical_page:
+            oldest_committed = key(historical_page[-1])
+            backfill_cursor = {
+                "event_date": oldest_committed[0],
+                "external_id": oldest_committed[1],
+            }
+        if len(historical_page) >= len(historical):
+            backfill_exhausted = True
+
+    exhausted = not incremental_remaining and backfill_exhausted
+    next_checkpoint = {
+        "version": DECP_CHECKPOINT_VERSION,
+        "plan_fingerprint": plan_fingerprint,
+        "high_water": high_water,
+        "backfill_cursor": backfill_cursor,
+        "backfill_exhausted": backfill_exhausted,
+    }
+    return selected, next_checkpoint, exhausted
 
 
 def _date_iso(val: Any) -> str | None:

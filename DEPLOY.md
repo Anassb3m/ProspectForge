@@ -208,7 +208,7 @@ docker compose restart app
 docker compose exec app alembic current
 docker compose exec -T app python -m app.jobs.ingestion \
   --play-code FIELD_OPERATIONS_FR_V2 --mode registry \
-  --max-companies 25 --skip-sirene
+  --max-companies 500 --skip-sirene
 ./scripts/diagnose_pipeline.sh
 ./scripts/backup-host.sh
 ```
@@ -223,8 +223,16 @@ operator acceptance:
 docker compose --profile scheduler up -d celery-beat
 ```
 
-Keep nightly contact discovery and score reconciliation off until the scoring
-profile is certified. `OUTREACH_ENABLED=true` is rejected in production.
+Keep nightly contact discovery and score reconciliation off until the
+implemented score profile is calibrated against reviewed production examples
+and operators accept the results. `OUTREACH_ENABLED=true` is rejected in
+production.
+
+For several thousand candidates, repeat bounded runs (maximum 2,000 each) and
+inspect `/operations` between them. Do not delete `source_checkpoints` or reset
+the database. The current migration keeps pipeline-owned raw records during an
+application rollback; once those records exist, an Alembic schema downgrade
+intentionally refuses to discard them.
 
 ## Release verification
 
@@ -251,3 +259,4 @@ PostgreSQL migration and HTTPS boot test and deletes all smoke data afterward.
 | Existing proxy port conflict | Use `TLS_MODE=external` |
 | Login loop or missing cookie | Confirm the browser uses HTTPS and `FORCE_HTTPS_COOKIES=true` |
 | Migration failure | Do not bypass it; inspect logs and restore the pre-deploy backup if needed |
+| Run queues but produces nothing | Check `/api/operations/acquisition-health`; a fresh `source-ingestion` worker heartbeat is required, then inspect the run checkpoint and raw-source states |

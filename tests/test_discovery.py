@@ -7,7 +7,12 @@ from unittest.mock import AsyncMock, patch
 import polars as pl
 import pytest
 
-from app.discovery.decp import aggregate_by_siret, filter_relevant
+from app.discovery.decp import (
+    aggregate_by_siret,
+    filter_relevant,
+    prepare_decp_award_records,
+    slice_decp_awards_checkpointed,
+)
 from app.discovery.emails import (
     extract_domain,
     generate_email_candidates,
@@ -149,6 +154,78 @@ class TestDecpFilter:
         assert companies[0]["award_count"] == 2
         assert companies[0]["has_multiple"] is True
         assert "evidence" in companies[0]
+
+    def test_progressive_award_checkpoint_backfill_and_incremental(self):
+        rows = pl.DataFrame(
+            {
+                "id": [f"award-{index}" for index in range(6)],
+                "dateAttribution": [f"2026-07-{20 + index:02d}" for index in range(6)],
+                "_date": [datetime(2026, 7, 20 + index) for index in range(6)],
+                "codeCPV": ["50710000"] * 6,
+                "objetMarche": [f"Maintenance {index}" for index in range(6)],
+                "titulaire_siret": [f"123456789{index:05d}" for index in range(6)],
+                "titulaire_nom": [f"Company {index}" for index in range(6)],
+                "montant": [1000.0 + index for index in range(6)],
+                "acheteur_nom": ["Buyer"] * 6,
+            }
+        )
+        records = prepare_decp_award_records(rows)
+        first, checkpoint, exhausted = slice_decp_awards_checkpointed(
+            records,
+            checkpoint={},
+            limit=2,
+            plan_fingerprint="plan-one",
+        )
+        second, checkpoint, exhausted_second = slice_decp_awards_checkpointed(
+            records,
+            checkpoint=checkpoint,
+            limit=2,
+            plan_fingerprint="plan-one",
+        )
+        third, checkpoint, exhausted_third = slice_decp_awards_checkpointed(
+            records,
+            checkpoint=checkpoint,
+            limit=2,
+            plan_fingerprint="plan-one",
+        )
+        assert len(first) == len(second) == len(third) == 2
+        assert exhausted is exhausted_second is False
+        assert exhausted_third is True
+        ids = [row["_source_external_id"] for row in first + second + third]
+        assert len(ids) == len(set(ids)) == 6
+
+        newer = pl.DataFrame(
+            {
+                "id": ["award-new-one", "award-new-two"],
+                "dateAttribution": ["2026-07-26", "2026-07-27"],
+                "_date": [datetime(2026, 7, 26), datetime(2026, 7, 27)],
+                "codeCPV": ["50710000", "50710000"],
+                "objetMarche": ["Maintenance new one", "Maintenance new two"],
+                "titulaire_siret": ["22345678900001", "32345678900001"],
+                "titulaire_nom": ["New One", "New Two"],
+                "montant": [2000.0, 3000.0],
+                "acheteur_nom": ["Buyer", "Buyer"],
+            }
+        )
+        with_new = prepare_decp_award_records(pl.concat([rows, newer]))
+        incremental_one, checkpoint, incremental_exhausted = (
+            slice_decp_awards_checkpointed(
+                with_new,
+                checkpoint=checkpoint,
+                limit=1,
+                plan_fingerprint="plan-one",
+            )
+        )
+        incremental_two, _, final_exhausted = slice_decp_awards_checkpointed(
+            with_new,
+            checkpoint=checkpoint,
+            limit=1,
+            plan_fingerprint="plan-one",
+        )
+        assert incremental_one[0]["dateAttribution"] == "2026-07-26"
+        assert incremental_two[0]["dateAttribution"] == "2026-07-27"
+        assert incremental_exhausted is False
+        assert final_exhausted is True
 
 
     def test_pick_best_email(self):

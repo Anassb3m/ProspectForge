@@ -40,3 +40,15 @@ compose exec -T db psql \
   -U "${POSTGRES_USER:-prospectforge}" \
   -d "${POSTGRES_DB:-prospectforge}" \
   -c "SELECT status, task_name, count(*) FROM work_items GROUP BY status, task_name ORDER BY status, task_name;"
+
+echo "== Raw source processing states =="
+compose exec -T db psql \
+  -U "${POSTGRES_USER:-prospectforge}" \
+  -d "${POSTGRES_DB:-prospectforge}" \
+  -c "SELECT processing_status, processing_result, count(*) FROM source_records WHERE pipeline_run_id IS NOT NULL GROUP BY processing_status, processing_result ORDER BY processing_status, processing_result;"
+
+echo "== Worker heartbeats =="
+compose exec -T db psql \
+  -U "${POSTGRES_USER:-prospectforge}" \
+  -d "${POSTGRES_DB:-prospectforge}" \
+  -c "SELECT hostname, worker_type, status, last_heartbeat_at FROM worker_nodes ORDER BY last_heartbeat_at DESC;"

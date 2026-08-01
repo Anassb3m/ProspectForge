@@ -418,6 +418,10 @@ class EvidenceSignal(Base):
     __tablename__ = "evidence_signals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    canonical_evidence_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("evidence_items.id", ondelete="SET NULL"),
+        nullable=True, unique=True, index=True
+    )
     prospect_id: Mapped[int] = mapped_column(ForeignKey("prospects.id", ondelete="CASCADE"), index=True)
     category: Mapped[str] = mapped_column(String(30), index=True)
     # structural_fit, pain, trigger, value, exclusion, contact, compliance
@@ -772,6 +776,9 @@ class Company(Base):
         String(36), ForeignKey("companies.id"), nullable=True
     )
     record_version: Mapped[int] = mapped_column(Integer, default=1)
+    identity_review_state: Mapped[str] = mapped_column(
+        String(30), default="clear", server_default="clear", index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -798,7 +805,9 @@ class CompanyIdentifier(Base):
     value_display: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=True)
     source_record_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     company: Mapped["Company"] = relationship(back_populates="identifiers")
@@ -922,18 +931,52 @@ class SourceRun(Base):
 
 class SourceRecord(Base):
     __tablename__ = "source_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "pipeline_run_id",
+            "external_id",
+            "payload_hash",
+            name="uq_source_record_pipeline_external_hash",
+        ),
+        CheckConstraint(
+            "source_run_id IS NOT NULL OR pipeline_run_id IS NOT NULL",
+            name="ck_source_record_has_run",
+        ),
+        Index(
+            "ix_source_records_pipeline_status",
+            "pipeline_run_id",
+            "processing_status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_run_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("source_runs.id"), index=True
+    source_run_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("source_runs.id"), index=True, nullable=True
+    )
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
     )
     external_id: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
     record_type: Mapped[str] = mapped_column(String(50), default="company")
     payload_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     payload_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    processing_status: Mapped[str] = mapped_column(
+        String(30), default="pending", server_default="pending", index=True
+    )
+    processing_result: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    error_category: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
 
-    source_run: Mapped["SourceRun"] = relationship(back_populates="records")
+    source_run: Mapped[Optional["SourceRun"]] = relationship(back_populates="records")
+    pipeline_run: Mapped[Optional["PipelineRun"]] = relationship(
+        back_populates="source_records"
+    )
 
 
 class MarketPlayVersion(Base):
@@ -970,6 +1013,9 @@ class Opportunity(Base):
     priority: Mapped[str] = mapped_column(String(20), default="Medium")
     latest_score: Mapped[float] = mapped_column(Float, default=0.0)
     outreach_ready: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    readiness_state: Mapped[str] = mapped_column(
+        String(40), default="RAW", server_default="RAW", index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -984,6 +1030,11 @@ class Opportunity(Base):
 
 class EvidenceItem(Base):
     __tablename__ = "evidence_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id", "fingerprint", name="uq_evidence_opportunity_fingerprint"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     company_id: Mapped[str] = mapped_column(
@@ -993,11 +1044,20 @@ class EvidenceItem(Base):
         String(36), ForeignKey("opportunities.id", ondelete="SET NULL"), nullable=True, index=True
     )
     code: Mapped[str] = mapped_column(String(100), index=True)
+    fingerprint: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     category: Mapped[str] = mapped_column(String(50), index=True)
     evidence_text: Mapped[str] = mapped_column(Text)
     source_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    source_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    source_record_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    extractor_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    strength: Mapped[float] = mapped_column(Float, default=0.5, server_default="0.5")
     verification_state: Mapped[str] = mapped_column(String(50), default="verified")
+    contradiction_status: Mapped[str] = mapped_column(
+        String(30), default="none", server_default="none", index=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -1065,12 +1125,31 @@ class ComplianceDecision(Base):
 
 class ScoreSnapshot(Base):
     __tablename__ = "score_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id",
+            "profile_code",
+            "input_revision",
+            name="uq_score_snapshot_input_revision",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     opportunity_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("opportunities.id", ondelete="CASCADE"), index=True
     )
     version: Mapped[str] = mapped_column(String(20), default="4.0", server_default="4.0")
+    profile_code: Mapped[str] = mapped_column(
+        String(80), default="field_ops_fr_v2", server_default="field_ops_fr_v2"
+    )
+    input_revision: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    calculator_version: Mapped[str] = mapped_column(
+        String(30), default="5.0.0", server_default="5.0.0"
+    )
+    readiness_state: Mapped[str] = mapped_column(
+        String(40), default="RAW", server_default="RAW", index=True
+    )
+    evidence_refs_json: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
     inputs_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     dimensions_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     weights_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
@@ -1163,6 +1242,10 @@ class PipelineRun(Base):
     error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     stats_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
+    source_records: Mapped[list["SourceRecord"]] = relationship(
+        back_populates="pipeline_run"
+    )
+
 
 class WorkItem(Base):
     __tablename__ = "work_items"
@@ -1199,7 +1282,7 @@ class SourceCheckpoint(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
-    high_water_mark: Mapped[str] = mapped_column(String(200))
+    high_water_mark: Mapped[str] = mapped_column(Text)
     last_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -1208,15 +1291,34 @@ class FailedWorkItem(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     original_work_item_id: Mapped[str] = mapped_column(String(36), index=True)
-    task_name: Mapped[str] = mapped_column(String(150))
-    args: Mapped[Optional[list[Any]]] = mapped_column(JSON, nullable=True)
-    kwargs: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    error_type: Mapped[str] = mapped_column(String(100))
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(
+        String(36), index=True, nullable=True
+    )
+    task_name: Mapped[str] = mapped_column(String(100))
+    source_name: Mapped[Optional[str]] = mapped_column(
+        String(80), index=True, nullable=True
+    )
+    source_record_key: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    error_category: Mapped[str] = mapped_column(
+        String(80), default="UNCLASSIFIED", server_default="UNCLASSIFIED", index=True
+    )
+    retryable: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     error_message: Mapped[str] = mapped_column(Text)
-    traceback_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    traceback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    retry_count: Mapped[int] = mapped_column(Integer, default=0)
-    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    resolved: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolution_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class WorkerNode(Base):

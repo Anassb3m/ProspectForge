@@ -6,6 +6,8 @@ No longer defaults to Section J / IT SMEs.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from typing import Any
 from urllib.parse import quote
@@ -19,6 +21,7 @@ from app.plays import DEFAULT_PLAY_CODE, get_play
 logger = logging.getLogger(__name__)
 BASE = "https://recherche-entreprises.api.gouv.fr"
 SME_TRANCHES = "11,12,21,22,31,32"
+REGISTRY_CHECKPOINT_VERSION = 2
 
 
 async def search_companies(
@@ -30,6 +33,7 @@ async def search_companies(
     page: int = 1,
     per_page: int = 25,
     etat_administratif: str = "A",
+    client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {
         "page": page,
@@ -44,10 +48,14 @@ async def search_companies(
         params["section_activite_principale"] = section_activite_principale
     if tranche_effectif_salarie:
         params["tranche_effectif_salarie"] = tranche_effectif_salarie
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.get(f"{BASE}/search", params=params)
-        r.raise_for_status()
-        return r.json()
+    if client is not None:
+        response = await client.get(f"{BASE}/search", params=params)
+        response.raise_for_status()
+        return response.json()
+    async with httpx.AsyncClient(timeout=30.0) as owned_client:
+        response = await owned_client.get(f"{BASE}/search", params=params)
+        response.raise_for_status()
+        return response.json()
 
 
 async def get_by_siren(siren: str) -> dict[str, Any] | None:
@@ -114,17 +122,78 @@ def _passes_play_filter(n: dict[str, Any], play: dict) -> bool:
         return False
     if is_it_cyber_naf(naf):
         return False
-    excluded = {c.replace(".", "").upper() for c in (play.get("excluded_naf_codes") or [])}
+    classifications = play.get("classifications") or {}
+    classified_exclusions = classifications.get("exclude_codes") or []
+    excluded = {
+        str(c).replace(".", "").upper()
+        for c in [*(play.get("excluded_naf_codes") or []), *classified_exclusions]
+    }
     excl_pref = play.get("excluded_naf_prefixes") or []
     if naf in excluded or naf[:2] in excl_pref:
         return False
-    targets = {c.replace(".", "").upper() for c in (play.get("target_naf_codes") or [])}
+    classified_targets = [
+        entry.get("code") if isinstance(entry, dict) else entry
+        for entry in (classifications.get("include_codes") or [])
+    ]
+    targets = {
+        str(c).replace(".", "").upper()
+        for c in [*(play.get("target_naf_codes") or []), *classified_targets]
+        if c
+    }
     prefs = play.get("target_naf_prefixes") or []
     if targets or prefs:
         if naf in targets or naf[:2] in prefs:
             return True
         return False
     return True
+
+
+def registry_discovery_plan(
+    play: dict[str, Any], *, max_pages_per_partition: int
+) -> tuple[list[tuple[str, str]], str]:
+    """Build a stable plan from both supported market-play schemas.
+
+    The V2 play stores NAF codes in ``classifications.include_codes`` while
+    the older play stores them in ``target_naf_codes``. Treating either as
+    absent silently collapses discovery to a few keyword pages, so this
+    adapter is deliberately explicit and fingerprinted.
+    """
+    classifications = play.get("classifications") or {}
+    classified_codes = [
+        entry.get("code") if isinstance(entry, dict) else entry
+        for entry in (classifications.get("include_codes") or [])
+    ]
+    naf_codes: list[str] = []
+    for value in [*(play.get("target_naf_codes") or []), *classified_codes]:
+        normalized = str(value or "").replace(".", "").upper()
+        if normalized and normalized not in naf_codes:
+            naf_codes.append(normalized)
+
+    # Keyword partitions are exploratory and may be noisy. They are only used
+    # when explicitly configured, or as a compatibility fallback for a play
+    # with no classification targets at all.
+    configured_queries = play.get("registry_queries")
+    queries = list(configured_queries or [])
+    if not naf_codes and not queries:
+        queries = ["maintenance", "installation technique"]
+
+    partitions = [*(('naf', code) for code in naf_codes)]
+    partitions.extend(("query", str(query)) for query in queries if query)
+    if not partitions:
+        raise ValueError(f"Market play {play.get('code')} has no registry discovery plan")
+
+    plan_payload = {
+        "checkpoint_version": REGISTRY_CHECKPOINT_VERSION,
+        "play_code": play.get("code"),
+        "play_version": play.get("version"),
+        "tranches": SME_TRANCHES,
+        "max_pages_per_partition": max_pages_per_partition,
+        "partitions": partitions,
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(plan_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:16]
+    return partitions, fingerprint
 
 
 async def discover_companies_for_play(
@@ -148,8 +217,8 @@ async def discover_companies_for_play_checkpointed(
     *,
     max_results: int = 80,
     pages_per_query: int = 3,
-    checkpoint: dict[str, int] | None = None,
-) -> tuple[list[dict[str, Any]], dict[str, int], bool]:
+    checkpoint: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any], bool]:
     """Discover from a durable page cursor.
 
     ``checkpoint`` identifies the next deterministic partition and row offset.
@@ -157,11 +226,21 @@ async def discover_companies_for_play_checkpointed(
     record from this batch. Replays with the same cursor are idempotent.
     """
     play = get_play(play_code or DEFAULT_PLAY_CODE)
-    queries = play.get("registry_queries") or ["maintenance", "installation technique"]
-    naf_codes = play.get("target_naf_codes") or []
+    if max_results < 1:
+        raise ValueError("max_results must be positive")
+    if pages_per_query < 1:
+        raise ValueError("pages_per_query must be positive")
+    partitions, plan_fingerprint = registry_discovery_plan(
+        play, max_pages_per_partition=pages_per_query
+    )
     by_siren: dict[str, dict] = {}
 
-    def _ingest(item: dict, *, force: bool = False) -> None:
+    def _ingest(
+        item: dict,
+        *,
+        force: bool = False,
+        source_meta: dict[str, Any],
+    ) -> None:
         n = normalize_company(item, signal_hint="REGISTRY_FIELD")
         if not n.get("siren"):
             return
@@ -192,59 +271,99 @@ async def discover_companies_for_play_checkpointed(
                     "confidence": 65,
                     "strength": 55,
                 })
+            # The exact upstream record is carried to the raw persistence
+            # stage. It is removed before canonical prospect enrichment work
+            # is fingerprinted or queued.
+            n["_source_record"] = {"record": item, "metadata": source_meta}
             by_siren[n["siren"]] = n
 
-    partitions: list[tuple[str, str, int]] = []
-    for naf in naf_codes:
-        partitions.extend(("naf", str(naf), page) for page in range(1, pages_per_query + 1))
-    for query in queries:
-        partitions.extend(
-            ("query", str(query), page) for page in range(1, pages_per_query + 1)
+    checkpoint = checkpoint or {}
+    compatible = (
+        int(checkpoint.get("version") or 0) == REGISTRY_CHECKPOINT_VERSION
+        and checkpoint.get("plan_fingerprint") == plan_fingerprint
+    )
+    cursor = (
+        max(0, min(int(checkpoint.get("partition", 0)), len(partitions)))
+        if compatible
+        else 0
+    )
+    page = max(1, int(checkpoint.get("page", 1))) if compatible else 1
+    offset = max(0, int(checkpoint.get("offset", 0))) if compatible else 0
+    start_checkpoint = {
+        "version": REGISTRY_CHECKPOINT_VERSION,
+        "plan_fingerprint": plan_fingerprint,
+        "partition": cursor,
+        "page": page,
+        "offset": offset,
+    }
+    if checkpoint and not compatible:
+        logger.warning(
+            "Registry checkpoint rebased because its discovery plan changed: old=%s new=%s",
+            checkpoint,
+            start_checkpoint,
         )
 
-    checkpoint = checkpoint or {}
-    cursor = max(0, min(int(checkpoint.get("partition", 0)), len(partitions)))
-    offset = max(0, int(checkpoint.get("offset", 0)))
-    start_checkpoint = {"partition": cursor, "offset": offset}
-    while cursor < len(partitions) and len(by_siren) < max_results:
-        kind, value, page = partitions[cursor]
-        try:
-            if kind == "naf":
-                naf_q = (
-                    value
-                    if "." in value
-                    else f"{value[:2]}.{value[2:]}"
-                    if len(value) >= 4
-                    else value
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while cursor < len(partitions) and len(by_siren) < max_results:
+            kind, value = partitions[cursor]
+            try:
+                if kind == "naf":
+                    naf_q = (
+                        value
+                        if "." in value
+                        else f"{value[:2]}.{value[2:]}"
+                        if len(value) >= 4
+                        else value
+                    )
+                    data = await search_companies(
+                        q="",
+                        activite_principale=naf_q,
+                        section_activite_principale=None,
+                        page=page,
+                        per_page=25,
+                        client=client,
+                    )
+                else:
+                    data = await search_companies(
+                        q=value,
+                        section_activite_principale=None,
+                        page=page,
+                        per_page=25,
+                        client=client,
+                    )
+            except httpx.HTTPError as exc:
+                logger.warning(
+                    "Annuaire %s %r page=%d failed: %s", kind, value, page, exc
                 )
-                data = await search_companies(
-                    q="",
-                    activite_principale=naf_q,
-                    section_activite_principale=None,
-                    page=page,
-                    per_page=25,
+                raise
+
+            page_results = list(data.get("results") or [])
+            total_pages = max(1, int(data.get("total_pages") or page))
+            index = min(offset, len(page_results))
+            while index < len(page_results) and len(by_siren) < max_results:
+                item = page_results[index]
+                _ingest(
+                    item,
+                    force=kind == "naf",
+                    source_meta={
+                        "kind": kind,
+                        "value": value,
+                        "page": page,
+                        "offset": index,
+                        "plan_fingerprint": plan_fingerprint,
+                    },
                 )
+                index += 1
+            if index < len(page_results):
+                offset = index
+                break
+
+            offset = 0
+            if not page_results or page >= total_pages or page >= pages_per_query:
+                cursor += 1
+                page = 1
             else:
-                data = await search_companies(
-                    q=value,
-                    section_activite_principale=None,
-                    page=page,
-                    per_page=25,
-                )
-        except httpx.HTTPError as exc:
-            logger.warning("Annuaire %s %r page=%d failed: %s", kind, value, page, exc)
-            raise
-        page_results = list(data.get("results") or [])
-        index = offset
-        while index < len(page_results) and len(by_siren) < max_results:
-            item = page_results[index]
-            _ingest(item, force=kind == "naf")
-            index += 1
-        if index < len(page_results):
-            offset = index
-            break
-        cursor += 1
-        offset = 0
+                page += 1
 
     results = list(by_siren.values())
 
@@ -258,15 +377,22 @@ async def discover_companies_for_play_checkpointed(
     results.sort(key=rank_key)
     results = results[:max_results]
     exhausted = cursor >= len(partitions)
+    next_checkpoint = {
+        "version": REGISTRY_CHECKPOINT_VERSION,
+        "plan_fingerprint": plan_fingerprint,
+        "partition": cursor,
+        "page": page,
+        "offset": offset,
+    }
     logger.info(
         "Annuaire play=%s checkpoint=%s->%s exhausted=%s companies=%d",
         play.get("code"),
         start_checkpoint,
-        {"partition": cursor, "offset": offset},
+        next_checkpoint,
         exhausted,
         len(results),
     )
-    return results, {"partition": cursor, "offset": offset}, exhausted
+    return results, next_checkpoint, exhausted
 
 
 # Back-compat alias — redirects to field play discovery

@@ -95,7 +95,7 @@ class ProspectForgeTask(Task):
         super().on_failure(exc, task_id, args, kwargs, einfo)
 
 
-async def _heartbeat_loop(worker_hostname: str):
+async def _heartbeat_loop(worker_hostname: str, worker_type: str):
     from app.database import async_session_factory
     from app.models import WorkerNode
     from sqlalchemy.dialects.postgresql import insert
@@ -109,13 +109,17 @@ async def _heartbeat_loop(worker_hostname: str):
                 stmt = insert(WorkerNode).values(
                     id=worker_hostname,
                     hostname=worker_hostname,
-                    worker_type="celery",
+                    worker_type=worker_type,
                     status="active",
                     started_at=now,
                     last_heartbeat_at=now
                 ).on_conflict_do_update(
                     index_elements=['id'],
-                    set_={"last_heartbeat_at": now, "status": "active"}
+                    set_={
+                        "last_heartbeat_at": now,
+                        "status": "active",
+                        "worker_type": worker_type,
+                    }
                 )
                 await session.execute(stmt)
                 await session.commit()
@@ -126,10 +130,15 @@ async def _heartbeat_loop(worker_hostname: str):
 @worker_ready.connect
 def start_heartbeat(sender=None, **kwargs):
     hostname = sender.hostname if sender else f"worker-{uuid.uuid4()}"
+    task_consumer = getattr(getattr(sender, "consumer", None), "task_consumer", None)
+    queues = sorted(
+        queue.name for queue in (getattr(task_consumer, "queues", None) or [])
+    )
+    worker_type = ",".join(queues)[:50] or "celery-unclassified"
     import threading
     
     def run_loop():
-        asyncio.run(_heartbeat_loop(hostname))
+        asyncio.run(_heartbeat_loop(hostname, worker_type))
         
     t = threading.Thread(target=run_loop, daemon=True)
     t.start()
@@ -140,7 +149,8 @@ def stop_heartbeat(sender=None, **kwargs):
     from app.models import WorkerNode
     import asyncio
     hostname = sender.hostname if sender else None
-    if not hostname: return
+    if not hostname:
+        return
     
     async def _mark_offline():
         async with async_session_factory() as session:

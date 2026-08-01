@@ -25,7 +25,7 @@ async def recalculate_all_scores() -> int:
         opportunities = list(result.scalars().unique().all())
         for opp in opportunities:
             # V4 Canonical Scoring
-            calculate_opportunity_score_v4(session, opp)
+            await calculate_opportunity_score_v4(session, opp)
             
             # Legacy Projection Update
             prospect = await session.scalar(

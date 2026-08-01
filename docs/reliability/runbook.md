@@ -17,7 +17,7 @@ Sign in and inspect `/operations`. The JSON endpoint
 ```bash
 docker compose exec -T app python -m app.jobs.ingestion \
   --play-code FIELD_OPERATIONS_FR_V2 \
-  --mode registry --max-companies 25 --skip-sirene
+  --mode registry --max-companies 500 --skip-sirene
 ```
 
 Remove `--skip-sirene` only after `INSEE_API_KEY` is configured and health is
@@ -38,9 +38,9 @@ Running work is not killed. Wait for it or inspect the advisory lock and run
 heartbeat. Resume only after setting reviewed flags and starting the scheduler
 profile.
 
-## Reset a registry checkpoint
+## Registry checkpoint handling
 
-Checkpoint reset causes replay. Back up first and record the old value:
+Inspect the cursor without changing it:
 
 ```bash
 ./scripts/backup-host.sh
@@ -48,9 +48,10 @@ docker compose exec -T db psql -U prospectforge -d prospectforge \
   -c "SELECT * FROM source_checkpoints WHERE source_name='registry:FIELD_OPERATIONS_FR_V2:all';"
 ```
 
-Do not delete the row. In a maintenance window, update
-`high_water_mark` to `{"partition": 0, "offset": 0}` only after confirming
-identifier and work-item uniqueness and recording the operator decision.
+Do not delete or manually rewrite the row during normal operation. The cursor
+includes a discovery-plan fingerprint, partition, page, and row offset. A
+legacy/incompatible cursor is automatically rebased and its replay is safe by
+statutory identity, payload hash, and work idempotency.
 
 ## Retry and recovery
 
@@ -60,9 +61,16 @@ identifier and work-item uniqueness and recording the operator decision.
 - `running`: check `lock_lease_until` and worker logs.
 - `failed`: retries exhausted; inspect the matching `failed_work_items` row.
 
-There is no authenticated retry endpoint in this phase. Do not edit status
-blindly. Re-run the exact task only after classifying the failure and retaining
-the failed-work record.
+The authenticated retry endpoint accepts retryable Celery failures and
+registry/DECP raw normalization failures. Raw retries read the persisted
+`SourceRecord`; they do not rediscover the source. Broker acceptance increments
+the retry audit but does not resolve the failed row. Resolution occurs only
+after normalization commits.
+
+Use **Recover stale work** in `/operations` to enqueue locked recovery. It
+reclaims expired supported work within its retry budget and dead-letters
+exhausted/unsupported work. The API response is `accepted`, not `completed`.
+Do not edit statuses or leases blindly.
 
 ## Reconcile
 
@@ -71,9 +79,10 @@ docker compose exec -T app python scripts/reconcile_reliability.py
 docker compose exec -T app python scripts/reconcile_reliability.py --fail-on-anomaly
 ```
 
-The gate fails for duplicate statutory identifiers, orphan opportunities, or
-an incomplete legacy-run backfill. Name-only unlinked rows are reported but
-are intentionally not auto-joined.
+The gate fails for duplicate statutory identifiers, orphan opportunities or
+evidence, duplicate active evidence fingerprints, mappable unmapped legacy
+evidence, or incomplete legacy-run backfill. Name-only unlinked rows are
+reported but intentionally not auto-joined.
 
 ## Enable scheduler
 
@@ -85,7 +94,7 @@ anomalies, current backup, Redis and workers healthy.
 ENABLE_SCHEDULER=true
 ENABLE_NIGHTLY_INGESTION=true
 ACTIVE_MARKET_PLAY=FIELD_OPERATIONS_FR_V2
-NIGHTLY_INGESTION_LIMIT=100
+NIGHTLY_INGESTION_LIMIT=500
 
 docker compose --profile scheduler up -d celery-beat
 ```
@@ -112,9 +121,9 @@ Do not enable contact automation merely because Reacher is reachable.
 ./scripts/rollback.sh
 ```
 
-The migration downgrade preserves historical pipeline rows but removes new
-columns. For an incompatible rollback, restore the pre-deploy database backup
-instead of deleting or resetting production data.
+Application rollback preserves the additive raw-stage schema. A schema
+downgrade refuses once new raw rows exist. For an incompatible rollback,
+restore the pre-deploy database backup instead of deleting or resetting data.
 
 ## Alert meanings
 
@@ -124,4 +133,7 @@ instead of deleting or resetting production data.
 - `completed_with_errors`: source run completed; one or more items are in the
   failed-work queue.
 - stale active run: heartbeat older than the configured lock timeout.
+- stale work item: running lease expired or broker-accepted work exceeded
+  `WORK_STALE_AFTER_SECONDS` without starting.
 - worker `unknown`: no canonical heartbeat exists; never interpret as healthy.
+- worker `degraded`: no fresh `source-ingestion` queue heartbeat exists.

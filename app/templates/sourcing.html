@@ -67,7 +67,7 @@
 
 <!-- Engine Acquisition & Enrichment Controls (Wizard) -->
 <div class="mb-12">
-  <div x-data="{ step: 1, play: 'FIELD_OPERATIONS_FR_V2', mode: 'registry', limit: 60 }" class="card max-w-4xl mx-auto p-8">
+  <div x-data="{ step: 1, play: 'FIELD_OPERATIONS_FR_V2', mode: 'registry', limit: 500 }" class="card max-w-4xl mx-auto p-8">
 
     <!-- Wizard Header -->
     <div class="flex items-center justify-between mb-8 pb-6 border-b border-surface-border">
@@ -123,8 +123,8 @@
         <div class="flex flex-col gap-6 max-w-md">
           <div>
             <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Max Candidates (Batch Size)</label>
-            <input type="number" name="max_companies" x-model="limit" min="1" max="500" class="input-field font-mono text-lg p-3" />
-            <p class="text-xs text-slate-400 mt-2">Maximum number of companies to pull in this run.</p>
+            <input type="number" name="max_companies" x-model="limit" min="1" max="2000" class="input-field font-mono text-lg p-3" />
+            <p class="text-xs text-slate-400 mt-2">Up to 2,000 per recoverable run. Each run resumes the durable NAF/page checkpoint; repeat runs build a larger dataset without restarting the scan.</p>
           </div>
 
           <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">

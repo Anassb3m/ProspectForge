@@ -10,15 +10,18 @@ authenticated request / scheduler
   -> acquire PostgreSQL advisory lock(play/connector/partition)
   -> read committed SourceCheckpoint
   -> retrieve bounded source slice
-  -> per item SAVEPOINT
+  -> commit hashed raw SourceRecord envelopes
+  -> per raw item SAVEPOINT
        -> statutory identity upsert
        -> canonical Company/Opportunity link
-       -> evidence projection
+       -> canonical EvidenceItem + linked compatibility projection
        -> idempotent enrichment WorkItem
      on failure -> FailedWorkItem
   -> commit next checkpoint
   -> dispatch pending work to website-evidence queue
   -> commit truthful run totals/status
+  -> score from canonical evidence/input revision
+  -> apply hard readiness gates independently from numeric rank
 ```
 
 The source task never performs contact discovery or outreach. Enrichment work
@@ -31,8 +34,14 @@ and concurrency gates.
 - `CompanyIdentifier` owns statutory identity.
 - `Company` owns canonical organization identity.
 - `Opportunity` owns play-specific commercial state.
+- `EvidenceItem` owns evidence content, provenance, freshness, contradiction,
+  and verification state; `EvidenceSignal` is a linked legacy projection.
+- `ScoreSnapshot` owns profile/calculator version, input revision, dimensions,
+  penalties, evidence references, gate results, and readiness state.
 - `PipelineRun`, `SourceCheckpoint`, `WorkItem`, and `FailedWorkItem` own
   operational history.
+- `SourceRecord.pipeline_run_id` owns new registry raw observations;
+  `SourceRun` remains legacy history and is not a second run ledger.
 - `Prospect` is a temporary compatibility projection linked by foreign keys.
 
 Display names and inferred domains are never identity joins.
@@ -41,7 +50,15 @@ Display names and inferred domains are never identity joins.
 
 - Advisory locks are connection-scoped and cannot leave an expired lease.
 - Checkpoints move after committed outcomes; a crash replays the prior slice.
+- Raw payloads commit before normalization; a crash can replay pending rows
+  without pretending canonical company rows are raw input.
+- DECP company evidence is aggregated downstream from immutable award rows;
+  the award record is never replaced by only an aggregate company payload.
 - Prospect identity and work idempotency turn replay into update/no-op.
 - A failed record rolls back its savepoint only.
 - Broker failure leaves work pending and visible.
+- Authenticated raw retry reads the committed source row and resolves the
+  failed-work record only after normalization succeeds.
+- Expired supported work leases are reclaimed under row locks; exhausted or
+  unsupported rows are dead-lettered rather than silently reset.
 - Run failure is persisted in a separate session and re-raised.
