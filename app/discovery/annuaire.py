@@ -331,6 +331,17 @@ async def discover_companies_for_play_checkpointed(
                         per_page=25,
                         client=client,
                     )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 429:
+                    logger.warning(
+                        "Annuaire rate limit (429) reached at %s %r page=%d, returning partial results.",
+                        kind, value, page
+                    )
+                    break
+                logger.warning(
+                    "Annuaire %s %r page=%d failed: %s", kind, value, page, exc
+                )
+                raise
             except httpx.HTTPError as exc:
                 logger.warning(
                     "Annuaire %s %r page=%d failed: %s", kind, value, page, exc
