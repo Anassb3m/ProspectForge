@@ -15,16 +15,28 @@ document.addEventListener("submit", (event) => {
   if (!(form instanceof HTMLFormElement)) return;
   const method = (form.method || "get").toLowerCase();
   if (!["post", "put", "patch", "delete"].includes(method)) return;
+  
+  // Skip forms handled by HTMX (they use headers instead)
+  if (form.hasAttribute("hx-post") || form.hasAttribute("hx-put") || 
+      form.hasAttribute("hx-patch") || form.hasAttribute("hx-delete") || 
+      form.closest("[hx-boost='true']")) {
+    return;
+  }
+
   const token = pfCsrf();
   if (!token) return;
   let input = form.querySelector('input[name="_csrf"]');
   if (!input) {
+    event.preventDefault();
     input = document.createElement("input");
     input.type = "hidden";
     input.name = "_csrf";
+    input.value = token;
     form.appendChild(input);
+    HTMLFormElement.prototype.submit.call(form);
+  } else {
+    input.value = token;
   }
-  input.value = token;
 });
 
 /**
