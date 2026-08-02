@@ -12,6 +12,33 @@ docker compose logs --tail=200 app worker-ingestion worker-evidence redis db
 Sign in and inspect `/operations`. The JSON endpoint
 `/api/operations/acquisition-health` is authenticated.
 
+Verify every execution queue, especially for operator actions:
+
+```bash
+docker compose ps app worker-ingestion worker-evidence worker-contact redis db
+docker compose logs --tail=200 worker-evidence worker-contact
+```
+
+`worker-evidence` handles website evidence. `worker-contact` handles eligible
+contact research. The health endpoint reports all five execution queues
+individually. A healthy web process without these workers can render pages but
+cannot complete those stages; the durable queued/pending state is the source
+of truth.
+
+## Operator evidence and contact actions
+
+- **Deep enrich** commits a canonical evidence `PipelineRun` and idempotent
+  `WorkItem`, then publishes to `website-evidence`.
+- **Queue contact discovery** is available from prospect detail only after
+  the readiness checks pass. It commits a `ContactDiscoveryRun` and publishes
+  to `buyer-contact`.
+- Repeated clicks reuse active contact work. Evidence duplicate requests are
+  recorded as skipped duplicates.
+- `enqueue_failed` means the request is durable but the broker did not accept
+  it. Restore Redis/worker health and retry; do not mark it completed manually.
+- Reacher being reachable only adds deliverability evidence. It never proves
+  the person's or company's identity.
+
 ## Run one controlled source partition
 
 ```bash
@@ -22,6 +49,29 @@ docker compose exec -T app python -m app.jobs.ingestion \
 
 Remove `--skip-sirene` only after `INSEE_API_KEY` is configured and health is
 verified. `full` splits the requested limit across DECP and registry.
+
+For a disposable persisted acceptance of both enabled public sources:
+
+```bash
+LIVE_REGISTRY_LIMIT=25 LIVE_DECP_LIMIT=25 \
+  PYTHON_BIN=.venv/bin/python bash scripts/live-source-acceptance.sh
+```
+
+The script creates an isolated database, applies migrations, executes both
+sources, reports checkpoint/raw/canonical/work and anomaly counts, and removes
+the database. It does not enable schedules.
+
+For a redacted live public-contact diagnostic:
+
+```bash
+.venv/bin/python scripts/live_contact_yield_smoke.py \
+  --company "Example Company" --website https://example.org/
+```
+
+Only aggregate contact/evidence counts and rejection categories are printed;
+contact values are not logged or persisted by this diagnostic. A 403, missing
+peer address, or blocked destination is a truthful failed/rejected page, not a
+healthy result.
 
 ## Pause and resume
 
@@ -84,6 +134,21 @@ evidence, duplicate active evidence fingerprints, mappable unmapped legacy
 evidence, or incomplete legacy-run backfill. Name-only unlinked rows are
 reported but intentionally not auto-joined.
 
+## Rehearse a production-copy migration
+
+Create and verify a backup, anonymize the copy under the approved operating
+procedure, then run:
+
+```bash
+PYTHON_BIN=.venv/bin/python bash scripts/rehearse-production-migration.sh \
+  /path/to/anonymized-production.sql.gz
+```
+
+The rehearsal uses and removes only a uniquely named disposable database. The
+no-argument deterministic fixture is useful for CI/mechanics, but does not
+satisfy the production-copy gate. Never point the script or Alembic directly
+at the live production database for rehearsal.
+
 ## Enable scheduler
 
 Prerequisites: controlled live-source acceptance, zero reconciliation
@@ -137,3 +202,7 @@ restore the pre-deploy database backup instead of deleting or resetting data.
   `WORK_STALE_AFTER_SECONDS` without starting.
 - worker `unknown`: no canonical heartbeat exists; never interpret as healthy.
 - worker `degraded`: no fresh `source-ingestion` queue heartbeat exists.
+- repeated HTML 403 on valid controls: verify the `pf_csrf` cookie and current
+  `/static/js/app.js`; do not disable CSRF. A 502 should be traced through Caddy
+  and app logs, but enrichment/contact network work must never run in the web
+  request.

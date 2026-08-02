@@ -1,6 +1,6 @@
 <tr id="sourcing-row-{{ prospect.id }}" class="group transition-colors hover:bg-surface-100 {% if prospect.acquisition_score >= 75 %}bg-rose-500/5{% elif prospect.acquisition_score >= 60 %}bg-amber-500/5{% endif %}">
   <td class="align-top">
-    <a href="/prospects/{{ prospect.id }}" class="font-bold text-white hover:text-brand-400 transition whitespace-normal max-w-[200px] block leading-snug">{{ prospect.company_name }}</a>
+    <a href="/prospects/{{ prospect.opportunity_id }}" class="font-bold text-white hover:text-brand-400 transition whitespace-normal max-w-[200px] block leading-snug">{{ prospect.company_name }}</a>
     <p class="text-xs font-medium text-slate-400 mt-1 whitespace-normal">
       {{ prospect.sector }} <span class="text-slate-600 mx-0.5">&bull;</span> {{ prospect.company_size }}
       {% if prospect.naf_code %}<span class="font-mono text-[10px] bg-surface-100 text-slate-300 px-1.5 py-0.5 rounded ml-1 border border-surface-border">{{ prospect.naf_code }}</span>{% endif %}
@@ -83,9 +83,9 @@
       </a>
       
       <div class="flex gap-1.5 justify-end w-full">
-        <button type="button" onclick="openEnrich({{ prospect.id }})" class="inline-flex flex-1 items-center justify-center px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300 bg-surface-50 border border-surface-border rounded hover:bg-surface-100 transition-colors">
+        <a href="/prospects/{{ prospect.opportunity_id }}#contact-intelligence" class="inline-flex flex-1 items-center justify-center px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300 bg-surface-50 border border-surface-border rounded hover:bg-surface-100 transition-colors">
           Emails
-        </button>
+        </a>
         <form hx-post="/prospects/{{ prospect.id }}/deep-enrich" hx-target="#sourcing-row-{{ prospect.id }}" hx-swap="outerHTML" class="flex-1 flex">
           <button type="submit" class="w-full inline-flex items-center justify-center px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-300 bg-brand-500/10 border border-brand-500/20 rounded hover:bg-brand-500/20 transition-colors" title="Deep enrich">
             Enrich
@@ -94,7 +94,7 @@
       </div>
       
       <div class="flex gap-1.5 justify-end w-full">
-        <a href="/prospects/{{ prospect.id }}" class="inline-flex flex-1 items-center justify-center px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300 bg-surface-50 border border-surface-border rounded hover:bg-surface-100 transition-colors">
+        <a href="/prospects/{{ prospect.opportunity_id }}" class="inline-flex flex-1 items-center justify-center px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300 bg-surface-50 border border-surface-border rounded hover:bg-surface-100 transition-colors">
           Open
         </a>
         {% if prospect.needs_manual_review %}

@@ -28,7 +28,7 @@
       <div class="p-4 hover:bg-white/5 cursor-pointer transition-colors border-l-2 {% if loop.first %}border-indigo-500 bg-white/5{% else %}border-transparent{% endif %}">
         <div class="flex justify-between items-start mb-1">
           <div class="font-bold text-sm text-white">{{ r.prospect.company_name if r.prospect else 'Unknown' }}</div>
-          <div class="text-[10px] text-slate-500">{{ r.occurred_at.strftime('%H:%M') }}</div>
+          <div class="text-[10px] text-slate-500">{{ r.event_date.strftime('%H:%M') }}</div>
         </div>
         <div class="text-xs text-slate-400 truncate">{{ r.notes or 'New reply received' }}</div>
       </div>
@@ -47,24 +47,29 @@
     <div class="p-6 border-b border-surface-border">
       <div class="flex justify-between items-start mb-4">
         <div>
-          <h2 class="text-xl font-bold text-white mb-1">Re: Enterprise Architecture Discussion</h2>
+          {% set selected = replies[0] %}
+          <h2 class="text-xl font-bold text-white mb-1">Reply · {{ selected.prospect.company_name if selected.prospect else 'Unknown company' }}</h2>
           <div class="flex items-center gap-2 text-sm text-slate-400">
-            <span>From: John Doe (CTO)</span>
+            <span>{{ selected.channel }} · {{ selected.event_date.strftime('%Y-%m-%d %H:%M') }}</span>
             <span>&bull;</span>
-            <a href="#" class="text-indigo-400 hover:underline">Acme Corp</a>
+            {% if selected.prospect and selected.prospect.opportunity_id %}<a href="/prospects/{{ selected.prospect.opportunity_id }}" class="text-indigo-400 hover:underline">Open prospect</a>{% endif %}
           </div>
         </div>
         <div class="flex gap-2">
-          <button class="btn-primary py-1.5 px-3 text-xs"><i class="ph ph-check"></i> Mark Resolved</button>
+          <form action="/inbox/{{ selected.id }}/resolve" method="POST">
+            <button type="submit" class="btn-primary py-1.5 px-3 text-xs"><i class="ph ph-check"></i> Mark Resolved</button>
+          </form>
         </div>
       </div>
 
       <div class="flex flex-wrap gap-2 pt-4 border-t border-surface-border">
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2 self-center">Classify:</span>
-        <button class="rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">Positive Interest</button>
-        <button class="rounded-full bg-amber-500/10 text-amber-400 text-xs font-bold px-3 py-1 border border-amber-500/20 hover:bg-amber-500/20 transition-colors">Not Now</button>
-        <button class="rounded-full bg-rose-500/10 text-rose-400 text-xs font-bold px-3 py-1 border border-rose-500/20 hover:bg-rose-500/20 transition-colors">Opt-Out</button>
-        <button class="rounded-full bg-surface-50 text-slate-300 text-xs font-bold px-3 py-1 border border-surface-border hover:bg-surface-border transition-colors">Referral</button>
+        {% for value, label, style in [('positive_interest', 'Positive Interest', 'emerald'), ('not_now', 'Not Now', 'amber'), ('opt_out', 'Opt-Out', 'rose'), ('referral', 'Referral', 'slate')] %}
+        <form action="/inbox/{{ selected.id }}/classify" method="POST">
+          <input type="hidden" name="classification" value="{{ value }}">
+          <button type="submit" class="rounded-full bg-{{ style }}-500/10 text-{{ style }}-400 text-xs font-bold px-3 py-1 border border-{{ style }}-500/20 hover:bg-{{ style }}-500/20 transition-colors">{{ label }}</button>
+        </form>
+        {% endfor %}
       </div>
     </div>
 
@@ -73,33 +78,15 @@
       <div class="flex gap-4">
         <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">JD</div>
         <div class="bg-surface-50 border border-surface-border rounded-2xl rounded-tl-none p-4 max-w-[85%]">
-          <p class="text-sm text-slate-300 whitespace-pre-wrap">Hi there,
-
-Thanks for reaching out. The timing is actually pretty good as we are currently evaluating our architecture for Q4. 
-Could we set up a brief 15 min call next week?
-
-Best,
-John</p>
+          <p class="text-sm text-slate-300 whitespace-pre-wrap">{{ selected.notes or 'Reply content was not captured; review the source mailbox.' }}</p>
         </div>
       </div>
       
-      <!-- Sent Message -->
-      <div class="flex gap-4 flex-row-reverse">
-        <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">Me</div>
-        <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl rounded-tr-none p-4 max-w-[85%]">
-          <p class="text-sm text-slate-300 whitespace-pre-wrap">Hi John,
-
-I noticed Acme Corp recently expanded to the UK market. Our platform can help streamline your cross-border data residency requirements. Are you open to a quick chat?</p>
-        </div>
-      </div>
     </div>
     
     <div class="p-4 border-t border-surface-border bg-surface-50">
-      <div class="relative">
-        <textarea class="w-full bg-surface-0 border border-surface-border rounded-xl p-3 pr-12 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none h-24" placeholder="Type your reply..."></textarea>
-        <button class="absolute bottom-3 right-3 p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors shadow-md">
-          <i class="ph ph-paper-plane-tilt"></i>
-        </button>
+      <div class="rounded-xl border border-surface-border bg-surface-0 p-4 text-sm text-slate-400">
+        Reply sending is intentionally disabled. Respond through the source mailbox, then log the outcome on the prospect timeline.
       </div>
     </div>
     {% else %}

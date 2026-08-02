@@ -13,7 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +34,7 @@ from app.models import (
     ContactEvidence,
     ContactPerson,
     ContactPoint,
+    Prospect,
     User,
 )
 from app.schemas import (
@@ -51,6 +52,20 @@ from fastapi.responses import Response
 
 router = APIRouter(tags=["prospects"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+@router.get("/opportunities/{opportunity_id}")
+async def opportunity_detail_alias(
+    opportunity_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(get_current_user)],
+):
+    linked = await db.scalar(
+        select(Prospect.id).where(Prospect.opportunity_id == opportunity_id).limit(1)
+    )
+    if linked is None:
+        raise HTTPException(status_code=404, detail="Opportunity has no prospect projection")
+    return RedirectResponse(url=f"/prospects/{opportunity_id}", status_code=307)
 
 
 def _to_out(p) -> ProspectOut:

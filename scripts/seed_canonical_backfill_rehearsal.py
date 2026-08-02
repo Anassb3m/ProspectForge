@@ -15,7 +15,11 @@ from app.database import async_session_factory
 async def main() -> None:
     database_url = get_settings().database_url
     database_name = urlparse(database_url.replace("+asyncpg", "")).path.lstrip("/")
-    if not database_name.startswith("prospectforge_canonical_gate_"):
+    allowed_prefixes = (
+        "prospectforge_canonical_gate_",
+        "prospectforge_production_rehearsal_",
+    )
+    if not database_name.startswith(allowed_prefixes):
         raise RuntimeError("Refusing to seed a non-rehearsal database")
     async with async_session_factory() as session:
         revision = await session.scalar(text("SELECT version_num FROM alembic_version"))

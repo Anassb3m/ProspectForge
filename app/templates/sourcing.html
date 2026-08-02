@@ -216,21 +216,4 @@
   {% include "partials/sourcing_table.html" %}
 </div>
 
-<!-- Enrich Modal -->
-<div id="enrich-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0B0F19]/80 backdrop-blur-sm p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-surface-0 border border-surface-border shadow-2xl" id="enrich-modal-body"></div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-function openEnrich(prospectId) {
-  const modal = document.getElementById('enrich-modal');
-  const body = document.getElementById('enrich-modal-body');
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  body.innerHTML = '<div class="p-12 text-center text-sm font-bold text-slate-400 flex flex-col items-center gap-4"><svg class="w-8 h-8 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading deep enrichment records...</div>';
-  htmx.ajax('GET', `/sourcing/enrich-modal/${prospectId}`, {target: '#enrich-modal-body', swap: 'innerHTML'});
-}
-</script>
 {% endblock %}

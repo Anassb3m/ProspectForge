@@ -4,7 +4,6 @@
 import asyncio
 import logging
 import uuid
-import random
 from datetime import datetime, timezone
 
 
@@ -54,7 +53,7 @@ async def seed_production_shape() -> None:
                     play_version_id=play_id,
                     status="draft_ready" if i % 10 == 0 else "discovered",
                     priority="High" if i % 5 == 0 else "Low",
-                    latest_score=random.uniform(10.0, 90.0),
+                    latest_score=float(10 + (i * 37) % 81),
                     created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc),
                 )

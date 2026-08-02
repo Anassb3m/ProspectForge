@@ -37,7 +37,7 @@
       {% for item in items %}
       <tr class="hover:bg-white/5 transition-colors">
         <td class="px-6 py-4 font-bold text-white">
-          <a href="/opportunities/{{ item.prospect_id }}" class="hover:text-indigo-400 transition">{{ item.company_name }}</a>
+          <a href="/prospects/{{ item.prospect_id }}" class="hover:text-indigo-400 transition">{{ item.company_name }}</a>
         </td>
         <td class="px-6 py-4 font-medium text-slate-300">{{ item.next_action or 'Follow-up touch' }}</td>
         <td class="px-6 py-4">
@@ -54,7 +54,7 @@
           {{ item.decision_maker_name or '—' }} {% if item.channel %}<span class="text-slate-500">({{ item.channel }})</span>{% endif %}
         </td>
         <td class="px-6 py-4 text-right">
-          <a href="/opportunities/{{ item.prospect_id }}" class="btn-primary py-1.5 px-3 text-xs">Execute &rarr;</a>
+          <a href="/prospects/{{ item.prospect_id }}" class="btn-primary py-1.5 px-3 text-xs">Execute &rarr;</a>
         </td>
       </tr>
       {% endfor %}

@@ -61,7 +61,7 @@
         <div class="text-4xl font-extrabold text-white mb-2">{{ metrics.opportunities_awaiting_qualification }}</div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-        <span class="text-xs text-rose-400 font-medium">Oldest: 2d</span>
+        <span class="text-xs text-slate-500 font-medium">Open queue</span>
         <a href="/queue" class="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
           Review <i class="ph ph-arrow-right"></i>
         </a>
@@ -75,7 +75,7 @@
         <div class="text-4xl font-extrabold text-white mb-2">{{ metrics.contacts_awaiting_review }}</div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-        <span class="text-xs text-amber-400 font-medium">3 High Prio</span>
+        <span class="text-xs text-slate-500 font-medium">Evidence review</span>
         <a href="/contacts/queue" class="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1">
           Resolve <i class="ph ph-arrow-right"></i>
         </a>
@@ -89,7 +89,7 @@
         <div class="text-4xl font-extrabold text-white mb-2">{{ metrics.drafts_awaiting_approval }}</div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-        <span class="text-xs text-slate-500 font-medium">All caught up</span>
+        <span class="text-xs text-slate-500 font-medium">Approval queue</span>
         <a href="/campaigns/drafts" class="text-xs font-bold text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1">
           Approve <i class="ph ph-arrow-right"></i>
         </a>
@@ -103,7 +103,7 @@
         <div class="text-4xl font-extrabold text-white mb-2">{{ metrics.overdue_follow_ups }}</div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-        <span class="text-xs text-rose-400 font-medium">Oldest: 4d</span>
+        <span class="text-xs text-slate-500 font-medium">Due and overdue</span>
         <a href="/follow-ups" class="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors flex items-center gap-1">
           Action <i class="ph ph-arrow-right"></i>
         </a>
@@ -117,7 +117,7 @@
         <div class="text-4xl font-extrabold text-white mb-2">{{ metrics.failed_or_blocked_jobs }}</div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-        <span class="text-xs text-slate-500 font-medium">Healthy</span>
+        <span class="text-xs text-slate-500 font-medium">Runtime status</span>
         <a href="/jobs" class="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1">
           Inspect <i class="ph ph-arrow-right"></i>
         </a>
@@ -131,7 +131,7 @@
         <div class="text-4xl font-extrabold text-white mb-2">{{ metrics.replies_needing_classification }}</div>
       </div>
       <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-        <span class="text-xs text-slate-500 font-medium">Inbox zero</span>
+        <span class="text-xs text-slate-500 font-medium">Classification queue</span>
         <a href="/inbox" class="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
           Classify <i class="ph ph-arrow-right"></i>
         </a>

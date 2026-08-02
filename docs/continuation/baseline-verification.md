@@ -1,6 +1,7 @@
 # Baseline Verification
 
-Date: 2026-07-29
+Baseline date: 2026-07-29
+Final verification update: 2026-08-01
 
 ## Runtime State
 - **Python Version**: Python 3.12.13
@@ -38,4 +39,9 @@ The baseline `release-gate.sh` run completed successfully:
 | Scheduler feature-flag | Complete | `app/workers/celery_app.py` |
 | Operations visibility API | Complete | `app/routers/operations.py` |
 
-The repository is healthy and correctly matches the reported CODEX handoff state.
+The original 130-test result above is retained as historical baseline evidence.
+The final rebuild release gate now passes 166 PostgreSQL tests in 133.53s with
+zero reconciliation anomalies and zero npm vulnerabilities. The complete suite
+also passes in the production Python 3.12.13 image (`166 passed, 1 warning in
+108.33s`). See `TEST_LOG.md` and `CODEX_HANDOFF.md` for the exact final commands,
+live-source/contact acceptance, and the still-open actual production-copy gate.

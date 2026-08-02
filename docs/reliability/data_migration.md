@@ -34,9 +34,28 @@ It adds:
 Unresolved rows are preserved for review. No prospect, company, evidence,
 contact, source, or run data is deleted.
 
-## Rehearsal result
+## Rehearsal commands and result
 
-The PostgreSQL 16 canonical backfill rehearsal produced:
+For deterministic migration mechanics without a production dump:
+
+```bash
+PYTHON_BIN=.venv/bin/python bash scripts/rehearse-production-migration.sh
+```
+
+For the mandatory pre-deploy rehearsal, supply the verified anonymized copy:
+
+```bash
+PYTHON_BIN=.venv/bin/python bash scripts/rehearse-production-migration.sh \
+  backups/prospectforge_YYYYMMDDTHHMMSSZ.sql.gz
+```
+
+The script permits only a uniquely named disposable database with the
+`prospectforge_production_rehearsal_` prefix, verifies gzip integrity, records
+the dump hash, migrates to the single head, reconciles with
+`--fail-on-anomaly`, checks anonymization, and removes the database. It never
+downgrades or resets production.
+
+The PostgreSQL 16 deterministic rehearsal produced:
 
 ```text
 companies/opportunities/prospects: 1/1/1
@@ -49,7 +68,10 @@ duplicate active fingerprints: 0
 orphan opportunities/evidence: 0/0
 ```
 
-Run the same read-only reconciliation on a production copy before deploy.
+It then seeded 1,000 more production-shaped entities for final totals of 1,001
+companies, opportunities, and prospects, with zero reconciliation anomalies.
+This proves mechanics only. Run the supplied-dump form on an actual production
+copy before deploy.
 
 ## Rollback
 

@@ -41,21 +41,19 @@
         <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         Download Report
       </a>
-      <button type="button" onclick="openEnrichDetail()" class="btn-primary">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-        Discover Contacts
-      </button>
+      {% set active_contact_run = recent_contact_runs[0] if recent_contact_runs else none %}
+      <form action="/prospects/{{ prospect.id }}/contact-intelligence/run" method="POST">
+        <button type="submit" class="btn-primary" {% if active_contact_run and active_contact_run.status in ('queued', 'retry_pending', 'running') %}disabled aria-disabled="true"{% endif %}>
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          {% if active_contact_run and active_contact_run.status in ('queued', 'retry_pending', 'running') %}Contact run {{ active_contact_run.status|replace('_', ' ') }}{% else %}Queue Contact Discovery{% endif %}
+        </button>
+      </form>
       <a href="/prospects/{{ prospect.id }}/edit" class="btn-secondary">
         <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
         Edit
       </a>
     </div>
   </div>
-</div>
-
-<!-- Enrich Modal -->
-<div id="enrich-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-[#0B0F19]/80 backdrop-blur-sm p-4" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
-  <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-surface-0 border border-surface-border shadow-2xl" id="enrich-modal-body"></div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -144,13 +142,31 @@
   <!-- Right Column -->
   <div class="space-y-6 lg:col-span-2 min-w-0">
     <!-- Contact Intelligence Waterfall -->
-    <div class="card p-0 overflow-hidden">
+    <div class="card p-0 overflow-hidden" id="contact-intelligence">
       <div class="p-5 border-b border-surface-border bg-surface-50/50 flex items-center justify-between">
         <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <svg class="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
           Contact Intelligence
         </h2>
       </div>
+
+      {% if request.query_params.get('contact_status') %}
+      <div class="px-5 py-3 border-b border-surface-border {% if request.query_params.get('contact_status') in ('queued', 'already_queued') %}bg-emerald-500/10 text-emerald-300{% else %}bg-amber-500/10 text-amber-300{% endif %} text-sm font-medium">
+        Contact discovery: {{ request.query_params.get('contact_status')|replace('_', ' ') }}{% if request.query_params.get('contact_run') %} · run {{ request.query_params.get('contact_run') }}{% endif %}{% if request.query_params.get('contact_reason') %} · {{ request.query_params.get('contact_reason')|replace('_', ' ') }}{% endif %}
+      </div>
+      {% endif %}
+
+      {% if recent_contact_runs %}
+      <div class="px-5 py-3 border-b border-surface-border bg-surface-50/30 text-xs text-slate-400 flex flex-wrap gap-x-5 gap-y-2">
+        {% set latest_run = recent_contact_runs[0] %}
+        <span>Latest run <strong class="text-white">#{{ latest_run.id }}</strong></span>
+        <span>Status <strong class="text-white">{{ latest_run.status|replace('_', ' ') }}</strong></span>
+        <span>People <strong class="text-white">{{ latest_run.people_found }}</strong></span>
+        <span>Contact points <strong class="text-white">{{ latest_run.contact_points_found }}</strong></span>
+        <span>Errors <strong class="{% if latest_run.errors %}text-rose-400{% else %}text-white{% endif %}">{{ latest_run.errors }}</strong></span>
+        {% if latest_run.error_summary %}<span class="text-rose-300">{{ latest_run.error_summary }}</span>{% endif %}
+      </div>
+      {% endif %}
 
       {% if contact_points %}
       <div class="overflow-x-auto">
@@ -260,17 +276,6 @@
 
 {% block scripts %}
 <script>
-function openEnrichDetail() {
-  const modal = document.getElementById('enrich-modal');
-  const body = document.getElementById('enrich-modal-body');
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  body.innerHTML = '<div class="p-12 text-center text-sm font-bold text-slate-400 flex flex-col items-center gap-4"><svg class="w-8 h-8 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Discovering contacts across waterfall...</div>';
-  fetch('/prospects/{{ prospect.id }}/enrich', { credentials: 'same-origin' })
-    .then(r => r.text())
-    .then(html => { body.innerHTML = html; });
-}
-
 async function copyDraft(fieldId, button) {
   const field = document.getElementById(fieldId);
   if (!field) return;

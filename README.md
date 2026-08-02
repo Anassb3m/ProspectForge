@@ -104,6 +104,10 @@ migrations before replacing the app, verifies readiness/HTTPS, and preserves a
 rollback image. See [DEPLOY.md](./DEPLOY.md) for first install, updates,
 external-proxy mode, backups, restore, and rollback.
 
+Before deploying this rebuild, rehearse an approved anonymized production copy
+with `scripts/rehearse-production-migration.sh`; the deterministic fixture mode
+does not replace the production-data gate.
+
 Normal deployment does not start Celery Beat. Acquisition schedules, contact
 automation, score reconciliation, retention, and automatic outreach are off by
 default. See the reliability runbook for controlled activation.
@@ -204,7 +208,7 @@ tests/
 - High-volume email sequences  
 - Opaque ML scoring  
 - Full multi-entity CRM rewrite (companies/campaigns normalized tables seeded; legacy `prospects` still the operator row with V3 fields)  
-- BODACC / website crawler / BOAMP adapters (spec’d; next increment)
+- BODACC / BOAMP/OCDS acquisition adapters (planned, intentionally disabled)
 
 Those are listed as non-goals until the manual commercial loop works.
 

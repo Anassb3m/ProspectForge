@@ -29,6 +29,7 @@ from app.models import (
     CompanyClassification as CompanyClassification,
     PipelineRun,
     WorkItem,
+    Touch,
 )
 from app.services.legacy_projection import LegacyProspectProxy
 from app.schemas import (
@@ -616,7 +617,12 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
         )
     )
     with_email = [p for p in prospects if p.email]
-    verified = sum(1 for p in prospects if p.contact_confidence == "verified")
+    verified = sum(
+        1
+        for p in prospects
+        if p.contact_confidence
+        in {"verified", "deliverable", "published_personal", "manual_confirmed", "confirmed_by_reply"}
+    )
     needs_review = sum(
         1 for p in prospects if p.needs_manual_review and not p.opted_out and not p.anonymized
     )
@@ -653,6 +659,24 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
     failed_work = int(
         await db.scalar(
             select(func.count(WorkItem.id)).where(WorkItem.status == "failed")
+        )
+        or 0
+    )
+    draft_count = int(
+        await db.scalar(select(func.count(Touch.id)).where(Touch.status == "draft"))
+        or 0
+    )
+    replies_needing_classification = int(
+        await db.scalar(
+            select(func.count(OutreachEvent.id)).where(
+                OutreachEvent.event_type == "Replied",
+                or_(
+                    OutreachEvent.event_kind.is_(None),
+                    OutreachEvent.event_kind.not_in(
+                        {"reply_classified", "reply_resolved"}
+                    ),
+                ),
+            )
         )
         or 0
     )
@@ -702,11 +726,17 @@ async def compute_metrics(db: AsyncSession) -> DashboardMetrics:
         verified_email_pct=rate(verified, len(with_email) if with_email else total),
         needs_review_count=needs_review,
         opportunities_awaiting_qualification=sum(1 for p in prospects if p.needs_manual_review),
-        contacts_awaiting_review=sum(1 for p in prospects if getattr(p, "contact_discovery_state", "") == "review_required"),
-        drafts_awaiting_approval=0,
+        contacts_awaiting_review=sum(
+            1
+            for p in prospects
+            if p.needs_manual_review
+            and getattr(p, "contact_discovery_state", "")
+            in {"guessed", "inferred", "review_required", "published"}
+        ),
+        drafts_awaiting_approval=draft_count,
         overdue_follow_ups=overdue_follow_ups,
         failed_or_blocked_jobs=failed_runs + failed_work,
-        replies_needing_classification=0,
+        replies_needing_classification=replies_needing_classification,
         funnel_universe=total,
         funnel_icp_eligible=sum(1 for p in prospects if getattr(p, "fit_score", 0) > 0),
         funnel_domain_verified=len(verified_domains),
@@ -754,7 +784,7 @@ async def get_follow_ups_due(db: AsyncSession) -> list[FollowUpItem]:
         days_overdue = (today - nad.date()).days
         items.append(
             FollowUpItem(
-                prospect_id=p.id,
+                prospect_id=p.opportunity_id or str(p.id),
                 company_name=p.company_name,
                 current_status=p.current_status,
                 priority_level=p.priority_level,

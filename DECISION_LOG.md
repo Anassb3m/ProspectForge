@@ -123,3 +123,74 @@ evidence, verified statutory identity/domain, legitimate buyer/contact
 provenance, suppression/compliance passes, and human approval. Rejected: a high
 score overriding a gate, guessed email/SMPP acceptance as identity, or hidden
 hardcoded readiness assumptions.
+
+## 2026-08-01 — operator enrichment and contact execution
+
+Web requests may validate, commit queue intent, and publish work, but may not
+perform website crawling, registry enrichment, DNS, harvesting, or Reacher
+checks inline. Operator evidence work uses the existing canonical
+`PipelineRun`/`WorkItem` ledger; contact research uses its purpose-built
+`ContactDiscoveryRun` ledger and executes on `buyer-contact`. Repeated requests
+reuse active work. Rejected: raising proxy timeouts, returning success after a
+broker exception, and running contacts inside deep/source enrichment.
+
+## 2026-08-01 — UI identity and action truth
+
+Links to prospect detail use the explicit `Prospect.opportunity_id` bridge;
+legacy integer IDs remain only for compatibility-table mutations. Every visible
+operator action must resolve to a route, perform a persisted state transition,
+or say that it is intentionally disabled. Rejected: company-name lookups,
+`href="#"` controls, fake reply content, hardcoded success metrics, and buttons
+whose only behavior is a long synchronous network request.
+
+## 2026-08-01 — campaign and reply safety
+
+Campaign “activation” means preparation for manual review and does not enable
+sending. Inbox classification is persisted; opt-out classification uses the
+existing suppression/compliance path. Reply composition/sending stays disabled
+until a real provider and compliance-approved workflow exist. Rejected:
+silently activating cold outreach or presenting a placeholder sender as live.
+
+## 2026-08-01 — browser CSRF contract
+
+HTMX mutations send the cookie-bound token in `X-CSRF-Token`; native browser
+forms add the same value as `_csrf`, which middleware validates before replaying
+the request body to FastAPI. Bearer API calls retain their explicit exemption.
+Rejected: exempting authenticated HTML routes, trusting the cookie without a
+submitted token, putting CSRF secrets in query strings, or replacing native
+navigation with a global fetch interceptor.
+
+Cookie-authenticated `/api` mutations are subject to the same token check;
+only an explicit Bearer authorization header exempts an API call. Operations
+controls use the shared CSRF-aware request helper. Rejected: exempting an API
+solely because its path begins with `/api/`.
+
+## 2026-08-01 — crawler peer verification and bounded transfer
+
+The crawler validates the connected peer address while the HTTP response is
+still open, preferring the transport's stable server address and falling back
+to the live socket. It streams into a hard byte budget and closes every
+response. An unavailable or private peer fails closed and every rejected page
+is counted by reason. Rejected: inspecting a closed socket, disabling SSRF
+verification to improve yield, or buffering an unbounded body before applying
+the response limit.
+
+## 2026-08-01 — production-copy rehearsal truth
+
+Migration rehearsal always uses an isolated database with the reserved
+`prospectforge_production_rehearsal_` prefix. A supplied gzip dump is integrity
+checked and hashed before restore; reconciliation and anonymization checks must
+pass before the disposable database is removed. The deterministic 1,001-entity
+fixture proves the migration machinery but is never reported as an actual
+production-copy rehearsal. Rejected: running experimental migration commands
+against production, logging database credentials, or using destructive
+downgrade/reset as validation.
+
+## 2026-08-01 — activation remains an explicit business gate
+
+Successful live registry, DECP, and public-contact acceptance proves the manual
+paths, not permission to schedule acquisition or send messages. Automatic
+schedules, score reconciliation, contact discovery, and cold outreach remain
+off until the actual production-copy gate, reviewed score calibration, and
+separate operator approval are complete. Optional connectors/providers require
+their real endpoint or credentials and acceptance evidence before registration.

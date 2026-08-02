@@ -11,10 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import Campaign, Touch, User, MarketPlayVersion
+from app.models import Campaign, MarketPlayVersion, Opportunity, Touch, User
 
 router = APIRouter(tags=["campaigns"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+@router.get("/campaigns/drafts")
+async def campaign_drafts_alias(
+    _: Annotated[User, Depends(get_current_user)],
+):
+    return RedirectResponse(url="/drafts", status_code=307)
 
 
 @router.get("/campaigns", response_class=HTMLResponse)
@@ -81,6 +88,7 @@ async def page_campaign_detail(
 ):
     result = await db.execute(
         select(Campaign)
+        .options(selectinload(Campaign.touches))
         .where(Campaign.id == campaign_id)
     )
     campaign = result.scalar_one_or_none()
@@ -90,8 +98,34 @@ async def page_campaign_detail(
     return templates.TemplateResponse(
         request,
         "campaigns/detail.html",
-        {"user": user, "campaign": campaign, "tab": "overview"},
+        {
+            "user": user,
+            "campaign": campaign,
+            "tab": "overview",
+            "delivered_count": sum(1 for touch in campaign.touches if touch.sent_at),
+            "draft_count": sum(1 for touch in campaign.touches if touch.status == "draft"),
+        },
     )
+
+
+@router.post("/campaigns/{campaign_id}/status", response_class=RedirectResponse)
+async def update_campaign_status(
+    campaign_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(get_current_user)],
+    action: Annotated[str, Form()],
+):
+    campaign = await db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if action == "prepare_manual_review":
+        campaign.status = "manual_review"
+    elif action == "pause":
+        campaign.status = "paused"
+    else:
+        raise HTTPException(status_code=422, detail="Unsupported campaign action")
+    await db.commit()
+    return RedirectResponse(url=f"/campaigns/{campaign_id}", status_code=303)
 
 
 @router.get("/drafts", response_class=HTMLResponse)
@@ -104,7 +138,7 @@ async def page_draft_queue(
         select(Touch)
         .options(
             selectinload(Touch.campaign),
-            selectinload(Touch.opportunity)
+            selectinload(Touch.opportunity).selectinload(Opportunity.company),
         )
         .where(Touch.status == "draft")
         .order_by(Touch.created_at.asc())
@@ -138,5 +172,19 @@ async def approve_draft(
     else:
         touch.status = "approved"
         
+    await db.commit()
+    return RedirectResponse(url="/drafts", status_code=303)
+
+
+@router.post("/drafts/{touch_id}/reject", response_class=RedirectResponse)
+async def reject_draft(
+    touch_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[User, Depends(get_current_user)],
+):
+    touch = await db.scalar(select(Touch).where(Touch.id == touch_id))
+    if touch is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    touch.status = "rejected"
     await db.commit()
     return RedirectResponse(url="/drafts", status_code=303)

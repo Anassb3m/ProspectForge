@@ -1026,6 +1026,7 @@ class Opportunity(Base):
     evidence_items: Mapped[list["EvidenceItem"]] = relationship(back_populates="opportunity")
     compliance_decisions: Mapped[list["ComplianceDecision"]] = relationship(back_populates="opportunity")
     score_snapshots: Mapped[list["ScoreSnapshot"]] = relationship(back_populates="opportunity")
+    touches: Mapped[list["Touch"]] = relationship(back_populates="opportunity")
 
 
 class EvidenceItem(Base):
@@ -1199,6 +1200,7 @@ class Touch(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     campaign: Mapped["Campaign"] = relationship(back_populates="touches")
+    opportunity: Mapped["Opportunity"] = relationship(back_populates="touches")
 
 
 # ── Durable Runtime Models (Phase 2) ─────────────────────────────────────────

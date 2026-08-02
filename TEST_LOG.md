@@ -107,6 +107,132 @@ Date: 2026-07-28
 Python 3.12 was not installed in this workspace. PostgreSQL 16 is the certified
 test database for this patch; Python 3.12 release certification remains
 required before production activation.
+
+## UI, contact, and enrichment reliability patch — 2026-08-01
+
+- Static checks:
+
+  ```bash
+  .venv/bin/python -m ruff check app tests --output-format concise
+  .venv/bin/python -m compileall -q app tests
+  git diff --check
+  DEBUG=false .venv/bin/python -c 'from app.main import app; print("app_import_ok")'
+  ```
+
+  Result: Ruff passed, compile passed, diff check passed, app import printed
+  `app_import_ok`.
+
+- Initial contact/API integration:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+  TEST_REDIS_URL=redis://127.0.0.1:56380/0 \
+  .venv/bin/python -m pytest -q \
+    tests/test_ui_reliability.py tests/test_contact_intelligence.py
+  ```
+
+  Result after starting the disposable services: `54 passed in 19.09s`.
+  The same command without sandbox network permission produced only
+  `PermissionError: Operation not permitted`; a later attempt after managed
+  service cleanup produced `ConnectionRefusedError`. Neither was recorded as
+  an application failure.
+
+- Expanded UI/contact/API suite first exposed the inbox model mismatch:
+  `OutreachEvent.occurred_at` did not exist. Result before correction:
+  `1 failed, 73 passed in 64.48s`. Focused correction:
+  `1 passed in 3.10s`.
+
+- Complete suite first exposed the drafts ORM mismatch:
+  `Touch.opportunity` did not exist. Result before correction:
+  `1 failed, 161 passed in 130.43s`. The authenticated 12-page render smoke
+  passed after adding the explicit relationship: `1 passed in 3.79s`.
+
+- Non-empty UI action proof:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+  TEST_REDIS_URL=redis://127.0.0.1:56380/0 \
+  .venv/bin/python -m pytest -q tests/test_ui_reliability.py
+  ```
+
+  Result: `8 passed in 19.14s`. This exercises all primary pages, route
+  aliases, canonical sourcing links, Kanban movement, real inbox
+  classification, campaign manual-review preparation, and draft rejection.
+
+- Durable stage proof after operator evidence/contact queue consolidation:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+  TEST_REDIS_URL=redis://127.0.0.1:56380/0 \
+  .venv/bin/python -m pytest -q \
+    tests/test_ui_reliability.py tests/test_contact_intelligence.py
+  ```
+
+  Result: `59 passed in 31.44s`. Assertions prove committed-before-dispatch
+  contact runs, active-run click deduplication, durable enqueue failures,
+  queued-run reuse by the worker stage, canonical evidence WorkItems, and
+  separation of evidence/contact stages.
+
+- Final focused suite after adding native-form CSRF and terminal-run race
+  protection:
+
+  ```bash
+  POSTGRES_PASSWORD=test-unused docker compose --profile test up -d test-db test-redis
+  TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+  TEST_REDIS_URL=redis://127.0.0.1:56380/0 \
+  .venv/bin/python -m pytest -q \
+    tests/test_ui_reliability.py tests/test_contact_intelligence.py
+  ```
+
+  Result: `60 passed in 26.46s`.
+
+- Complete PostgreSQL suite before final operations/API hardening:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+  TEST_REDIS_URL=redis://127.0.0.1:56380/0 \
+  .venv/bin/python -m pytest -q
+  ```
+
+  Result: `164 passed in 86.17s (0:01:26)`.
+
+- Release gate before final operations/API hardening:
+
+  ```bash
+  PYTHON_BIN=.venv/bin/python bash scripts/release-gate.sh
+  ```
+
+  Result: npm installed/audited 80 packages with `0 vulnerabilities`; assets
+  rebuilt; Ruff, compileall, `git diff --check`, shell syntax, Compose, and all
+  three Caddy configurations passed; a unique PostgreSQL database migrated
+  through the single head `pfscale03_20260731`; reconciliation reported zero
+  anomalies; `164 passed in 89.12s (0:01:29)`; final output
+  `Release gate passed`; exit code `0`.
+
+- Final queue-health, Operations-control, contact/evidence, and CSRF suite:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql+asyncpg://prospectforge_test:test-only-password@127.0.0.1:55439/prospectforge_test \
+  TEST_REDIS_URL=redis://127.0.0.1:56380/0 \
+  .venv/bin/python -m pytest -q \
+    tests/test_ui_reliability.py tests/test_contact_intelligence.py \
+    tests/test_reliability_hotfix.py::test_authenticated_acquisition_health_is_truthful
+  ```
+
+  Result: `62 passed in 33.55s`.
+
+- Final release gate on the final tree:
+
+  ```bash
+  PYTHON_BIN=.venv/bin/python bash scripts/release-gate.sh
+  ```
+
+  Result: npm audit reported `0 vulnerabilities`; assets rebuilt; Ruff,
+  compileall, `git diff --check`, shell syntax, Compose, and all three Caddy
+  configurations passed; a unique PostgreSQL database migrated through
+  `pfscale03_20260731`; reconciliation reported zero anomalies;
+  `165 passed in 107.18s (0:01:47)`; final output `Release gate passed`; exit
+  code `0`.
 ## Baseline Continuation Verification (Phase 0)
 
 - **Date:** 2026-07-29
@@ -316,3 +442,119 @@ required before production activation.
   rerun on the final tree: `154 passed in 85.25s (0:01:25)`, zero
   reconciliation anomalies, zero npm vulnerabilities, all remaining checks
   passed, final output `Release gate passed`, exit code `0`.
+
+## Final production-runtime, migration, and live acceptance — 2026-08-01
+
+- Production image and HTTPS smoke:
+
+  ```bash
+  bash scripts/smoke-production.sh
+  ```
+
+  Result: the `python:3.12-slim` application image reported Python 3.12.13,
+  migrated PostgreSQL to `pfscale03_20260731`, reached database-backed
+  readiness through Caddy HTTPS, and passed backup integrity checks. Disposable
+  smoke data was removed.
+
+- Deterministic production-shaped migration rehearsal:
+
+  ```bash
+  PYTHON_BIN=.venv/bin/python bash scripts/rehearse-production-migration.sh
+  ```
+
+  Result: isolated pre-head `pfscale02_20260731` upgraded to
+  `pfscale03_20260731`; one legacy signal mapped; three evidence rows retained
+  (two active, one inactive duplicate); 1,000 additional shaped entities were
+  seeded for final totals of 1,001 companies/opportunities/prospects; zero
+  orphan, active-fingerprint, unmapped-evidence, or identifier anomalies;
+  anonymization checks passed; disposable database removed. No actual
+  production dump exists in the workspace, so this does not satisfy the
+  data-specific production-copy rehearsal.
+
+- Persisted live-source acceptance:
+
+  ```bash
+  LIVE_REGISTRY_LIMIT=25 LIVE_DECP_LIMIT=25 \
+    PYTHON_BIN=.venv/bin/python bash scripts/live-source-acceptance.sh
+  ```
+
+  The source work completed successfully with 50 raw normalized rows, 50
+  canonical companies/opportunities/evidence items, 50 downstream work items,
+  zero duplicates/invalid/errors/anomalies, and both cursors advanced. The
+  first reporting query then failed because it referenced the nonexistent
+  `source_records.source_name`; it was corrected to join the owning
+  `PipelineRun.connector_code`. A clean full rerun proved the corrected report:
+
+  ```bash
+  LIVE_REGISTRY_LIMIT=2 LIVE_DECP_LIMIT=2 \
+    PYTHON_BIN=.venv/bin/python bash scripts/live-source-acceptance.sh
+  ```
+
+  Result: registry 2 discovered/raw/created/enrichment with checkpoint
+  partition 0/page 1/offset 2; DECP 2 discovered/raw/created/enrichment with
+  high-water/backfill cursor persisted; four raw/company/opportunity/evidence/
+  work rows; zero duplicate, invalid, failed, or reconciliation-anomaly counts;
+  disposable database removed.
+
+- Live redacted public-contact validation:
+
+  ```bash
+  .venv/bin/python scripts/live_contact_yield_smoke.py \
+    --company "Unithermic" --website https://www.unithermic.fr/
+  .venv/bin/python scripts/live_contact_yield_smoke.py \
+    --company "GSH France" \
+    --website https://www.gshgroup.com/france-maintenance-multitechnique/
+  ```
+
+  The first official site accepted four pages and produced four published
+  generic contact points and eight evidence rows. The second accepted one page
+  and produced one person, five contact points (two strong published-personal
+  matches and three generic), and six evidence rows. Values were redacted and
+  nothing was persisted. Earlier crawler attempts exposed a closed-socket
+  `OSError`; peer inspection was moved inside the live streamed response. A
+  blocking site now reports `http_403` rather than crashing or reporting
+  healthy. INSEE/Hunter credentials are absent and Reacher/harvester flags are
+  false, so provider-specific yield was not claimed.
+
+- Crawler regression after the streaming/peer fix:
+
+  ```bash
+  .venv/bin/python -m pytest -q tests/test_contact_intelligence.py \
+    -k 'crawler or peer'
+  ```
+
+  Result: `7 passed, 45 deselected`.
+
+- Final host release gate on the completed tree:
+
+  ```bash
+  PYTHON_BIN=.venv/bin/python bash scripts/release-gate.sh
+  ```
+
+  Result: `166 passed in 89.86s`; zero reconciliation anomalies and npm
+  vulnerabilities; Ruff, compileall, diff, shell, migration, frontend,
+  Compose, and Caddy checks passed; exit code `0`.
+
+- Final complete production Python runtime suite:
+
+  ```bash
+  docker compose run --rm --no-deps app python -m pytest -q
+  ```
+
+  Result: Python 3.12.13; `166 passed, 1 warning in 108.33s`. The sole warning
+  is the upstream Passlib `crypt` deprecation warning.
+
+- After strengthening production-copy anonymization assertions and isolating
+  the live-contact CLI from host production settings, the deterministic
+  rehearsal was rerun successfully with the same 1,001/1,001/1,001 counts and
+  zero anomalies. Anonymization reported 1,000 non-null prospect emails
+  replaced (the remaining prospect email was null), and the disposable
+  database was removed. Final release gate rerun:
+
+  ```bash
+  PYTHON_BIN=.venv/bin/python bash scripts/release-gate.sh
+  ```
+
+  Result: `166 passed in 133.53s`; zero reconciliation anomalies and npm
+  vulnerabilities; all Ruff, compile, diff, shell, migration, frontend,
+  Compose, and Caddy checks passed; final output `Release gate passed`.

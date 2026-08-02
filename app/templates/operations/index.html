@@ -3,6 +3,34 @@
 
 {% block content %}
 <div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
+    <div id="automation" class="bg-white dark:bg-slate-800 shadow-lg rounded-sm border border-slate-200 dark:border-slate-700 mb-8 p-5">
+        <h2 class="font-semibold text-slate-800 dark:text-slate-100 mb-3">Automation and provider activation</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm dark:text-slate-300">
+            {% for name, enabled in automation.items() %}
+            <div class="rounded border border-slate-200 dark:border-slate-700 p-3">
+                <div class="text-xs uppercase text-slate-500">{{ name|replace('_', ' ') }}</div>
+                <div class="font-semibold {% if enabled %}text-emerald-500{% else %}text-slate-500{% endif %}">{{ 'enabled' if enabled else 'disabled' }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="mt-3 text-xs text-slate-500">Disabled means disabled; provider placeholders and unreachable workers are never reported as healthy. Automatic outreach is intentionally off.</p>
+    </div>
+    <div class="bg-white dark:bg-slate-800 shadow-lg rounded-sm border border-slate-200 dark:border-slate-700 mb-8 p-5">
+        <h2 class="font-semibold text-slate-800 dark:text-slate-100 mb-3">Worker queue heartbeats</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 text-sm dark:text-slate-300">
+            {% for node in worker_nodes %}
+            <div class="rounded border border-slate-200 dark:border-slate-700 p-3">
+                <div class="font-mono text-xs break-all">{{ node.hostname }}</div>
+                <div class="mt-1">{{ node.worker_type }}</div>
+                <div class="text-xs {% if node.status == 'active' %}text-emerald-500{% else %}text-rose-500{% endif %}">
+                    {{ node.status }} · {{ node.last_heartbeat_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                </div>
+            </div>
+            {% else %}
+            <p class="text-slate-500">No worker has registered a durable heartbeat. Queue health is unknown, not healthy.</p>
+            {% endfor %}
+        </div>
+    </div>
     <div class="sm:flex sm:justify-between sm:items-center mb-8">
         <div class="mb-4 sm:mb-0">
             <h1 class="text-2xl md:text-3xl text-slate-800 dark:text-slate-100 font-bold">Operations Center</h1>
@@ -143,37 +171,21 @@
 <script>
 async function retryItem(itemId) {
     try {
-        const response = await fetch(`/api/operations/failed-work/${itemId}/retry`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
-        if (response.ok) {
-            window.location.reload();
-        } else {
-            const data = await response.json();
-            alert(`Retry failed: ${data.detail || 'Unknown error'}`);
-        }
+        await apiFetch(`/api/operations/failed-work/${itemId}/retry`, {method: 'POST'});
+        window.location.reload();
     } catch (e) {
         console.error(e);
-        alert('Failed to send retry request');
+        alert(`Retry failed: ${e.message}`);
     }
 }
 
 async function recoverStaleWork() {
     try {
-        const response = await fetch('/api/operations/recover-stale-work', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
-        const data = await response.json();
-        if (response.ok) {
-            alert(data.message);
-        } else {
-            alert(`Recovery failed: ${data.detail || 'Unknown error'}`);
-        }
+        const data = await apiFetch('/api/operations/recover-stale-work', {method: 'POST'});
+        alert(data.message);
     } catch (e) {
         console.error(e);
-        alert('Failed to send recovery request');
+        alert(`Recovery failed: ${e.message}`);
     }
 }
 </script>

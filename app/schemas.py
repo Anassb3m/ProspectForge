@@ -363,7 +363,7 @@ class DashboardMetrics(BaseModel):
 class FollowUpItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    prospect_id: int
+    prospect_id: str
     company_name: str
     current_status: str
     priority_level: str

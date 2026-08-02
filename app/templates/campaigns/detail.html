@@ -19,9 +19,15 @@
     </div>
     <div class="flex gap-3">
       {% if campaign.status == 'draft' %}
-      <button class="btn-primary"><i class="ph ph-play"></i> Activate</button>
-      {% elif campaign.status == 'active' %}
-      <button class="btn-secondary text-amber-400 border-amber-500/20 hover:bg-amber-500/10"><i class="ph ph-pause"></i> Pause</button>
+      <form action="/campaigns/{{ campaign.id }}/status" method="POST">
+        <input type="hidden" name="action" value="prepare_manual_review">
+        <button class="btn-primary" type="submit"><i class="ph ph-clipboard-text"></i> Prepare manual review</button>
+      </form>
+      {% elif campaign.status in ('manual_review', 'active') %}
+      <form action="/campaigns/{{ campaign.id }}/status" method="POST">
+        <input type="hidden" name="action" value="pause">
+        <button class="btn-secondary text-amber-400 border-amber-500/20 hover:bg-amber-500/10" type="submit"><i class="ph ph-pause"></i> Pause</button>
+      </form>
       {% endif %}
     </div>
   </div>
@@ -29,14 +35,12 @@
 
 <!-- Tabs -->
 <div class="flex items-center gap-6 border-b border-surface-border mb-8">
-  <a href="#" class="pb-3 border-b-2 border-indigo-500 text-indigo-400 font-bold text-sm">Overview</a>
-  <a href="#" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-300 font-bold text-sm">Audience</a>
-  <a href="#" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-300 font-bold text-sm">Drafts</a>
-  <a href="#" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-300 font-bold text-sm">Sequence</a>
-  <a href="#" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-300 font-bold text-sm">Replies</a>
+  <a href="#overview" class="pb-3 border-b-2 border-indigo-500 text-indigo-400 font-bold text-sm">Overview</a>
+  <a href="/drafts" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-300 font-bold text-sm">Drafts</a>
+  <a href="/inbox" class="pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-300 font-bold text-sm">Replies</a>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div id="overview" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
   
   <div class="lg:col-span-2 space-y-6">
     <div class="bg-surface-0 border border-surface-border rounded-2xl p-6 shadow-md">
@@ -45,15 +49,15 @@
       <div class="grid grid-cols-3 gap-4 mb-6">
         <div class="bg-surface-50 p-4 rounded-xl border border-surface-border">
           <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Delivered</div>
-          <div class="text-2xl font-bold text-white">0</div>
+          <div class="text-2xl font-bold text-white">{{ delivered_count }}</div>
         </div>
         <div class="bg-surface-50 p-4 rounded-xl border border-surface-border">
-          <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Open Rate</div>
-          <div class="text-2xl font-bold text-white">0%</div>
+          <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Drafts</div>
+          <div class="text-2xl font-bold text-white">{{ draft_count }}</div>
         </div>
         <div class="bg-surface-50 p-4 rounded-xl border border-surface-border">
-          <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Reply Rate</div>
-          <div class="text-2xl font-bold text-white">0%</div>
+          <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Tracking</div>
+          <div class="text-sm font-bold text-slate-400">Not enabled</div>
         </div>
       </div>
       

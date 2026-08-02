@@ -22,12 +22,26 @@ authenticated request / scheduler
   -> commit truthful run totals/status
   -> score from canonical evidence/input revision
   -> apply hard readiness gates independently from numeric rank
+  -> operator evidence request commits PipelineRun + WorkItem before publish
+  -> eligible contact request commits ContactDiscoveryRun before publish
 ```
 
 The source task never performs contact discovery or outreach. Enrichment work
 has its own status, lease, retry count, idempotency key, and dead-letter
 record. Contact research has separate score, suppression, domain, freshness,
 and concurrency gates.
+
+Operator-triggered website evidence uses the same durable `WorkItem` ledger as
+pipeline enrichment. Contact discovery is a distinct `ContactDiscoveryRun` on
+the `buyer-contact` queue; active runs are reused, retries are bounded, and an
+enqueue exception is persisted as failure rather than returned as success.
+Neither stage performs network I/O in the originating HTTP request.
+
+Website retrieval resolves and validates every destination, then verifies the
+actual connected peer while its streamed response is still open. Response
+bytes, pages, depth, concurrency, request time, and total run time are bounded.
+Redirects are revalidated, private/unverifiable peers fail closed, and rejection
+reasons are retained in adapter metrics rather than converted to success.
 
 ## Canonical ownership
 
@@ -57,6 +71,8 @@ Display names and inferred domains are never identity joins.
 - Prospect identity and work idempotency turn replay into update/no-op.
 - A failed record rolls back its savepoint only.
 - Broker failure leaves work pending and visible.
+- A fast evidence worker cannot be overwritten from a terminal run state back
+  to `running` by the publishing request.
 - Authenticated raw retry reads the committed source row and resolves the
   failed-work record only after normalization succeeds.
 - Expired supported work leases are reclaimed under row locks; exhausted or

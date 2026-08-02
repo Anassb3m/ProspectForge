@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from app.config import get_settings
 from app.workers.celery_app import celery_app
 from app.database import async_session_factory
-from app.models import PipelineRun, Prospect, WorkItem
+from app.models import ContactDiscoveryRun, PipelineRun, Prospect, WorkItem
 from app.plays import validate_ingestion_request
 
 logger = logging.getLogger(__name__)
@@ -206,6 +206,22 @@ def extract_website_evidence(
                         or 0
                     )
                     run.heartbeat_at = datetime.now(timezone.utc)
+                    total = int(
+                        await session.scalar(
+                            select(func.count(WorkItem.id)).where(
+                                WorkItem.pipeline_run_id == run.id,
+                                WorkItem.task_name == "extract_website_evidence",
+                            )
+                        )
+                        or 0
+                    )
+                    if total and run.enrichment_completed + run.enrichment_failed >= total:
+                        run.status = (
+                            "completed"
+                            if run.enrichment_failed == 0
+                            else "completed_with_errors"
+                        )
+                        run.finished_at = datetime.now(timezone.utc)
             await session.commit()
             return {
                 "status": "ok",
@@ -251,8 +267,14 @@ def extract_website_evidence(
 
 # --- Buyer / Contact Queue ---
 @celery_app.task(bind=True, max_retries=3)
-def contact_discovery_run(self, company_id: str) -> dict[str, Any]:
-    """Run Apollo/Hunter/Reacher waterfall to find DMs and verify emails."""
+def contact_discovery_run(
+    self,
+    company_id: str,
+    *,
+    contact_run_id: int | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Run the bounded, source-backed contact waterfall outside the web process."""
     logger.info("Running contact discovery for %s", company_id)
     if company_id == "ALL":
         # Run bulk discovery (for Beat)
@@ -260,17 +282,85 @@ def contact_discovery_run(self, company_id: str) -> dict[str, Any]:
         stats = run_async(run_nightly_contact_discovery())
         return {"status": "ok", "stats": stats}
 
+    resolved_run_id = contact_run_id
+
     async def _do_contact_discovery():
-        from app.contact_intelligence.service import run_contact_discovery
+        nonlocal resolved_run_id
+        from app.contact_intelligence.service import (
+            DiscoveryNotEligible,
+            queue_contact_discovery,
+            run_contact_discovery,
+        )
         async with async_session_factory() as session:
-            prospect = await session.get(Prospect, company_id)
+            prospect_key: int | str = int(company_id) if str(company_id).isdigit() else company_id
+            prospect = await session.get(Prospect, prospect_key)
             if not prospect:
                 return {"status": "not_found"}
-            await run_contact_discovery(session, prospect, actor="worker")
-            await session.commit()
-            return {"status": "ok"}
+            run_id = contact_run_id
+            if run_id is None:
+                queued, _ = await queue_contact_discovery(
+                    session, prospect, actor="worker", force=force
+                )
+                run_id = queued.id
+                resolved_run_id = run_id
+                await session.commit()
+            else:
+                existing = await session.get(ContactDiscoveryRun, run_id)
+                if existing is None or existing.prospect_id != prospect.id:
+                    return {"status": "not_found", "contact_run_id": run_id}
+                if existing.status in {"completed", "completed_with_warnings"}:
+                    return {"status": "already_completed", "contact_run_id": run_id}
+            try:
+                run = await run_contact_discovery(
+                    session,
+                    prospect,
+                    actor="worker",
+                    force=force,
+                    queued_run_id=run_id,
+                )
+                await session.commit()
+                return {"status": run.status, "contact_run_id": run.id}
+            except DiscoveryNotEligible as exc:
+                await session.rollback()
+                run = await session.get(ContactDiscoveryRun, run_id)
+                if run is not None:
+                    run.status = "not_eligible"
+                    run.finished_at = datetime.now(timezone.utc)
+                    run.lease_expires_at = None
+                    run.errors = int(run.errors or 0) + 1
+                    run.error_summary = str(exc)[:2000]
+                    await session.commit()
+                return {
+                    "status": "not_eligible",
+                    "contact_run_id": run_id,
+                    "reason": str(exc),
+                }
 
-    return run_async(_do_contact_discovery())
+    async def _record_retry(exc: Exception, final: bool) -> None:
+        if resolved_run_id is None:
+            return
+        async with async_session_factory() as session:
+            run = await session.get(ContactDiscoveryRun, resolved_run_id)
+            if run is None:
+                return
+            run.status = "failed" if final else "retry_pending"
+            run.finished_at = datetime.now(timezone.utc) if final else None
+            run.lease_expires_at = None
+            run.errors = int(run.errors or 0) + 1
+            run.error_summary = f"{exc.__class__.__name__}: {str(exc)[:1800]}"
+            summary = dict(run.result_summary or {})
+            summary["retry_count"] = int(self.request.retries) + 1
+            run.result_summary = summary
+            await session.commit()
+
+    try:
+        return run_async(_do_contact_discovery())
+    except Exception as exc:
+        final = self.request.retries >= self.max_retries
+        run_async(_record_retry(exc, final))
+        if final:
+            raise
+        raise self.retry(exc=exc, countdown=min(120, 5 * (2 ** self.request.retries)))
 
 # --- Campaigns & Notifications Queue ---
 @celery_app.task(bind=True, max_retries=3)

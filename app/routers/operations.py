@@ -14,6 +14,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.config import get_settings
 from app.models import (
+    ContactDiscoveryRun,
     FailedWorkItem,
     PipelineRun,
     SourceRecord,
@@ -92,33 +93,8 @@ async def acquisition_health(
         or 0
     )
 
-    # Worker states
-    worker_nodes = await db.scalars(select(WorkerNode))
-    workers_healthy = 0
-    ingestion_workers_healthy = 0
-    workers_total = 0
-    now_utc = datetime.now(timezone.utc)
-    for node in worker_nodes:
-        workers_total += 1
-        # heartbeat within 3 minutes
-        if node.status == "active" and node.last_heartbeat_at and (now_utc - node.last_heartbeat_at).total_seconds() < 180:
-            workers_healthy += 1
-            if "source-ingestion" in (node.worker_type or ""):
-                ingestion_workers_healthy += 1
-            
-    if workers_total == 0:
-        worker_state = "unknown"
-        worker_reason = "No workers registered"
-    elif ingestion_workers_healthy > 0:
-        worker_state = "healthy"
-        worker_reason = (
-            f"{workers_healthy}/{workers_total} workers active; "
-            f"{ingestion_workers_healthy} source-ingestion worker(s) active"
-        )
-    else:
-        worker_state = "degraded"
-        worker_reason = "No active source-ingestion worker, or heartbeat is stale"
-
+    # Queue-specific worker states. A generic Celery process or a source-only
+    # worker cannot prove that evidence/contact jobs have a consumer.
     queue_names = (
         "source-ingestion",
         "identity-domain",
@@ -126,6 +102,34 @@ async def acquisition_health(
         "buyer-contact",
         "campaigns-notifications",
     )
+    worker_nodes = await db.scalars(select(WorkerNode))
+    workers_healthy = 0
+    workers_total = 0
+    healthy_by_queue = {name: 0 for name in queue_names}
+    now_utc = datetime.now(timezone.utc)
+    for node in worker_nodes:
+        workers_total += 1
+        # heartbeat within 3 minutes
+        if node.status == "active" and node.last_heartbeat_at and (now_utc - node.last_heartbeat_at).total_seconds() < 180:
+            workers_healthy += 1
+            for queue_name in set((node.worker_type or "").split(",")):
+                if queue_name in healthy_by_queue:
+                    healthy_by_queue[queue_name] += 1
+
+    missing_queues = [
+        name for name, count in healthy_by_queue.items() if count == 0
+    ]
+    if workers_total == 0:
+        worker_state = "unknown"
+        worker_reason = "No workers registered"
+    elif not missing_queues:
+        worker_state = "healthy"
+        worker_reason = (
+            f"{workers_healthy}/{workers_total} workers active; all execution queues covered"
+        )
+    else:
+        worker_state = "degraded"
+        worker_reason = f"Missing fresh workers for: {', '.join(missing_queues)}"
     redis_state = "unavailable"
     queue_lengths: dict[str, int | None] = {name: None for name in queue_names}
     redis_client = Redis.from_url(
@@ -162,6 +166,13 @@ async def acquisition_health(
         overall = "degraded"
     if latest_run is not None and latest_run.status == "failed":
         overall = "degraded"
+    contact_state_rows = await db.execute(
+        select(ContactDiscoveryRun.status, func.count(ContactDiscoveryRun.id))
+        .group_by(ContactDiscoveryRun.status)
+    )
+    contact_states = {
+        str(run_status): int(count) for run_status, count in contact_state_rows.all()
+    }
     return {
         "status": overall,
         "database": "healthy",
@@ -171,10 +182,22 @@ async def acquisition_health(
             "reason": worker_reason,
             "total": workers_total,
             "healthy": workers_healthy,
-            "source_ingestion_healthy": ingestion_workers_healthy,
+            "source_ingestion_healthy": healthy_by_queue["source-ingestion"],
+            "by_queue": {
+                name: {
+                    "healthy": count,
+                    "state": (
+                        "unknown"
+                        if workers_total == 0
+                        else "healthy" if count else "missing"
+                    ),
+                }
+                for name, count in healthy_by_queue.items()
+            },
         },
         "queues": queue_lengths,
         "work_items": work_counts,
+        "contact_discovery_runs": contact_states,
         "stale_work_items": stale_work_items,
         "raw_source_records": source_record_counts,
         "stale_active_runs": stale_runs,
@@ -226,11 +249,17 @@ async def operations_dashboard(
     failed_items = failed_result.scalars().all()
 
     # Get latest contact discovery runs
-    from app.models import ContactDiscoveryRun
     contact_runs_result = await db.execute(
         select(ContactDiscoveryRun).order_by(ContactDiscoveryRun.finished_at.desc().nulls_last()).limit(10)
     )
     contact_runs = contact_runs_result.scalars().all()
+    worker_nodes = list(
+        (
+            await db.scalars(
+                select(WorkerNode).order_by(WorkerNode.last_heartbeat_at.desc())
+            )
+        ).all()
+    )
 
     return templates.TemplateResponse(
         request,
@@ -240,6 +269,17 @@ async def operations_dashboard(
             "pipeline_runs": pipeline_runs,
             "failed_items": failed_items,
             "contact_runs": contact_runs,
+            "worker_nodes": worker_nodes,
+            "automation": {
+                "scheduler": get_settings().enable_scheduler,
+                "nightly_ingestion": get_settings().enable_nightly_ingestion,
+                "nightly_contact_discovery": get_settings().enable_nightly_contact_discovery,
+                "score_reconciliation": get_settings().enable_score_reconciliation,
+                "retention_sweep": get_settings().enable_retention_sweep,
+                "automatic_outreach": False,
+                "reacher": get_settings().reacher_enabled,
+                "harvester": get_settings().harvester_enabled,
+            },
         },
     )
 

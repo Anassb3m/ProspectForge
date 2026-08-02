@@ -34,10 +34,20 @@ The dashboard now derives:
 
 No displayed metric is a hardcoded success count.
 
+Contact and operator evidence state is also persisted, not inferred from a
+button click. Evidence requests report the `PipelineRun`/`WorkItem` states;
+contact requests report queued, retry-pending, running, not-eligible,
+enqueue-failed, failed, or completed `ContactDiscoveryRun` states. Dashboard
+draft, reply-classification, and contact-review counts come from `Touch`,
+`OutreachEvent`, and `Prospect` queries respectively. Disabled providers and
+outreach remain displayed as disabled.
+
 ## Acquisition health
 
 `GET /api/operations/acquisition-health` is authenticated. It reports database,
 Redis, queues, work states, stale work, stale runs, latest committed run, source
 capabilities, raw-source states, and automation flags. Worker state is
-`healthy` only when a fresh queue-labelled `source-ingestion` heartbeat exists;
-no heartbeat is `unknown`, and stale/wrong-queue heartbeats are `degraded`.
+`healthy` only when fresh queue-labelled heartbeats cover source ingestion,
+identity/domain, website evidence, buyer contact, and campaigns/notifications.
+Each queue has its own count/state; no heartbeat is `unknown`, and missing or
+stale queue consumers are `degraded`.

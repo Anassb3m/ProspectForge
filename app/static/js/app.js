@@ -8,8 +8,24 @@ document.addEventListener("htmx:configRequest", (event) => {
   if (token) event.detail.headers["X-CSRF-Token"] = token;
 });
 
-// Global form interception (DOM replacement) has been removed (A1.11).
-// Full page forms should submit normally. HTMX should be used for partial replacements.
+// Native forms cannot set request headers. Add the double-submit value as a
+// hidden field without intercepting navigation or replacing the DOM.
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const method = (form.method || "get").toLowerCase();
+  if (!["post", "put", "patch", "delete"].includes(method)) return;
+  const token = pfCsrf();
+  if (!token) return;
+  let input = form.querySelector('input[name="_csrf"]');
+  if (!input) {
+    input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "_csrf";
+    form.appendChild(input);
+  }
+  input.value = token;
+});
 
 /**
  * apiFetch: A helper for JSON API requests.

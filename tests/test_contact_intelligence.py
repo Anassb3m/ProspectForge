@@ -31,6 +31,7 @@ from app.contact_intelligence.safety import (
 )
 from app.contact_intelligence.service import (
     DiscoveryNotEligible,
+    queue_contact_discovery,
     record_manual_review,
     run_contact_discovery,
 )
@@ -221,6 +222,43 @@ async def test_dns_with_any_private_answer_is_blocked(monkeypatch):
 def test_dns_rebinding_peer_is_blocked():
     with pytest.raises(UnsafeURLError, match="dns_rebinding"):
         validate_peer_address(("10.0.0.5", 443), frozenset({"93.184.216.34"}))
+
+
+@pytest.mark.asyncio
+async def test_crawler_uses_stable_server_address_after_socket_closes():
+    class ClosedSocket:
+        def getpeername(self):
+            raise OSError(9, "Bad file descriptor")
+
+    class NetworkStream:
+        def get_extra_info(self, name):
+            if name == "server_addr":
+                return ("93.184.216.34", 443)
+            if name == "socket":
+                return ClosedSocket()
+            return None
+
+    class Client:
+        def build_request(self, method, url, **kwargs):
+            return httpx.Request(method, url, **kwargs)
+
+        async def send(self, request, **kwargs):
+            del kwargs
+            return httpx.Response(
+                200,
+                request=request,
+                extensions={"network_stream": NetworkStream()},
+            )
+
+    crawler = BoundedCrawler()
+    safe = SafeURL(
+        "https://example.com",
+        "example.com",
+        None,
+        frozenset({"93.184.216.34"}),
+    )
+    response = await crawler._request_once(Client(), safe)  # type: ignore[arg-type]
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -423,6 +461,35 @@ async def test_discovery_rerun_is_idempotent_for_people_points_evidence_and_task
     task_types = list((await db_session.execute(select(Task.task_type))).scalars().all())
     assert len(task_types) == len(set(task_types))
     assert await db_session.scalar(select(func.count()).select_from(ContactDiscoveryRun)) == 2
+
+
+@pytest.mark.asyncio
+async def test_committed_queue_run_is_reused_by_worker_stage(db_session):
+    prospect = _prospect()
+    db_session.add(prospect)
+    await db_session.flush()
+    queued, created = await queue_contact_discovery(
+        db_session, prospect, actor="operator@example.test", force=True
+    )
+    await db_session.commit()
+    assert created is True
+    assert queued.status == "queued"
+
+    run = await run_contact_discovery(
+        db_session,
+        prospect,
+        actor="worker",
+        force=True,
+        adapter=_FakeAdapter(),
+        verify_domains=False,
+        queued_run_id=queued.id,
+    )
+    await db_session.commit()
+    assert run.id == queued.id
+    assert run.status == "completed"
+    assert await db_session.scalar(
+        select(func.count()).select_from(ContactDiscoveryRun)
+    ) == 1
 
 
 @pytest.mark.asyncio

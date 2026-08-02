@@ -116,17 +116,32 @@ class BoundedCrawler:
         self.enforce_peer_address = enforce_peer_address
 
     async def _request_once(self, client: httpx.AsyncClient, safe: SafeURL) -> httpx.Response:
-        response = await client.get(
+        request = client.build_request(
+            "GET",
             safe.url,
-            follow_redirects=False,
             headers={"User-Agent": "ProspectForgeContactResearch/1.0 (+public business pages only)"},
         )
-        if self.enforce_peer_address:
-            stream = response.extensions.get("network_stream")
-            sock = stream.get_extra_info("socket") if stream is not None else None
-            peer = sock.getpeername() if sock is not None else None
-            validate_peer_address(peer, safe.resolved_addresses)
-        return response
+        response = await client.send(request, follow_redirects=False, stream=True)
+        try:
+            if self.enforce_peer_address:
+                stream = response.extensions.get("network_stream")
+                peer = None
+                if stream is not None:
+                    try:
+                        peer = stream.get_extra_info("server_addr")
+                    except (AttributeError, OSError):
+                        peer = None
+                    if peer is None:
+                        try:
+                            sock = stream.get_extra_info("socket")
+                            peer = sock.getpeername() if sock is not None else None
+                        except (AttributeError, OSError):
+                            peer = None
+                validate_peer_address(peer, safe.resolved_addresses)
+            return response
+        except Exception:
+            await response.aclose()
+            raise
 
     async def _fetch(self, client: httpx.AsyncClient, url: str, canonical_host: str) -> tuple[httpx.Response, str]:
         current = url
@@ -138,6 +153,7 @@ class BoundedCrawler:
             if response.status_code not in {301, 302, 303, 307, 308}:
                 return response, safe.url
             location = response.headers.get("location")
+            await response.aclose()
             if not location:
                 raise CrawlError("redirect_without_location")
             current = str(response.url.join(location))
@@ -145,13 +161,18 @@ class BoundedCrawler:
 
     async def _read_bounded(self, response: httpx.Response, maximum: int | None = None) -> bytes:
         maximum = maximum or self.limits.max_response_bytes
-        content_length = response.headers.get("content-length")
-        if content_length and int(content_length) > maximum:
-            raise CrawlError("response_too_large")
-        body = response.content
-        if len(body) > maximum:
-            raise CrawlError("response_too_large")
-        return body
+        body = bytearray()
+        try:
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > maximum:
+                raise CrawlError("response_too_large")
+            async for chunk in response.aiter_bytes():
+                if len(body) + len(chunk) > maximum:
+                    raise CrawlError("response_too_large")
+                body.extend(chunk)
+            return bytes(body)
+        finally:
+            await response.aclose()
 
     async def crawl(self, context: ContactDiscoveryContext) -> CrawlResult:
         if not context.website:
@@ -169,8 +190,14 @@ class BoundedCrawler:
             try:
                 robots_response, _ = await self._fetch(client, robots_url, canonical_host)
                 if robots_response.status_code == 200:
-                    robots.parse(robots_response.text[:200_000].splitlines())
+                    robots_body = await self._read_bounded(robots_response, 200_000)
+                    robots.parse(
+                        robots_body.decode(
+                            robots_response.encoding or "utf-8", errors="replace"
+                        ).splitlines()
+                    )
                 else:
+                    await robots_response.aclose()
                     robots.parse([])
             except (httpx.HTTPError, UnsafeURLError, CrawlError, ValueError):
                 robots.parse([])
@@ -188,6 +215,8 @@ class BoundedCrawler:
                             candidate = element.text.strip()
                             if same_company_host(candidate, canonical_host):
                                 heapq.heappush(queue, (page_priority(candidate), 1, candidate))
+                else:
+                    await sitemap_response.aclose()
             except (ET.ParseError, httpx.HTTPError, UnsafeURLError, CrawlError, ValueError):
                 result.warnings.append("sitemap_unavailable")
             seen: set[str] = set()
@@ -210,10 +239,12 @@ class BoundedCrawler:
                 try:
                     response, final_url = await self._fetch(client, clean_url, canonical_host)
                     if response.status_code >= 400:
+                        await response.aclose()
                         result.rejected.append({"url": clean_url, "reason": f"http_{response.status_code}"})
                         continue
                     content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
                     if content_type not in ALLOWED_HTML_TYPES and content_type != "application/pdf":
+                        await response.aclose()
                         result.rejected.append({"url": final_url, "reason": "unsupported_mime"})
                         continue
                     body = await self._read_bounded(
@@ -279,6 +310,7 @@ class OfficialWebsiteAdapter:
                 "pages_requested": len(crawl.pages) + len(crawl.rejected),
                 "pages_accepted": len(crawl.pages),
                 "pages_rejected": len(crawl.rejected),
+                "rejection_reasons": _count_rejection_reasons(crawl.rejected),
                 "domain_match_state": crawl.domain_match_state,
             }
             return result
@@ -309,7 +341,16 @@ class OfficialWebsiteAdapter:
             "pages_requested": len(crawl.pages) + len(crawl.rejected),
             "pages_accepted": len(crawl.pages),
             "pages_rejected": len(crawl.rejected),
+            "rejection_reasons": _count_rejection_reasons(crawl.rejected),
             "domain_match_state": crawl.domain_match_state,
             "canonical_url": crawl.canonical_url,
         }
         return result
+
+
+def _count_rejection_reasons(rejected: list[dict[str, str]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in rejected:
+        reason = item.get("reason", "unknown")
+        counts[reason] = counts.get(reason, 0) + 1
+    return counts

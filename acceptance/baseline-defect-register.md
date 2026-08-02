@@ -1,12 +1,12 @@
 # Baseline Defect Register
 
-Last verified: 2026-07-31
+Last verified: 2026-08-01
 
 ## Reliability rebuild disposition
 
 | Defect | Verification | Current disposition |
 |---|---|---|
-| Missing `app` import | Not present | Repository-root collection succeeds; final release gate passed 154 PostgreSQL tests. |
+| Missing `app` import | Not present | Repository-root collection succeeds; final release gate passed 166 PostgreSQL tests. |
 | Play/mode/limit/options dropped | Confirmed | Fixed. Immutable request is persisted before enqueue and worker propagation has a regression test. |
 | UK default executing France sources | Confirmed | Fixed for mutation paths. `FIELD_OPERATIONS_FR_V2` is explicit; UK sourcing is rejected. |
 | Placeholder adapter reported healthy | Confirmed | Fixed. Planned/misconfigured/degraded states are explicit; optional placeholders are not executable. |
@@ -31,6 +31,21 @@ Last verified: 2026-07-31
 | Retryable raw failures cannot be replayed | Confirmed | Fixed. Authenticated retry replays committed registry/DECP raw records and does not mark resolution at broker acceptance. |
 | Expired work leases are never reclaimed | Confirmed | Fixed. Locked recovery requeues supported work within budget and dead-letters exhausted/unsupported work. |
 | Guessed domain treated as verified | Confirmed | Fixed on the canonical path. Inferred websites persist as `candidate` and fail the verified-domain hard gate. |
+| Contact button performed no discovery | Confirmed | Fixed. Prospect action now persists and queues a contact run; status and errors are visible on prospect/operations pages. |
+| Contact/deep enrichment ran network work inside HTTP requests | Confirmed | Fixed for visible operator paths. Evidence and contact work execute on separate Celery queues with durable pre-enqueue state. |
+| Sourcing/queue detail links used legacy IDs as canonical UUIDs | Confirmed | Fixed. Detail links use the explicit `opportunity_id`; no name join was introduced. |
+| Dashboard links targeted missing routes | Confirmed | Fixed with authenticated routes to the canonical contact queue, draft queue, operations, and automation state. |
+| Kanban posted to a missing endpoint and missing DOM targets | Confirmed | Fixed. Canonical opportunity status transitions persist and the board rerenders. |
+| Inbox queried nonexistent `occurred_at` | Confirmed by all-pages smoke test | Fixed to use `event_date`; real replies render and can be classified/resolved. |
+| Draft queue loaded nonexistent `Touch.opportunity` relationship | Confirmed by all-pages smoke test | Fixed with an explicit ORM relationship and nested company eager load. |
+| Inbox/campaign/draft buttons were inert placeholders | Confirmed | Fixed or explicitly disabled. Classification, resolution, rejection, pause, and manual-review preparation persist; reply/cold sending stays off. |
+| Dashboard draft/reply/contact counts were hardcoded or unreachable | Confirmed | Fixed with persisted Touch/OutreachEvent/Prospect queries and truthful provider flags. |
+| Production Compose inherited ambiguous debug state | Confirmed as startup risk | Fixed. App and workers explicitly run with `DEBUG=false`; deploy validation still rejects unsafe environment files. |
+| Native authenticated forms could not satisfy CSRF middleware | Confirmed | Fixed. Native forms submit the cookie-bound `_csrf` value, middleware validates and replays the body, and a cookie-session regression proves valid submit/invalid rejection behavior. |
+| Operations controls and queue health were incomplete | Confirmed | Fixed. Recovery controls use the CSRF-aware API helper, cookie API mutations require CSRF, and durable heartbeat health is reported per ingestion, identity, evidence, contact, and campaign queue. |
+| Crawler inspected peer socket after response close | Confirmed by live smoke | Fixed. The connected peer is verified while a streamed response is open, transfer bytes are bounded, responses close deterministically, and unverifiable peers fail closed. |
+| Migration rehearsal could leak URL or target the wrong database | Confirmed in tooling review | Fixed. Subprocesses receive list arguments/environment without shell interpolation, only reserved isolated rehearsal databases are allowed, supplied gzip dumps are checked/hashed, and no destructive downgrade is used. |
+| Persisted source/contact acceptance was unproven | Confirmed | Fixed for enabled manual public paths. Registry+DECP persisted live acceptance and redacted public-site contact acceptance pass; provider-specific and optional-source behavior remains explicitly unclaimed without credentials/implementation. |
 
 This document tracks known defects and architectural violations found before the V4 rebuild.
 
@@ -63,5 +78,5 @@ During baseline tests (`pytest -q`), an `ImportError` was encountered: `ModuleNo
 
 | Defect / Check | Verification | Current disposition |
 |---|---|---|
-| Release Gate passing | Confirmed | 130 tests pass cleanly, reconciliation shows zero anomalies. |
+| Release Gate passing | Confirmed | 166 tests pass cleanly, reconciliation shows zero anomalies. |
 | Python Runtime | Confirmed | Running on Python 3.12.13 successfully. |

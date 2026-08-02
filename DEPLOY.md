@@ -68,6 +68,20 @@ mode, wildcard trusted hosts, insecure cookies, or an unsupported TLS mode.
 
 ## 4. Deploy
 
+Before the first deployment of this rebuild, obtain an approved anonymized
+copy of the current production database and rehearse it in the isolated
+disposable database:
+
+```bash
+PYTHON_BIN=.venv/bin/python bash scripts/rehearse-production-migration.sh \
+  /path/to/anonymized-production.sql.gz
+```
+
+The command verifies the gzip archive and hash, migrates to the single Alembic
+head, runs strict reconciliation/anonymization checks, and removes only its
+reserved rehearsal database. The no-argument deterministic rehearsal is useful
+for CI but does not replace this production-copy gate.
+
 ```bash
 ./scripts/deploy.sh
 ```
@@ -87,12 +101,19 @@ Verify afterward:
 curl -fsS http://127.0.0.1:18081/ready
 docker compose ps
 docker compose logs --tail=100 app caddy db
+docker compose ps worker-ingestion worker-evidence worker-contact redis
 docker compose exec -T app alembic current
 docker compose exec -T app python scripts/reconcile_reliability.py --fail-on-anomaly
 ```
 
 Open `https://prospects.yourdomain.com` and sign in with the generated admin
 credentials.
+
+The normal production stack starts the three durable workers. Do not consider
+evidence/contact actions operational unless `worker-evidence` and
+`worker-contact` are running. Test one prospect action and confirm its durable
+run reaches a terminal state in `/operations`; an accepted queue message is
+not completion.
 
 ## TLS modes
 
@@ -241,12 +262,17 @@ Before publishing a release from a development machine:
 ```bash
 PYTHON_BIN=.venv/bin/python ./scripts/release-gate.sh
 ./scripts/smoke-production.sh
+LIVE_REGISTRY_LIMIT=25 LIVE_DECP_LIMIT=25 \
+  PYTHON_BIN=.venv/bin/python bash scripts/live-source-acceptance.sh
 ```
 
 The first command starts disposable PostgreSQL 16/Redis 7 services, migrates a
 unique test database, reconciles it, rebuilds pinned frontend assets, runs
 lint/tests/compile checks, and validates shell scripts and Compose. The second performs a disposable
 PostgreSQL migration and HTTPS boot test and deletes all smoke data afterward.
+The third performs a disposable, persisted live run of the two enabled public
+sources and proves raw/canonical/work counts plus checkpoint movement. It does
+not activate a schedule.
 
 ## Troubleshooting
 
@@ -259,4 +285,6 @@ PostgreSQL migration and HTTPS boot test and deletes all smoke data afterward.
 | Existing proxy port conflict | Use `TLS_MODE=external` |
 | Login loop or missing cookie | Confirm the browser uses HTTPS and `FORCE_HTTPS_COOKIES=true` |
 | Migration failure | Do not bypass it; inspect logs and restore the pre-deploy backup if needed |
-| Run queues but produces nothing | Check `/api/operations/acquisition-health`; a fresh `source-ingestion` worker heartbeat is required, then inspect the run checkpoint and raw-source states |
+| Run queues but produces nothing | Check `/api/operations/acquisition-health`; inspect the specific queue heartbeat, run checkpoint, raw-source outcomes, and failed work instead of relying on web readiness alone |
+| Evidence/contact stays queued | Inspect `worker-evidence` / `worker-contact` and Redis logs, then the persisted WorkItem or ContactDiscoveryRun state; never run the crawler inline as a workaround |
+| Authenticated form returns 403 | Refresh once to obtain `pf_csrf`, verify `/static/js/app.js` is current, and inspect proxy cookie handling; do not exempt the route |

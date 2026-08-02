@@ -79,7 +79,7 @@ async def login_form(
             {"error": "Incorrect email or password", "email": email},
             status_code=401,
         )
-    clear_login_rate_limit(client_key)
+    await clear_login_rate_limit(client_key)
     token = create_access_token(data={"sub": user.email})
     resp = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
     resp.set_cookie(

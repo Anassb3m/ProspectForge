@@ -153,6 +153,9 @@ async def test_authenticated_acquisition_health_is_truthful(
     assert payload["database"] == "healthy"
     assert payload["redis"] in {"healthy", "unavailable"}
     assert payload["workers"]["state"] == "unknown"
+    assert payload["workers"]["by_queue"]["website-evidence"]["state"] == "unknown"
+    assert payload["workers"]["by_queue"]["buyer-contact"]["state"] == "unknown"
+    assert payload["contact_discovery_runs"] == {}
     assert payload["automation"]["scheduler"] is False
     assert payload["automation"]["automatic_outreach"] is False
     assert payload["sources"]["bodacc"] == "planned"

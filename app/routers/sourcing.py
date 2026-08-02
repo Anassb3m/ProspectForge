@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from html import escape
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
@@ -16,7 +17,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.discovery.annuaire import linkedin_people_url
 from app.discovery.emails import linkedin_search_url
-from app.discovery.enrich import apply_enrichment_to_prospect, deep_enrich
+from app.discovery.enrich import apply_enrichment_to_prospect
 from app.jobs.enrichment import enrich_prospect_contacts
 from app.models import CHANNELS, EVENT_TYPES, User, Prospect
 from app.schemas import EnrichRequest, EnrichResult, EmailCandidateOut, IngestionResult
@@ -237,29 +238,40 @@ async def api_deep_enrich(
     prospect_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
-    run_contacts: bool = True,
+    run_contacts: bool = False,
     verify: bool = False,
 ):
     prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
-    data = await deep_enrich(
-        siren=prospect.siren,
-        siret=prospect.siret,
-        company_name=prospect.company_name,
-        existing={
-            "website": prospect.website,
-            "email": prospect.email,
-            "dirigeants": prospect.dirigeants,
-        },
-        run_contacts=run_contacts,
-        verify_email=verify,
+    if run_contacts:
+        raise HTTPException(
+            status_code=422,
+            detail="Contact discovery must be queued through the separate readiness-gated stage",
+        )
+    if verify:
+        raise HTTPException(
+            status_code=422,
+            detail="Contact verification belongs to the separate contact-discovery stage",
+        )
+    from app.services.evidence_queue import (
+        dispatch_evidence_enrichment,
+        queue_evidence_enrichment,
     )
-    apply_enrichment_to_prospect(prospect, data)
-    await db.flush()
-    from app.routers.prospects import _to_out
 
-    return {"prospect": _to_out(prospect), "log": data.get("enrichment_log")}
+    run, items = await queue_evidence_enrichment(db, [prospect], actor=_.email)
+    dispatch = await dispatch_evidence_enrichment(db, run, items)
+    if dispatch["dispatch_errors"]:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Evidence run {run.id} is durable but remains pending because the queue is unavailable",
+        )
+    return {
+        "status": run.status,
+        "run_id": run.id,
+        "work_item_ids": [item.id for item in items],
+        "prospect_id": prospect.id,
+    }
 
 
 @router.post("/api/sourcing/bulk-enrich", status_code=status.HTTP_202_ACCEPTED)
@@ -267,7 +279,7 @@ async def api_bulk_enrich(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
     limit: int = Query(30, ge=1, le=100),
-    run_contacts: bool = True,
+    run_contacts: bool = False,
 ):
     """Deep-enrich top unscored / thin prospects in background."""
     result = await db.execute(
@@ -288,14 +300,38 @@ async def api_bulk_enrich(
     )
     ids = [p.id for p in result.scalars().all()]
 
-    from app.workers.tasks import extract_website_evidence, contact_discovery_run
+    if run_contacts:
+        raise HTTPException(
+            status_code=422,
+            detail="Bulk contact discovery is gated separately after evidence enrichment",
+        )
+    prospects = list(
+        (
+            await db.execute(select(Prospect).where(Prospect.id.in_(ids)))
+        ).scalars().all()
+    )
+    from app.services.evidence_queue import (
+        dispatch_evidence_enrichment,
+        queue_evidence_enrichment,
+    )
 
-    for pid in ids:
-        extract_website_evidence.delay(company_id=str(pid), url="")
-        if run_contacts:
-            contact_discovery_run.delay(company_id=str(pid))
-
-    return {"queued": len(ids), "ids": ids}
+    run, items = await queue_evidence_enrichment(db, prospects, actor=_.email)
+    dispatch = await dispatch_evidence_enrichment(db, run, items)
+    if dispatch["dispatch_errors"]:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Evidence run {run.id} retained {dispatch['dispatch_errors']} pending work items "
+                "because the queue is unavailable"
+            ),
+        )
+    return {
+        "run_id": run.id,
+        "queued": dispatch["dispatched"],
+        "duplicates": run.duplicate_count,
+        "ids": ids,
+        "contact_queued": 0,
+    }
 
 
 @router.post("/api/prospects/{prospect_id}/enrich", response_model=EnrichResult)
@@ -533,48 +569,25 @@ async def form_deep_enrich(
     prospect = await services.get_legacy_prospect(db, prospect_id)
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
-    data = await deep_enrich(
-        siren=prospect.siren,
-        siret=prospect.siret,
-        company_name=prospect.company_name,
-        existing={"website": prospect.website, "email": prospect.email},
-        run_contacts=True,
-        verify_email=False,
+    from app.services.evidence_queue import (
+        dispatch_evidence_enrichment,
+        queue_evidence_enrichment,
     )
-    apply_enrichment_to_prospect(prospect, data)
-    await db.flush()
-    prospect = await services.get_prospect(db, prospect_id)
-    # Return refreshed table row if HTMX from queue
-    if request.headers.get("HX-Target", "").startswith("sourcing-row"):
-        return templates.TemplateResponse(
-            request,
-            "partials/sourcing_row.html",
-            {
-                "user": user,
-                "prospect": prospect,
-                "linkedin_search_url": linkedin_search_url,
-                "linkedin_people_url": linkedin_people_url,
-            },
+
+    run, items = await queue_evidence_enrichment(db, [prospect], actor=user.email)
+    dispatch = await dispatch_evidence_enrichment(db, run, items)
+    if dispatch["dispatch_errors"]:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Evidence run {run.id} is durable but its work remains pending",
         )
-    return templates.TemplateResponse(
-        request,
-        "partials/enrich_panel.html",
-        {
-            "user": user,
-            "prospect": prospect,
-            "result": {
-                "message": f"Deep enrich done: {', '.join(data.get('enrichment_log') or [])}",
-                "candidates": prospect.contact_candidates or [],
-                "best_email": prospect.email,
-                "contact_confidence": prospect.contact_confidence,
-            },
-            "linkedin_url": linkedin_people_url(
-                prospect.company_name,
-                prospect.decision_maker_name,
-                prospect.decision_maker_title,
-            ),
-            "flash": "Deep enrichment complete",
-        },
+    return HTMLResponse(
+        f'<tr id="sourcing-row-{prospect.id}" class="bg-indigo-500/10">'
+        '<td colspan="8" class="px-4 py-4 text-sm text-indigo-300">'
+        f'Evidence enrichment queued for {escape(prospect.company_name)} · run {run.id}. '
+        'Contact discovery remains a separate readiness-gated action. '
+        f'<a class="underline" href="/prospects/{prospect.opportunity_id}">Open prospect</a>'
+        '</td></tr>'
     )
 
 
@@ -748,17 +761,28 @@ async def form_bulk_enrich(
     )
     ids = [row[0] for row in result.all()]
 
-    from app.workers.tasks import extract_website_evidence, contact_discovery_run
+    prospects = list(
+        (
+            await db.execute(select(Prospect).where(Prospect.id.in_(ids)))
+        ).scalars().all()
+    )
+    from app.services.evidence_queue import (
+        dispatch_evidence_enrichment,
+        queue_evidence_enrichment,
+    )
 
-    for pid in ids:
-        extract_website_evidence.delay(company_id=str(pid), url="")
-        contact_discovery_run.delay(company_id=str(pid))
+    run, items = await queue_evidence_enrichment(db, prospects, actor=user.email)
+    dispatch = await dispatch_evidence_enrichment(db, run, items)
 
     return templates.TemplateResponse(
         request,
         "partials/ingestion_status.html",
         {
             "user": user,
-            "message": f"Deep-enrich queued for {len(ids)} prospects (dirigeants + emails + ICP score).",
+            "message": (
+                f"Evidence run {run.id}: {dispatch['dispatched']} queued, "
+                f"{dispatch['dispatch_errors']} durable pending, {run.duplicate_count} duplicate requests. "
+                "Contact discovery is queued separately only after readiness gates pass."
+            ),
         },
     )

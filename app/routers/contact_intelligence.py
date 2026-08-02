@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timezone
 from typing import Annotated, Optional
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import RedirectResponse
@@ -19,8 +20,8 @@ from app.contact_intelligence.service import (
     DiscoveryAlreadyRunning,
     DiscoveryNotEligible,
     project_primary_contact_to_prospect,
+    queue_contact_discovery,
     record_manual_review,
-    run_contact_discovery,
 )
 from app.contact_intelligence.confidence import derive_utility, is_usable
 from app.database import get_db
@@ -40,12 +41,49 @@ async def form_run_contact_discovery(
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
     try:
-        await run_contact_discovery(db, prospect, actor=user.email, force=bool(force))
+        run, created = await queue_contact_discovery(
+            db, prospect, actor=user.email, force=bool(force)
+        )
+        await db.commit()
+        if created:
+            from app.workers.tasks import contact_discovery_run
+
+            try:
+                contact_discovery_run.delay(
+                    company_id=str(prospect.id),
+                    contact_run_id=run.id,
+                    force=bool(force),
+                )
+            except Exception as exc:
+                run.status = "enqueue_failed"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_summary = f"queue_unavailable:{exc.__class__.__name__}"
+                await db.commit()
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Contact run {run.id} was recorded but the worker queue is unavailable",
+                ) from exc
     except DiscoveryAlreadyRunning as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return RedirectResponse(
+            url=(
+                f"/prospects/{prospect_id}?contact_status=already_running"
+                f"&contact_reason={quote(str(exc))}#contact-intelligence"
+            ),
+            status_code=303,
+        )
     except DiscoveryNotEligible as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return RedirectResponse(url=f"/prospects/{prospect_id}#contact-intelligence", status_code=303)
+        return RedirectResponse(
+            url=(
+                f"/prospects/{prospect_id}?contact_status=not_eligible"
+                f"&contact_reason={quote(str(exc))}#contact-intelligence"
+            ),
+            status_code=303,
+        )
+    state = "queued" if created else "already_queued"
+    return RedirectResponse(
+        url=f"/prospects/{prospect_id}?contact_status={state}&contact_run={run.id}#contact-intelligence",
+        status_code=303,
+    )
 
 
 @router.post("/prospects/{prospect_id}/contact-intelligence/review")

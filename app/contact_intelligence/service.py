@@ -122,32 +122,58 @@ def _registry_people(prospect: Prospect) -> tuple[list[PersonFact], list[Evidenc
     return people, evidence
 
 
-async def _acquire_lease(db: AsyncSession, prospect_id: int, actor: str) -> ContactDiscoveryRun:
+async def _acquire_lease(
+    db: AsyncSession,
+    prospect_id: int,
+    actor: str,
+    *,
+    queued_run_id: int | None = None,
+) -> ContactDiscoveryRun:
     now = _now()
     dialect = db.bind.dialect.name if db.bind is not None else ""
     if dialect == "postgresql":
         acquired = await db.scalar(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": prospect_id})
         if not acquired:
             raise DiscoveryAlreadyRunning("contact discovery already holds the prospect lock")
+    active_query = select(ContactDiscoveryRun.id).where(
+        and_(
+            ContactDiscoveryRun.prospect_id == prospect_id,
+            ContactDiscoveryRun.status == "running",
+            ContactDiscoveryRun.lease_expires_at > now,
+        )
+    )
+    if queued_run_id is not None:
+        active_query = active_query.where(ContactDiscoveryRun.id != queued_run_id)
     active = await db.scalar(
-        select(ContactDiscoveryRun.id).where(
-            and_(
-                ContactDiscoveryRun.prospect_id == prospect_id,
-                ContactDiscoveryRun.status == "running",
-                ContactDiscoveryRun.lease_expires_at > now,
-            )
-        ).limit(1)
+        active_query.limit(1)
     )
     if active is not None:
         raise DiscoveryAlreadyRunning("contact discovery already running")
-    run = ContactDiscoveryRun(
-        prospect_id=prospect_id,
-        triggered_by=actor[:150],
-        status="running",
-        lease_expires_at=now + timedelta(minutes=3),
-        adapters_requested=["official_website", "public_registry", "dns", "reacher"],
-    )
-    db.add(run)
+    if queued_run_id is not None:
+        run = await db.scalar(
+            select(ContactDiscoveryRun)
+            .where(
+                ContactDiscoveryRun.id == queued_run_id,
+                ContactDiscoveryRun.prospect_id == prospect_id,
+            )
+            .with_for_update()
+        )
+        if run is None:
+            raise DiscoveryNotEligible("queued contact run not found")
+        if run.status in {"completed", "completed_with_warnings"}:
+            return run
+        run.status = "running"
+        run.finished_at = None
+        run.error_summary = None
+    else:
+        run = ContactDiscoveryRun(
+            prospect_id=prospect_id,
+            triggered_by=actor[:150],
+            status="running",
+            adapters_requested=["official_website", "public_registry", "dns", "reacher"],
+        )
+        db.add(run)
+    run.lease_expires_at = now + timedelta(minutes=3)
     await db.flush()
     return run
 
@@ -164,6 +190,64 @@ def _eligibility_reason(prospect: Prospect, minimum_score: int) -> str | None:
     if prospect.readiness_state not in ("contact_required", "contact_ready"):
         return f"not_eligible_state_{prospect.readiness_state}"
     return None
+
+
+async def queue_contact_discovery(
+    db: AsyncSession,
+    prospect: Prospect,
+    *,
+    actor: str,
+    force: bool = False,
+) -> tuple[ContactDiscoveryRun, bool]:
+    """Persist one idempotent contact run before publishing it to Celery.
+
+    The returned boolean is false when an already queued/running run was reused.
+    The caller must commit the row before dispatching the task.
+    """
+    settings = get_settings()
+    if await is_suppressed(db, email=prospect.email, siren=prospect.siren):
+        raise DiscoveryNotEligible("suppressed")
+    reason = _eligibility_reason(prospect, settings.contact_min_opportunity_score)
+    if reason and not force:
+        raise DiscoveryNotEligible(reason)
+
+    active = await db.scalar(
+        select(ContactDiscoveryRun)
+        .where(
+            ContactDiscoveryRun.prospect_id == prospect.id,
+            ContactDiscoveryRun.status.in_({"queued", "retry_pending", "running"}),
+        )
+        .order_by(ContactDiscoveryRun.started_at.desc())
+        .limit(1)
+    )
+    if active is not None:
+        return active, False
+
+    if not force:
+        fresh_after = _now() - timedelta(days=settings.contact_refresh_days)
+        fresh = await db.scalar(
+            select(ContactDiscoveryRun.id).where(
+                and_(
+                    ContactDiscoveryRun.prospect_id == prospect.id,
+                    ContactDiscoveryRun.status.in_({"completed", "completed_with_warnings"}),
+                    ContactDiscoveryRun.finished_at >= fresh_after,
+                )
+            ).limit(1)
+        )
+        if fresh is not None:
+            raise DiscoveryNotEligible("contact dossier is fresh")
+
+    run = ContactDiscoveryRun(
+        prospect_id=prospect.id,
+        triggered_by=actor[:150],
+        run_type="forced" if force else "full",
+        status="queued",
+        adapters_requested=["official_website", "public_registry", "dns", "reacher"],
+        result_summary={"queue_state": "committed_before_dispatch"},
+    )
+    db.add(run)
+    await db.flush()
+    return run, True
 
 
 async def _load_existing(
@@ -576,6 +660,7 @@ async def run_contact_discovery(
     force: bool = False,
     adapter: ContactSourceAdapter | None = None,
     verify_domains: bool = True,
+    queued_run_id: int | None = None,
 ) -> ContactDiscoveryRun:
     settings = get_settings()
     if await is_suppressed(db, email=prospect.email, siren=prospect.siren):
@@ -583,7 +668,7 @@ async def run_contact_discovery(
     reason = _eligibility_reason(prospect, settings.contact_min_opportunity_score)
     if reason and not force:
         raise DiscoveryNotEligible(reason)
-    if not force:
+    if not force and queued_run_id is None:
         fresh_after = _now() - timedelta(days=settings.contact_refresh_days)
         fresh = await db.scalar(
             select(ContactDiscoveryRun.id).where(
@@ -596,7 +681,11 @@ async def run_contact_discovery(
         )
         if fresh is not None:
             raise DiscoveryNotEligible("contact dossier is fresh")
-    run = await _acquire_lease(db, prospect.id, actor)
+    run = await _acquire_lease(
+        db, prospect.id, actor, queued_run_id=queued_run_id
+    )
+    if run.status in {"completed", "completed_with_warnings"}:
+        return run
     started = time.monotonic()
     try:
         context = ContactDiscoveryContext(

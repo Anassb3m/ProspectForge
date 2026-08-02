@@ -44,8 +44,10 @@
         <form action="/drafts/{{ draft.id }}/approve" method="POST">
           <button type="submit" class="btn-primary py-1.5 px-3 text-xs"><i class="ph ph-check"></i> Approve</button>
         </form>
-        <button class="btn-secondary py-1.5 px-3 text-xs text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30"><i
-            class="ph ph-x"></i> Reject</button>
+        <form action="/drafts/{{ draft.id }}/reject" method="POST">
+          <button type="submit" class="btn-secondary py-1.5 px-3 text-xs text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30"><i
+              class="ph ph-x"></i> Reject</button>
+        </form>
       </div>
     </div>
 

@@ -26,7 +26,6 @@ _CSRF_EXEMPT_PREFIXES = (
     "/docs",
     "/openapi.json",
     "/redoc",
-    "/api/",  # JSON API uses Bearer; HTML forms use CSRF
 )
 
 
@@ -37,8 +36,8 @@ def generate_csrf_token() -> str:
 class CSRFMiddleware:
     """
     Double-submit CSRF for browser form posts.
-    Expects header X-CSRF-Token matching cookie pf_csrf (set via base template + HTMX).
-    Bearer-authenticated API under /api/ is exempt.
+    Expects X-CSRF-Token or a native form ``_csrf`` field matching cookie
+    ``pf_csrf``. Bearer-authenticated API requests remain exempt.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -49,7 +48,8 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
-        request = Request(scope)
+        request = Request(scope, receive=receive)
+        replay_body: bytes | None = None
         if request.method in _MUTATING:
             path = request.url.path
             exempt = any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES)
@@ -58,9 +58,18 @@ class CSRFMiddleware:
                 exempt = True
             if not exempt:
                 cookie = request.cookies.get(CSRF_COOKIE)
-                header = request.headers.get(CSRF_HEADER) or request.headers.get("X-CSRF-Token")
-                # Also accept form field via query for rare cases — primary is header
-                if cookie and header and secrets.compare_digest(str(cookie), str(header)):
+                submitted = request.headers.get(CSRF_HEADER)
+                if not submitted:
+                    content_type = request.headers.get("content-type", "")
+                    if content_type.startswith(("application/x-www-form-urlencoded", "multipart/form-data")):
+                        # Reading the form consumes the ASGI body. Cache and replay it
+                        # so FastAPI can still bind the endpoint's Form parameters.
+                        replay_body = await request.body()
+                        form = await request.form()
+                        candidate = form.get("_csrf")
+                        if isinstance(candidate, str):
+                            submitted = candidate
+                if cookie and submitted and secrets.compare_digest(str(cookie), str(submitted)):
                     pass
                 else:
                     if "text/html" in request.headers.get("accept", ""):
@@ -99,7 +108,23 @@ class CSRFMiddleware:
                 message.setdefault("headers", []).append(set_cookie_header)
             await send(message)
 
-        await self.app(scope, receive, send_with_csrf_cookie)
+        if replay_body is None:
+            downstream_receive = receive
+        else:
+            body_sent = False
+
+            async def downstream_receive() -> Message:
+                nonlocal body_sent
+                if not body_sent:
+                    body_sent = True
+                    return {
+                        "type": "http.request",
+                        "body": replay_body,
+                        "more_body": False,
+                    }
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+        await self.app(scope, downstream_receive, send_with_csrf_cookie)
 
 
 _login_hits: dict[str, Deque[float]] = defaultdict(deque)
